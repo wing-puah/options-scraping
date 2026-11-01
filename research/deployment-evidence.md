@@ -846,6 +846,58 @@ The evidence is inconsistent, and a third of rows lack an earnings date.
  An in-sample test would spend
 the trial ledger, so this waits for forward data.
 
+### The $1,000 stop-fit filter (to be tested, forward only)
+
+Added 2026-10-29. The filter refuses a pick whose risk unit does not fit the
+operator's $1,000 stop. Population: v4 exports of 2026-10-26, seal withheld,
+and frozen v3. Entry in
+[`current.md`](current.md#2026-10-29-later--profit-factor-review-shipped-rules-carry-the-edge-nothing-new-ships);
+queue item [§2.20](next-steps.md#s2-20).
+
+| Cell, after tier A/B | Result |
+|---|---|
+| Per trade, v4 real + tweak, net | ΔPF +0.38 [+0.16, +0.64] |
+| Per trade, v4 real only, net | ΔPF +0.11 [−0.19, +0.45] |
+| Per trade, v3 real + tweak | ΔPF −0.06 [−0.33, +0.27] |
+| Account, v4 PRIMARY, gross | PF 1.51 [1.12, 2.04]; realized maxDD 42.8%, against 11.5% under F2 |
+
+The v4 lift comes from over-budget rows that exit on the dollar stop; on v3
+those rows are profitable. PBO across the 96 per-trade configs is 0.10 on v4
+real + tweak but 0.60 on v4 real only, and the configs were chosen after
+reading v4.
+
+### Two drawdown stabilisers (to be tested, forward)
+
+Added 2026-10-29. Both beat a random-thinning control of the same size on
+both walks. Each was the eighteenth or nineteenth configuration tried, and
+PBO on return over maxDD across the 19-arm ledger is 52% to 73%.
+Population: v4 `account_sim` `(R, F1)` walk, gross MTM, $25k.
+
+| Arm | Walk | n | Total $ | MTM maxDD | Return / maxDD |
+|---|---|---|---|---|---|
+| Baseline | PRIMARY | 308 | 16,465 | 76.2% | 0.86 |
+| Refuse underlying 20-day vol > 60% | PRIMARY | 228 | 24,446 | 34.9% | 2.80 |
+| Refuse underlying 20-day vol > 60% | SECONDARY | 255 | 19,695 | 54.7% | 1.44 |
+| Pause while down 10% from a rolling 60-session peak | PRIMARY | 206 | 24,380 | 39.5% | 2.47 |
+| Pause while down 10% from a rolling 60-session peak | SECONDARY | 221 | 20,687 | 42.8% | 1.93 |
+
+The vol filter's gain is 13 COIN and 5 MSTR positions that happened to lose.
+Revisit both only if F2 fails forward.
+
+### Tested and dropped (2026-10-29)
+
+Each lever below was measured in-sample on the v4 exports of 2026-10-26 and
+dropped. The number is the one that killed it.
+
+| Lever | The number | Basis |
+|---|---|---|
+| Profit target 0.70 or 0.75 (shipped debit target 0.90) | ΔPF +0.05 [−0.07, +0.19] on v4 after tier A/B and the $1,000 fit; −0.01 on v3 real | per trade, net |
+| Max-open 6 under F2 | P&L +$11,448 → +$1,920, PF 1.17 [0.73, 1.84] | v4 PRIMARY, gross |
+| Net cap 1.5× under F2 | realized maxDD unchanged at 11.5%, for −$2.0k | v4 PRIMARY, gross |
+| Research per-ticker cap, one open per ticker | MTM maxDD −$16.7k, against −$12.9k for random thinning of the same size | v4 PRIMARY, F1, gross |
+| Pause keyed to the running peak | under water 594 of 724 sessions; it never recovers | v4 PRIMARY, F1, gross |
+| Book-level vol-targeting overlay | Sharpe 0.39 against 0.42 (20-day window) | v4 PRIMARY, F1, gross |
+
 ---
 
 ## Selection candidates — open (2026-10-12)
@@ -893,6 +945,22 @@ waits behind the holdout seal.
 | v3, gross | 0.000, no switch |
 
 Entry in [`current.md`](current.md#2026-10-12--adaptive_ladder-the-walk-forward-adapter-beats-m0-once-on-a-menu-built-in-hindsight).
+
+### New market-regime labels (tested, dropped 2026-10-29)
+
+Nine lookahead-free SPY/VIX labels, a 2-state HMM among them, were graded
+against `mech_cell` on the 914-row v4 results book (net) and on 406 v3 real
+rows. The null rotates each label's dates, keeping its persistence. All are
+dropped. Entry in
+[`current.md`](current.md#2026-10-29-later--profit-factor-review-shipped-rules-carry-the-edge-nothing-new-ships).
+
+| Label or gate | The number that killed it |
+|---|---|
+| All nine new labels | none separates v4 PF at p < 0.05; the best, `vrp_sign`, is 0.098 |
+| HMM-aligned gate | v4 PF 1.23 [0.96, 1.56] falls to 0.98 on v3 |
+| Bull × realized vol low or mid | v4 PF 1.50 [1.09, 2.06] falls to 0.89 on v3 |
+| 50- and 200-day SMA, 1- and 3-month TSMOM, 52-week drawdown, VXX trend | v4 rotation p 0.59 or higher |
+| Bear × `mech_vol` E-VOL | removes 0 rows once tier A/B or the bear veto is on |
 
 ---
 

@@ -301,6 +301,302 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-10-29 (later) — profit factor review: shipped rules carry the edge, nothing new ships
+
+**The book's profit factor improves only through rules that already ship:
+tier A/B and the deploy card's $500 skip rule.** No new lever, exit or market
+label holds on both eras. Everything is in-sample; v3 and v4 share dates.
+
+_Era v4, exports of 2026-10-26 01:06, seal withheld; v3 a second sample,
+never pooled. Per trade is net of costs; [`account_sim`](arm-index.md#account_sim)
+is gross, at $25k. The seven working notes, the synthesis report and every
+script are archived outside the repo at
+`~/claude_playground/options-trading-research-archive/2026-10-29-profit-factor-review/`._
+
+**In production.** Nothing changes. The research headline grades the F1 floor
+while the deploy card trades [F2](glossary.md#f1-vs-f2)
+([sizing](../docs/deployment-rules.md#s2-sizing)).
+
+### One export, four profit factors
+
+The v4 figures are nested cuts of one export; a [PF](glossary.md#pf) without
+its population can be off by 0.45.
+
+| Population | Rows | Dates | Net $ | PF [[CI](glossary.md#ci)] | Basis |
+|---|---|---|---|---|---|
+| v4 raw BacktestResults | 1,053 | 274 | — | — | — |
+| v4 pre-seal results, pending open rows kept | 971 | 256 | −23,612 | 0.94 | net |
+| v4, 57 pending open rows dropped | 914 | 251 | −18,912 | 0.95 [0.80, 1.13] | net |
+| v4, plus 892 tweak proxy rows (the study book) | 1,806 | 279 | −152,977 | 0.82 [0.72, 0.94] | net |
+| v4 [PRIMARY](glossary.md#primary-dense-episodes-vs-secondary-full-book) walk: tier A/B, top-3/day, $500 stop, F1 | 308 | 164 | +16,465 | 1.27 [0.92, 1.73] | gross |
+| v3 real, plus 389 tweak rows | 795 | — | +12,329 | 1.04 [0.86, 1.26] | net = gross |
+
+The tweak rows alone run at PF 0.71 and carry 88% of the v4 loss. Costs are
+$14.5k of it, at commission-only.
+
+### Per trade, only tier A/B replicates
+
+Levers stacked in order, net. Dropping bears adds zero after tier A/B, since
+no bear row is tier A/B. ΔPF rows carry [paired CIs](glossary.md#paired-ci).
+
+| Step | v4 real + tweak | v4 real only | v3 real + tweak | v3 real only |
+|---|---|---|---|---|
+| Baseline | 0.82 [0.72, 0.94], n 1,806 | 0.95 [0.80, 1.13], n 914 | 1.04 [0.86, 1.26], n 795 | 1.12 [0.87, 1.44], n 406 |
+| + tier A/B (shipped) | 1.21 [0.99, 1.48], n 699 | 1.30 [0.98, 1.77], n 347 | 2.06 [1.50, 2.82], n 294 | 2.24 [1.53, 3.32], n 154 |
+| ΔPF of tier A/B | +0.38 [+0.19, +0.61] | +0.35 [+0.07, +0.76] | +1.03 [+0.52, +1.73] | +1.12 [+0.53, +2.06] |
+| + fits $1,000 (new) | 1.59 [1.27, 1.98], n 513 | 1.41 [1.03, 1.94], n 254 | 2.01 [1.44, 2.81], n 243 | 2.27 [1.52, 3.49], n 129 |
+| ΔPF of fits $1,000 | +0.38 [+0.16, +0.64] | +0.11 [−0.19, +0.45] | −0.06 [−0.33, +0.27] | +0.03 [−0.34, +0.56] |
+| ΔPF of profit target 0.70 (new), added last | +0.05 [−0.07, +0.19] | +0.11 [−0.08, +0.32] | +0.07 [−0.16, +0.33] | −0.01 [−0.35, +0.56] |
+
+- **Tier A/B is a finding on v3, not on v4**, where its CI touches 1 and its
+  second half is 0.90. The v4 A/B edge is mostly beta to a rising tape
+  ([2026-10-12](#2026-10-12--exploratory-read-v4-is-a-bull-tape-and-the-vetoes-are-its-only-ladder-edge)).
+- **"Fits $1,000" works on one tape.** On v4 the $1,000 line acts as an early
+  stop on over-budget rows. On v3 the same rows are profitable, PF 2.36 on 51.
+- **The $500 version (F2) refuses 477 of 699 v4 A/B rows.** Its value is at
+  account level.
+
+### At account level, F2 is the only lever that holds on both eras
+
+`account_sim.simulate()`, gross, with 0 G-MTM mismatches.
+[maxDD](glossary.md#maxdd) is realized and
+[MTM](glossary.md#mark-to-market-basis), as a share of $25k.
+
+| Config | v4 PRIMARY n / $ / PF [CI] | v4 realized / MTM maxDD | v3 SECONDARY n / $ / PF [CI] | v3 realized / MTM maxDD |
+|---|---|---|---|---|
+| Tier A/B, (R, F1), the tracked headline | 308 / +16,465 / 1.27 [0.92, 1.73] | 55.6% / 76.2% | 158 / +12,611 / 1.46 [1.00, 2.18] | 25.1% / 35.2% |
+| + fits $1,000 | 287 / +23,390 / 1.51 [1.12, 2.04] | 42.8% / 45.0% | 145 / +14,580 / 1.64 [1.11, 2.40] | 19.8% / 29.3% |
+| **+ F2 $500, (R, F2), the deploy card** | **167 / +11,448 / 1.60 [1.12, 2.31]** | **11.5% / 14.6%** | **93 / +10,846 / 2.19 [1.39, 3.60]** | **13.4% / 19.0%** |
+| F2 + max-open 6 | 90 / +1,920 / 1.17 [0.73, 1.84] | 8.9% / 10.0% | 49 / +4,769 / 1.96 | 4.9% / 7.8% |
+| Fits $1,000 + max-open 6 | 84 / +14,237 / 2.14 [1.24, 3.72] | 12.1% / 15.2% | 62 / +4,411 / 1.44 | 9.1% / 11.8% |
+
+- **F2 keeps PF at 1.5 or more with a CI clear of 1** on both v4 walks and v3
+  SECONDARY. It costs $5.0k (30%) on v4 PRIMARY.
+- **Caps add nothing once F2 is in.** A 1.5× net cap leaves drawdown the same
+  and costs $2.0k. Max-open 6 looks good only after "fits $1,000", an
+  in-sample fit to the lever before it.
+- **The F2 forward grade is still open**
+  ([`refuse_floor_forward`](arm-index.md#refuse_floor_forward)); its
+  in-sample 2026 [meanR](glossary.md#meanr) was +0.003.
+
+### Drawdown is one high-beta bet; caps act by holding fewer positions
+
+No F1 position is short delta, and the five best days are 90% of the total.
+Each arm is compared with dropping as many positions at random. PRIMARY, F1,
+gross.
+
+| Arm | n | Total $ | MTM maxDD | Return / maxDD | Random control maxDD |
+|---|---|---|---|---|---|
+| Baseline | 308 | 16,465 | 76.2% | 0.86 | — |
+| Per-ticker cap, one open per ticker | 204 | 7,379 | 66.8% | 0.44 | −$12,947 |
+| Refuse underlying 20-day vol > 60% | 228 | 24,446 | 34.9% | 2.80 | −$14,160 |
+| Pause while down 10% from a rolling 60-session peak | 206 | 24,380 | 39.5% | 2.47 | −$13,156 |
+| Pause while down 10% from the running peak | 78 | 9,821 | 34.9% | 1.13 | −$5,938 |
+
+The per-ticker cap is worse than random, because co-movement is market-wide.
+A running-peak pause is absorbing, under water 594 of 724 sessions (the
+[trigger-reference lesson](lessons.md)). The vol filter and the rolling pause
+beat random on both walks, but each was the eighteenth or nineteenth
+configuration tried. Book-level vol targeting lowered Sharpe, 0.39 against
+0.42.
+
+### Delta notional comes down through F2, not a new cap
+
+| Measure | Value | Basis |
+|---|---|---|
+| Net [delta-notional](glossary.md#delta-notional) above 1.0× equity | 75% of sessions, median 1.81× | v4 PRIMARY F1, gross MTM |
+| Daily P&L per unit of delta-notional × SPY return | 1.46× [1.30, 1.63] | same |
+| Kelly leverage μ/σ²; annualised Sharpe | 0.97× current exposure; 0.47 [−0.55, +1.68] | same |
+| F1, net cap 2.5 → 1.5 | $15,425 → $15,489 net; MTM maxDD 77.1% → 37.5% | net-cap grid |
+| F2, net cap 2.5 / 1.5 / 1.0 | MTM maxDD 14.9% / 14.9% / 15.9% | net-cap grid, gross |
+| Live per-ticker 0.25× cap, 23 snapshots | breached on all 23 | journal ratios |
+
+The book runs at about full Kelly on an edge whose CI spans zero, so theory
+favours less exposure (Thorp 2006). Under F2 a net cap buys nothing. Live net
+averaged 0.96× NetLiq; the live problem is single-name concentration.
+
+### No market label beats chance once direction is known
+
+On the 971-row v4 results book (net), R regressed on the underlying's aligned
+move gives R² 0.50. After it, every label family's mean residual is within
+±0.04 R.
+
+| Rows by the underlying's move over the hold | PF [CI] | Net $ |
+|---|---|---|
+| Moved the play's way | 10.03 [7.06, 15.34] | +297k |
+| Moved against it | 0.05 | −303k |
+| Hit rate: break-even / observed / needed for PF 1.2–1.3 | 53.3% / 52.9% / 58–60% | — |
+
+So a label must forecast the traded underlying's sign over about 24 weekdays
+at an [AUC](glossary.md#auc) above about 0.56. None does.
+
+Nine new lookahead-free SPY/VIX labels, one a monthly re-fitted HMM, were
+graded on the 914-row book (net) against a persistence-keeping rotation null.
+
+| Label | v4 rotation p | v3 rotation p |
+|---|---|---|
+| [`mech_cell`](glossary.md#mech_cell), existing | 0.47 | 0.25 |
+| `mech_vol`, existing part | 0.81 | **0.008** |
+| `vrp_sign`, the best new label | 0.098 | 0.37 |
+| `hmm2`, 2-state HMM | 0.39 | 0.35 |
+| `rv_tercile` | 0.28 | 0.89 |
+| `sma200`, `sma50`, `tsmom1m`, `tsmom3m`, `dd52w`, `vxx_mom20` | 0.59–0.98 | ≥ 0.25 |
+
+| Gate (in-sample) | v4 PF [CI], n | v3 PF |
+|---|---|---|
+| HMM-aligned | 1.23 [0.96, 1.56], 549 | 0.98, second half 0.53 |
+| Drop bears, no label | 1.16 [0.91, 1.49], 555 | 1.70 |
+| Bull × realized vol low or mid (post hoc) | 1.50 [1.09, 2.06], 327 | 0.89 |
+| Bear × `mech_vol` E-VOL | 0.40, 34; halves 0.03 / 0.98 | 0.28, 47 |
+
+Most of the HMM gate is "drop bears", and it reverses on v3. Bear × E-VOL
+recurs but removes zero rows once tier A/B is on. The literature agrees: vol
+regimes forecast vol and tail size, not index sign.
+
+### The overfitting reads permit almost nothing new
+
+PBO by CSCV ([`pbo_ledger`](arm-index.md#pbo_ledger)); per trade it ranks 96
+configs on PF.
+
+| Read | v4 real + tweak | v4 real only | v3 real + tweak | v3 real only |
+|---|---|---|---|---|
+| Per-trade PBO | 0.10 | 0.60 | 0.46 | 0.49 |
+| In-sample best PF, in → out of sample | 1.66 → 1.52 | 1.73 → 1.31 | 2.53 → 1.79 | 3.30 → 2.24 |
+
+| Other search | PBO |
+|---|---|
+| Account, 48 configs, total P&L, four walks | 0.19–0.60 |
+| Drawdown stabilisers, 19 arms, return / maxDD | 52–73% |
+| Market labels, 70 gates | about 0.30 |
+
+The filters probably keep PF above 1, but which stack is best is noise.
+Shapley attribution gives tier A/B the largest share in three of four
+populations.
+
+### Shipped doctrine against new and in-sample
+
+| Lever | Status | Evidence here |
+|---|---|---|
+| Tier A/B and bear vetoes ([§1–§3](../docs/deployment-rules.md#s1)) | shipped | ΔPF CI above 0 everywhere; a finding on v3, not v4 |
+| F2, skip if one contract risks more than $500 | shipped on the deploy card; not the research headline | realized maxDD 55.6% → 11.5% v4, 25.1% → 13.4% v3; forward open |
+| Fits the $1,000 stop | new, in-sample | +0.38 v4, +0.11 v4 real, −0.06 v3 |
+| Max-open, net caps; target 0.70 or 0.75 ([§5](../docs/deployment-rules.md#s5) ships 0.90) | new | nothing under F2; target CIs span 0 |
+| New labels; bear in E-VOL | new | null against rotation; reverse on v3 |
+
+### The four questions
+
+| Question | Answer |
+|---|---|
+| Can PF and stability improve? | Yes, through tier A/B and F2 (both eras). |
+| A better market classifier? | No; keep `mech_cell` for exits (v4 net, v3). |
+| Cut delta notional? | Yes in total, via F2 (v4 account, gross); live, enforce the ticker cap. |
+| What did the new tests find? | New levers are v4-only or noise; caps add nothing after F2; labels null. |
+
+| Order | Item | Action |
+|---|---|---|
+| 1 | Grade `account_sim` and the forward record on F2 | register; a measurement change |
+| 2 | "Fits the $1,000 stop", against F2 and with the dip-date rule | register, forward only |
+| 3 | Live per-ticker 0.25× conformance; a net backstop near 1.5× on dip dates | operator decision |
+| 4 | 20-day vol > 60% refusal; rolling 60-session drawdown pause | park |
+| 5 | Profit target 0.70 or 0.75; caps under F2; peak pauses; vol targeting | drop |
+| 6 | Every new label; bear × E-VOL | drop |
+
+**Next.** [`next-steps.md`](next-steps.md) gains
+[§2.19](next-steps.md#s2-19) to [§2.22](next-steps.md#s2-22); the queued
+forward reads (`dip_buy`, `mechanical_baseline`, `exit_mark_clock`,
+`index_bear_hedge`) keep their places. Candidates and dropped levers are in
+[deployment-evidence](deployment-evidence.md#sizing-and-drawdown-candidates--open-2026-10-06).
+
+---
+
+## 2026-10-29 — bear put spreads carry the v4 book's loss, and they lose on direction
+
+**Bear put spreads are almost the whole loss of the v4 book.** They lost
+−$150,094 on 676 rows. Every other structure together nets −$2,886. The cause is
+direction: the stock rose after most entries, and the spread needed a fall of
+about 4% to break even. This is a descriptive split of the
+[`bear_arm`](arm-index.md#bear_arm) book. It runs no test and moves no verdict.
+It adds the mechanism to a settled lesson: bear debit has no standalone
+selection edge ([lessons.md](lessons.md)).
+
+_Era v4, exports of 2026-10-26. The bear-put rows are 354 real and 322
+tweak. Report: `backtests/study_output/bear_arm-latest.txt`. Stock moves are
+close to close from `backtests/underlying_ohlc_cache/`. The split script was
+scratch work and was not kept._
+
+**In production.** Nothing changes. The ladder already puts every bear row in
+tier C or VETO, so none is deployed
+([tier ladder](glossary.md#tier-ladder-abcveto)).
+
+**Evidence.** The rows split cleanly on what the stock did between entry and
+the end of the path window.
+
+| Stock move, entry to path end | Rows | Mean [R](glossary.md#r) | Win | Net $ |
+|---|---|---|---|---|
+| Fell more than 5% | 151 | +0.38 | 66% | +64,912 |
+| Fell 2–5% | 46 | +0.22 | 54% | +10,479 |
+| Fell 0–2% | 70 | −0.16 | 36% | −13,350 |
+| Rose 0–2% | 73 | −0.24 | 22% | −24,223 |
+| Rose 2–5% | 87 | −0.26 | 28% | −27,386 |
+| Rose more than 5% | 239 | −0.57 | 9% | −157,557 |
+
+Ten rows have no stock bars. The stock rose after 59% of entries, with a
+median move of +1.8%.
+
+Three things made the direction bet hard to win.
+
+- **The break-even was far away.** The median debit was 0.34 of the width.
+  The long strike sat 1.4% below spot, so the median break-even was 3.8% below
+  spot. A small fall in the right direction still lost money.
+- **Entries came after a fall.** On dates the mechanical label called BEAR,
+  the median stock rose 5.4% afterwards. That matches the
+  [2026-10-23 finding](#2026-10-23--heavy-hedging-in-the-flow-does-not-forecast-spy-it-arrives-after-the-fall-has-begun)
+  that heavy hedging arrives after the fall has begun.
+- **The losses came from index ETFs in an uptrend.** IWM and SPY lead the
+  table below. The top ten tickers carry 67% of the loss.
+
+| Ticker | Rows | Net $ | Median stock move |
+|---|---|---|---|
+| IWM | 115 | −26,535 | +2.6% |
+| SPY | 53 | −15,135 | +4.1% |
+| NVDA | 34 | −12,620 | +10.4% |
+| HYG | 41 | −11,305 | +0.1% |
+
+The exits cut losses but cannot fix the direction.
+
+| Exit | Rows | Mean R | Net $ |
+|---|---|---|---|
+| Profit target | 151 | +1.07 | +201,870 |
+| Stop loss | 222 | −0.79 | −185,474 |
+| Dollar stop | 130 | −0.69 | −145,925 |
+| Time exit | 101 | −0.12 | −11,150 |
+| Open at the data end | 65 | −0.15 | −9,863 |
+| Trailing stop | 7 | +0.06 | +448 |
+
+A quarter of the rows (170) never reached +10%
+[MFE](glossary.md#mfe--mae-max-favorable--adverse-excursion). They lost
+−$145,817, close to the whole net loss.
+
+**What it is not.** Costs total $6,833, under 5% of the loss. Pricing is not
+the cause either: the real-priced rows lose on their own. Every year is
+negative.
+
+| Cut | Rows | Mean R | Net $ |
+|---|---|---|---|
+| Real-priced only | 354 | −0.14 | −53,183 |
+| Tweak-priced only | 322 | −0.23 | −96,911 |
+| 2024 | 250 | −0.25 | −69,005 |
+| 2025 | 194 | −0.18 | −37,674 |
+| 2026 | 232 | −0.11 | −43,416 |
+
+**Caveats.** Each row is scored on its own. A bear put's value as a hedge
+against the bull rows held at the same time is not in this sum;
+`hedge_sizing` measures that separately.
+
+**Next.** No new item.
+
+---
+
 ## 2026-10-26 — suite re-run on the one-clock book: 16 verdicts moved, nothing ships
 
 **The suite was re-run on the re-priced v4 book and 16 of 54 reports moved

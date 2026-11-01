@@ -1342,6 +1342,63 @@ Open for the operator:
   at `2664ebd` from a run no session claimed. It is left uncommitted until the operator confirms
   where it came from.
 
+<a id="s2-19"></a>
+### 2.19 Grade `account_sim` and the forward record on F2 — OPEN, filed 2026-10-29
+
+The deploy card trades F2: skip a play whose one contract risks more than $500
+([sizing](../docs/deployment-rules.md#s2-sizing)). The tracked
+[`account_sim`](arm-index.md#account_sim) headline is `(R, F1)`, which takes that play at one
+contract. On the v4 PRIMARY walk (gross) that gap is the largest drawdown item in the record.
+
+| v4 PRIMARY, gross, $25k | Positions | P&L | Realized maxDD |
+|---|---|---|---|
+| `(R, F1)`, the tracked headline | 308 | +$16,465 | 55.6% |
+| `(R, F2)`, the deploy card | 167 | +$11,448 | 11.5% |
+
+What to do: register `(R, F2)` as the headline cell of `account_sim` and of the forward record,
+so the rule the operator trades is the one graded. This is a measurement alignment, not a new
+rule. [`refuse_floor_forward`](arm-index.md#refuse_floor_forward) already grades `(R, F2)`
+forward and is `STILL-OPEN`. Evidence:
+[current.md](current.md#2026-10-29-later--profit-factor-review-shipped-rules-carry-the-edge-nothing-new-ships).
+
+<a id="s2-20"></a>
+### 2.20 The $1,000 stop-fit filter — OPEN, filed 2026-10-29, forward only
+
+The filter refuses a pick whose risk unit does not fit the operator's $1,000 stop. It is the
+strongest new candidate on v4 and does not replicate.
+
+| Per trade, net, after tier A/B | ΔPF [paired CI] |
+|---|---|
+| v4 real + tweak | +0.38 [+0.16, +0.64] |
+| v4 real only | +0.11 [−0.19, +0.45] |
+| v3 real + tweak | −0.06 [−0.33, +0.27] |
+
+What to do: pre-register it as a forward-only candidate behind the
+[holdout seal](pre-registrations/f4_deployment/holdout_seal.md). Grade it against F2, and jointly
+with the dip-date $1,000 rule, which sizes on the same stop. State the v3 failure and the v4-real
+CI in the registration. It must not be adopted on the in-sample evidence.
+
+<a id="s2-21"></a>
+### 2.21 The F2 book's net delta-notional was not computed — OPEN, filed 2026-10-29
+
+The 2026-10-29 delta-notional read measured the F1 book only: net above 1.0× equity on 75% of
+sessions. Under F2 a net cap changes no drawdown, so the F2 book probably sits lower, but its
+distribution is unmeasured. What to do: compute the per-session net
+[delta-notional](glossary.md#delta-notional) of the `(R, F2)` walk, gross, on the same exports.
+It needs no new data.
+
+<a id="s2-22"></a>
+### 2.22 `account_sim.signed_dn()` turns a missing delta into 0.0 — OPEN, filed 2026-10-29
+
+`scripts/backtest_study/f4_deployment/account_sim.py::signed_dn` returns 0.0 when delta or the
+underlying price is missing. The repo rule is that a missing greek is `None`, never 0.0. This
+breaks it in research code. Two v4 PRIMARY positions are affected, so the simulated net
+delta-notional totals are a slight floor.
+
+What to do: return `None`, exclude the position from the net totals, and print how many were
+excluded, as production's `s03_risk.py` does. That changes `account_sim` output, so it needs a
+test and a re-run recorded in `current.md`.
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 
