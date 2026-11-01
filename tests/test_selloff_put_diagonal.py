@@ -480,3 +480,28 @@ def test_draws_p_and_standing():
     assert S.secondary_standing("PAYS", "SELLOFF-ENTRY-HELPS", None, 0.6) == "BLOCKED (PBO)"
     assert S.secondary_standing("PAYS", "NULL", None, 0.1) == "-"
     assert S.secondary_standing("PAYS", "SELLOFF-ENTRY-HELPS", "PUT-COSTS", 0.1) == "-"
+
+
+def test_close_by_freezes_the_in_sample_set(monkeypatch):
+    """An in-sample trade must close by CLOSE_BY even when later sessions exist;
+    the unfrozen build (the printed check) sees the real data end."""
+    seen = []
+
+    def fake_select(chain, evidence, listing, closes, sessions, last, geom, arm,
+                    signal, entry):
+        seen.append(last)
+        exit_day = S.CLOSE_BY + timedelta(days=10)
+        pk = S.Package(arm, signal, entry, geom, "built", rolls=[exit_day])
+        if exit_day > last:
+            pk.status, pk.reason = "open", "open_at_data_end"
+        return pk
+
+    monkeypatch.setattr(S, "select", fake_select)
+    closes = {d: 500.0 for d in weekdays(date(2026, 9, 1), S.CLOSE_BY + timedelta(days=40))}
+    book = S.Book(NTF.Chain(idx={}), set(), closes)
+    sig = date(2026, 9, 15)
+    frozen = book.package(S.PRIMARY.geom, S.ARM_C, sig)
+    full = book.package(S.PRIMARY.geom, S.ARM_C, sig, frozen=False)
+    assert seen == [S.CLOSE_BY, max(closes)]
+    assert (frozen.status, frozen.reason) == ("open", "closes_after_freeze")
+    assert full.status == "built"

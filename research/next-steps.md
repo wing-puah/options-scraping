@@ -1429,8 +1429,11 @@ Operator answers of 2026-11-01, folded into the registration before any outcome:
 - **Secondary grades.** Every cell is graded, Holm-corrected within each question, and
   marked `(SECONDARY)`. None can be promoted without a forward read and a new registration.
 
-Still open: 7 `ARM C` diagonals close after 2026-10-22. Proposed: grade only calm weeks whose
-diagonals have closed, or wait until about 2026-12-18.
+- **Calm weeks frozen.** In-sample trades must close by 2026-10-22, so `ARM C` grades 147 of
+  154 weeks. After about 2026-12-18, fetch the other 7 with `--scope all`; a printed check then
+  compares all 154 and flags a change of sign.
+
+No choice is left open.
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open

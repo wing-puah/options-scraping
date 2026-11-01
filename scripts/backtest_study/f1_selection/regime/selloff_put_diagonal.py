@@ -91,6 +91,10 @@ ACCEPTED = "2026-11-01"
 TICKER = "SPY"
 IN_SAMPLE = (date(2022, 3, 1), date(2026, 9, 22))
 FORWARD_START = date(2026, 11, 1)
+#: In-sample trades are graded only if their diagonal closes on or before this
+#: day, the data end at registration. A fixed date, so the graded set never
+#: grows as later sessions arrive (resolved at build 2026-11-01, operator).
+CLOSE_BY = date(2026, 10, 22)
 SUNSET = date(2029, 11, 1)
 SEAL_START = date.fromisoformat(era_mod.SEAL_START)
 PRIMARY_TRIGGER = "E-DD5"
@@ -776,18 +780,31 @@ class Book:
         rs = self.rules[geom.trigger]
         return trigger_days(rs, lo, hi) if arm == ARM_K else calm_days(rs, lo, hi)
 
-    def package(self, geom: Geom, arm: str, signal: date) -> Package:
-        key = (geom, arm, signal)
+    def package(self, geom: Geom, arm: str, signal: date, frozen: bool = True) -> Package:
+        """`frozen`: an in-sample trade must close by `CLOSE_BY`, else it is
+        `open` with reason `closes_after_freeze`. `frozen=False` is the
+        all-calm-weeks check, which is printed and never graded."""
+        frozen = frozen and signal <= IN_SAMPLE[1]
+        key = (geom, arm, signal, frozen)
         if key not in self._sel:
             entry = signal if geom.fill == "D" else self.nxt[signal]
-            self._sel[key] = select(self.chain, self.evidence, self.listing, self.closes,
-                                    self.session_set, self.sessions[-1], geom, arm,
-                                    signal, entry)
+            last = min(self.sessions[-1], CLOSE_BY) if frozen else self.sessions[-1]
+            pk = select(self.chain, self.evidence, self.listing, self.closes,
+                        self.session_set, last, geom, arm, signal, entry)
+            if pk.status == "open" and last < self.sessions[-1] \
+                    and pk.rolls and pk.rolls[-1] <= self.sessions[-1]:
+                pk.reason = "closes_after_freeze"
+            self._sel[key] = pk
         return self._sel[key]
 
     def packages(self, geom: Geom, arm: str, lo: date = IN_SAMPLE[0],
-                 hi: date | None = IN_SAMPLE[1]) -> list[Package]:
-        return [self.package(geom, arm, d) for d in self.dates(geom, arm, lo, hi)]
+                 hi: date | None = IN_SAMPLE[1], frozen: bool = True) -> list[Package]:
+        return [self.package(geom, arm, d, frozen) for d in self.dates(geom, arm, lo, hi)]
+
+    def freeze_check(self) -> list[Package]:
+        """The primary ARM C weeks the freeze leaves out, built without it."""
+        return [self.package(PRIMARY.geom, ARM_C, p.signal, frozen=False)
+                for p in self.packages(PRIMARY.geom, ARM_C) if p.status == "open"]
 
     def primary_awaiting(self) -> list[Package]:
         return [p for arm in (ARM_K, ARM_C) for p in self.packages(PRIMARY.geom, arm)
@@ -862,6 +879,11 @@ def fetch_targets(book: Book, scope: str = "primary") -> list[dict]:
                 for o, e, k in p.fetch:
                     seen.setdefault((o, e, round(float(k), 4)),
                                     f"{cell.name.split(' (')[0].replace(' ', '_')}:{arm}")
+    if scope == "all":
+        for p in book.freeze_check():
+            if p.status == "await":
+                for o, e, k in p.fetch:
+                    seen.setdefault((o, e, round(float(k), 4)), "freeze_check:C")
     return [dict(ticker=TICKER, expiration=e, strike=k, opt_type=o, category=cat)
             for (o, e, k), cat in sorted(seen.items(),
                                          key=lambda kv: (kv[0][1], kv[0][0], kv[0][2]))]
@@ -1355,6 +1377,26 @@ def outcomes(book: Book, cens: dict, comm: float) -> int:
     t_dk = token(g_dk, "PAYS", "LOSES", "mean")
     g_dkc = grade_vs_calm(kd_net, cd_net)
     t_dkc = token(g_dkc, "SELLOFF-ENTRY-HELPS", "SELLOFF-ENTRY-HURTS")
+    fc = book.freeze_check()
+    hdr("CHECK — ARM C with the calm weeks the freeze leaves out (printed, never graded)")
+    still = sum(p.status == "open" for p in fc)
+    wait = sum(p.status == "await" for p in fc)
+    if not fc:
+        print("  the freeze leaves out no calm week")
+    elif still or wait:
+        print(f"  {len(fc)} calm weeks left out by CLOSE_BY {CLOSE_BY}: {still} still open, "
+              f"{wait} await a fetch (run the collector with --scope all). Check waits.")
+    else:
+        extra = [p for p in (book.price(pk) for pk in fc if pk.status == "built")
+                 if not isinstance(p, str)]
+        g_full = grade_vs_calm(k_net, c_net + rows(extra))
+        if "gain" in g_full and "gain" in g_kc:
+            same = _sign(g_full["gain"]) == _sign(g_kc["gain"])
+            print(f"  all calm weeks: {len(c_net) + len(extra)}  ARM K - ARM C "
+                  f"{g_full['gain']:+.3f}  graded {g_kc['gain']:+.3f}  "
+                  f"{'same sign' if same else 'SIGN DIFFERS from the graded comparison'}")
+        else:
+            print("  all calm weeks: not computed (an arm is empty)")
     print_grade("ARM K-diag vs zero (DIAGONAL-ONLY test)", g_dk, t_dk, "below the floor")
     print_grade("ARM K-diag vs calm diagonal (DIAGONAL-ONLY test)", g_dkc, t_dkc,
                 "below the floor")

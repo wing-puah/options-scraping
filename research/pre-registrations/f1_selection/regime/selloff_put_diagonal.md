@@ -171,6 +171,17 @@ _Resolved at build (2026-11-01):_ a trade whose diagonal closes after the calend
 session is `OPEN`. It is counted by year, not graded and not fetched. The in-sample `ARM C`
 set therefore grows until the last in-sample calm week's diagonal closes, in December 2026.
 
+_Resolved at build (2026-11-01), operator:_ the in-sample set is frozen so it cannot grow.
+
+- An in-sample trade is graded only if its diagonal closes on or before 2026-10-22, the data
+  end at registration (`CLOSE_BY`). A later one is `OPEN`, reason `closes_after_freeze`.
+- The cut is by calendar date, set before any option price was read, so it cannot favour
+  either arm. No trigger trade is affected.
+- The primary `ARM C` is 147 of the 154 calm weeks; the 6-cycle cell loses 20.
+- Once the 7 left-out weeks close and are fetched (collector `--scope all`), a CHECK line
+  prints `ARM K` minus all 154 calm weeks beside the graded figure. It flags a change of sign.
+  It is never graded.
+
 ## Arms
 
 | Arm | Entry dates | Legs | Role |
