@@ -1,15 +1,18 @@
 ## selloff_put_diagonal — on a SPY sell-off, does a near put plus a long-dated call diagonal pay?
 
 <!-- outcome:start -->
-> Latest outcome: `NOT BUILT — AWAITING SCRAPE` on the first run, 2026-11-01. 149 primary trades await a fetch (172 contracts), so no arm is graded.
+> Latest outcome: `NOT BUILT — AWAITING SCRAPE` on the first run, 2026-11-01. 153 primary trades await a fetch (177 contracts), so no arm is graded.
 <!-- outcome:end -->
 
 _Drafted 2026-11-01, before any module exists or any outcome of this rule is printed._
 
 **STATUS: ACCEPTED BY DEFAULT 2026-11-01 on the drafter's recommended defaults, under the
-2026-10-09 policy. One choice, OD1 (which way the diagonal points), is the operator's idea to
-define. It may be changed before the first outcome prints; after that, a change is a NEW
-registration, never an edit.**
+2026-10-09 policy. One choice, OD1 (which way the diagonal points), was the operator's idea to
+define. A change before the first outcome prints is an edit; after that, it is a NEW
+registration.**
+
+_Resolved at build (2026-11-01):_ the operator confirmed the call diagonal as the primary.
+`ARM PD` stays a printed secondary.
 
 ## The question
 
@@ -55,7 +58,7 @@ The difference here: the put is never held between sell-offs, so the carry that 
 | Re-arm | the rule disarms on the first close back above −2% from the 63-session high |
 | Decision and fill | decide on trigger day D's close; every leg fills on D+1 at the closing mid |
 | Put leg | 1 long put, listed strike nearest spot × 1.00, standard monthly expiry nearest 30 DTE |
-| Diagonal, long leg | 1 long call, listed strike nearest spot × 0.90, standard monthly expiry nearest 365 DTE |
+| Diagonal, long leg | 1 long call, listed strike nearest spot × 0.90, standard monthly expiry nearest 365 DTE among those listed by D's close, at least 270 DTE, no upper cap |
 | Diagonal, short leg | 1 short call, listed strike nearest spot × 1.05, the same expiry as the put |
 | Put exit | first of: the rule disarms (close above −2%), 75% of the put's DTE elapsed, or its expiry |
 | Diagonal horizon | three short-call cycles. At each short expiry, buy it back at that close and sell the next one by the same rule |
@@ -90,8 +93,8 @@ This is the one choice that changes what the idea is.
   365-DTE monthly, short put at spot × 0.95 on the near monthly. With the near put on top, the
   whole package is a bet on further falls.
 
-If the operator meant the put diagonal, the arms swap roles before the first outcome prints.
-Nothing else in this file changes.
+_Resolved at build (2026-11-01):_ the operator confirmed the call diagonal; `ARM PD` stays a
+printed secondary. The arms do not swap.
 
 ### Why these values
 
@@ -148,13 +151,15 @@ still charged. With 2 puts per diagonal, the put leg counts twice.
 - A nearest listable strike or expiry that is not cached and not skip-listed makes the trade
   `AWAITING FETCH`. It is never built on the next cached contract. While any primary trade awaits,
   no primary outcome prints.
-- If the long call's nearest-365 expiry is not listed on D+1, the trade uses the farthest listed
-  monthly with at least 270 DTE, and the substitution is counted. Below 270 DTE the trade drops.
+- If the long call's nearest-365 expiry is not listed on D+1, the trade uses the listed monthly
+  with at least 270 DTE whose DTE is nearest 365, and the substitution is counted. Below 270 DTE
+  the trade drops.
 - Every drop and substitution is printed by year.
 
-_Resolved at build (2026-11-01):_ the fallback walks the monthlies from the nearest-365 one
-down to 270 DTE, farthest first. It never goes past the nearest-365 expiry. A LEAP two years
-out is not "the farthest listed monthly".
+_Resolved at build (2026-11-01):_ the operator approved longer-dated calls. The long leg is the
+monthly listed by D's close, with at least 270 DTE, whose DTE is nearest 365, with no upper cap.
+A January LEAP 400 to 700 days out is allowed when it is the nearest listed to 365. A tie goes
+to the nearer expiry. The count printed is "long expiry ≠ nearest-365 monthly".
 
 _Resolved at build (2026-11-01):_ "listed on D+1" is read as listed by D's close, when the
 rule decides. An expiry is listed when a cached contract of it has a row on or before D. It
@@ -174,8 +179,8 @@ set therefore grows until the last in-sample calm week's diagonal closes, in Dec
 | `ARM K-diag` | every trigger day | call diagonal alone | component; feeds the put-contribution comparison |
 | `ARM K-put` | every trigger day | put alone | component; printed |
 | `ARM C` | first session of each ISO week, rule disarmed, SPY within 2% of its 63-session high | put + call diagonal | **graded comparator** |
-| `ARM H` | every trigger day | SPY shares, same dollars as `ARM K`'s debit, same horizon | printed: does the option wrap beat owning the dip? |
-| `ARM PD` | every trigger day | put + put diagonal | OD1 secondary; printed |
+| `ARM H` | every trigger day | SPY shares, same dollars as `ARM K`'s debit, same horizon | graded as a secondary: does the option wrap beat owning the dip? |
+| `ARM PD` | every trigger day | put + put diagonal | OD1 secondary; graded as a secondary |
 
 _Resolved at build (2026-11-01):_ `ARM C` enters on the first session of each ISO week that is
 disarmed and within 2% of the 63-session high. Read literally (the week's first session
@@ -244,14 +249,14 @@ All CIs are bootstrap CI95s, 10,000 draws, seeded, resampling trigger days (for 
    prints every run and never grades the primary, which was fixed before any cell was seen. A PBO
    of 0.5 or more forbids promoting any non-primary cell in a later registration.
 
-   _Resolved at build (2026-11-01):_ the cells are the nine rows below, the primary included.
+   _Resolved at build (2026-11-01):_ the cells are the ten rows below, the primary included.
    Each period is one calendar quarter of signal dates, so there are 19. One zero quarter is
    padded at the head to make the count even, and each block is one quarter. The statistic is
    `ARM K`'s summed net R per quarter (`total_metric`), because most quarters hold no trigger.
 
 ## Parameters printed both ways
 
-Each prints `ARM K`, `ARM C` and the put contribution, and never yields a verdict.
+Each prints `ARM K`, `ARM C` and the put contribution. It is graded only as a secondary object, under [Secondary grades](#secondary-grades), and never yields a primary verdict.
 
 | Parameter | PRIMARY | Printed |
 |---|---|---|
@@ -261,6 +266,14 @@ Each prints `ARM K`, `ARM C` and the put contribution, and never yields a verdic
 | Puts per diagonal | 1 | 0 (`ARM K-diag`), 2 |
 | Trigger | −5% | −8% (`E-DD8` threshold) |
 | Fill | D+1 close | D close |
+| Put leg | naked put | bear put spread, short leg at spot × 0.95 |
+
+_Resolved at build (2026-11-01):_ the operator's put leg is usually a put spread or a naked put.
+The naked ATM put stays primary. The `Put leg` cell buys the put at the listed strike nearest
+spot × 1.00 and sells one at the listed strike nearest spot × 0.95, on the same near monthly
+(nearest 30 DTE). It exits like the naked put: disarm, 75% of DTE, or expiry. It uses the same
+pricing functions. The defined-risk clamp applies to this vertical and is allowed to bind; the
+run prints how many values it moved. R uses the spread's net debit and four leg-sides per put.
 
 ## Verdicts, worded now
 
@@ -290,6 +303,37 @@ calm weeks' diagonal alone, on the same criteria.
 
 Every in-sample token carries `(PROVISIONAL)`, because of the hindsight disclosed above.
 
+## Secondary grades
+
+_Resolved at build (2026-11-01):_ the operator asked, before any outcome, that every printed arm
+and cell be graded, not only printed. The primary objects and their tokens above are unchanged.
+The primary keeps its uncorrected C1, which was fixed beforehand.
+
+Each secondary object gets the same C0 to C3 and the same tokens as its primary counterpart. The
+floors do not move. The objects:
+
+| Question | Secondary objects |
+|---|---|
+| vs zero | the eight non-primary cells' `ARM K` (put diagonal `ARM PD`, 1 cycle, 6 cycles, put strike × 0.95, `ARM K-diag`, 2 puts, −8% trigger, D-close fill, put spread; the `ARM K-diag` cell is one of them), and `ARM K-put` |
+| vs its own `ARM C` | the same cells, each against its own calm weeks |
+| put contribution | the cells that hold a put, each `ARM K` minus its diagonal alone |
+| option wrap vs shares | `ARM K` minus `ARM H` per trigger |
+
+The tokens for the last row are `WRAP-BEATS-SHARES`, `SHARES-BEAT-WRAP` and `NULL`, with the same
+C0 to C3 and a paired bootstrap on trigger days.
+
+**Multiplicity.** C1 for a secondary object is a Holm–Bonferroni step-down across the powered
+secondary objects of its question, at family alpha 0.05. The bootstrap p is two-sided, from the
+same draws as the interval. The report prints raw and adjusted p. An object below its C0 floor
+prints `UNDERPOWERED` and is not in its family. The −8% trigger cell has 5 triggers, under the
+floor of 8, so it prints `UNDERPOWERED`; the floor is not lowered. Every secondary token is
+suffixed `(SECONDARY)`. The `ARM K-diag` cell also feeds the primary `DIAGONAL-ONLY` test
+uncorrected, as registered above; the corrected token is the secondary one.
+
+**Standing.** A secondary cell reaches `CANDIDATE (SECONDARY)` only when its corrected tokens
+read `PAYS`, `SELLOFF-ENTRY-HELPS` and not `PUT-COSTS`, and the PBO across the full cell set is
+below 0.5. It is never promoted without forward confirmation and a new registration.
+
 ## The forward read
 
 - Every trigger day after 2026-11-01 is traded by the rule and graded once its diagonal closes
@@ -316,7 +360,9 @@ A failed gate refuses the run (non-zero exit).
 
 ## What could ship
 
-Nothing ships from this study.
+Nothing ships from this study. A secondary cell with `CANDIDATE (SECONDARY)` standing is
+a lead for a new registration. It needs PBO below 0.5, forward confirmation and a new
+registration before it is anything more.
 
 - `CANDIDATE (CONFIRMED)` files an entry in `research/deployment-evidence.md` under "to be
   tested": the sell-off package as a mechanical rule, sized by the operator's §2 practice.

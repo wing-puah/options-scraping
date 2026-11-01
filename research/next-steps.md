@@ -1409,9 +1409,9 @@ It tests a near put plus a long-dated call diagonal opened on a SPY sell-off tri
 |---|---|
 | Trigger days, in-sample | 9 |
 | Calm weeks | 154 |
-| Primary trades awaiting a fetch | 149 |
-| First-round contracts, primary scope | 172 |
-| First-round contracts, all cells | 326 |
+| Primary trades awaiting a fetch | 153 |
+| First-round contracts, primary scope | 177 |
+| First-round contracts, all cells | 340 |
 
 How to resume, after the ARM U loop and `after_armu_queue.sh` have both exited:
 
@@ -1421,13 +1421,16 @@ How to resume, after the ARM U loop and `after_armu_queue.sh` have both exited:
 3. `python3 -m scripts.backtest_study run selloff_put_diagonal`. Repeat steps 1–3 until nothing
    awaits, since a fetch can expose a nearer strike.
 
-Three choices are open, and each may change only before the first outcome prints:
+Operator answers of 2026-11-01, folded into the registration before any outcome:
 
-- **OD1, diagonal direction.** Call (bullish) is the primary; put is printed.
-- **The long call's expiry.** SPY monthlies list only 6–13 months out, so the ≥270-DTE fallback
-  is the norm. Proposed: restate the primary as the farthest listed monthly in 270–365 DTE.
-- **Open calm weeks.** 7 `ARM C` diagonals close after 2026-10-22. Proposed: grade only calm
-  weeks whose diagonals have closed, or wait until about 2026-12-18.
+- **OD1.** The call diagonal is confirmed; the put diagonal stays a secondary.
+- **Long call.** The listed monthly nearest 365 DTE, at least 270, with no upper cap.
+- **Put spread.** Added as a cell beside the naked put, which stays primary.
+- **Secondary grades.** Every cell is graded, Holm-corrected within each question, and
+  marked `(SECONDARY)`. None can be promoted without a forward read and a new registration.
+
+Still open: 7 `ARM C` diagonals close after 2026-10-22. Proposed: grade only calm weeks whose
+diagonals have closed, or wait until about 2026-12-18.
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open

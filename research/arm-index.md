@@ -439,6 +439,8 @@ trigger is `index_bear_hedge`'s `E-DD5` threshold. The unit is
   Unrelated to `mechanical_baseline`'s `ARM H` alpha regression.
 - `ARM PD` (sub-arm) — The near put plus a put diagonal, the bearish reading
   of OD1. Printed only.
+- `Put leg` (cell) — A bear put spread in place of the naked put: short put at
+  spot × 0.95, same expiry and exit. Printed only, never a verdict.
 - `G-HASH` `G-CENSUS` `G-SEAL` (gate) — The imported thresholds hash; the nine
   trigger days and 154 calm weeks reproduce; no in-sample date reaches the
   seal.

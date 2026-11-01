@@ -105,8 +105,13 @@ def test_g_hash_passes_and_catches_an_edit(monkeypatch):
 def test_roll_days_and_long_expiries():
     assert S.roll_days(date(2024, 1, 11), 3) == [date(2024, 2, 16), date(2024, 3, 15),
                                                  date(2024, 4, 19)]
-    assert S.long_expiries(date(2024, 1, 11)) == [
-        date(2025, 1, 17), date(2024, 12, 20), date(2024, 11, 15), date(2024, 10, 18)]
+    le = S.long_expiries(date(2024, 1, 11))
+    # nearest 365 first; a LEAP past 365 is walked too (no upper cap); nothing under 270.
+    assert le[0] == date(2025, 1, 17)
+    assert date(2026, 1, 16) in le and date(2024, 10, 18) in le
+    assert all((e - date(2024, 1, 11)).days >= 270 for e in le)
+    dist = [abs((e - date(2024, 1, 11)).days - 365) for e in le]
+    assert dist == sorted(dist)
 
 
 def test_put_walk_and_parity_with_the_call_walk():
@@ -372,3 +377,106 @@ def test_outcomes_runs_end_to_end_on_stub_prices(monkeypatch, tmp_path, capsys):
     assert "ARM K vs zero" in out and "->  PAYS" in out
     assert "STUDY                  NO-EDGE (PROVISIONAL)" in out   # K == C: no entry edge
     assert "PBO" in out and (tmp_path / "trades.csv").exists()
+    assert "SECONDARY GRADES" in out and "ARM K vs ARM H" in out
+    assert "put leg = bear put spread" in out and "(SECONDARY)" in out
+
+
+# ── the bear put spread cell ────────────────────────────────────────────────
+
+PUT_SHORT = ("Put", E1, 95.0)
+EXIT = date(2024, 1, 22)
+
+
+def spread_chain(long_exit=(4.9, 5.1), short_exit=(1.4, 1.6)) -> NTF.Chain:
+    ch = walker_chain({ENTRY: (2.9, 3.1), EXIT: long_exit})
+    ch._memo[("SPY", E1, 95.0, "Put")] = contract(
+        {ENTRY: (0.9, 1.1), EXIT: short_exit})
+    ch.idx[("SPY", E1)].setdefault(95.0, set()).add("P")
+    return ch
+
+
+def test_put_spread_cell_is_registered_and_shares_the_primary_geometry():
+    assert sum(c.geom.put_spread for c in S.CELLS) == 1
+    assert not S.PRIMARY.geom.put_spread
+    assert len(S.CELLS) == 10
+
+
+def test_put_spread_walk_exit_and_R():
+    rs = rule(SESSIONS, disarms=[EXIT])
+    p = S.walk_package(spread_chain(), package(put_short=PUT_SHORT), rs, SESSIONS, CLOSES)
+    assert isinstance(p, S.Priced), p
+    # long 3.0 in, short 1.0 in -> net debit 2.0; out 5.0 - 1.5 = 3.5; same exit rule.
+    assert (p.put_in, p.put_out) == pytest.approx((2.0, 3.5))
+    assert (p.put_exit, p.put_reason) == (EXIT, "disarm")
+    assert (p.put_short_in, p.put_short_out) == pytest.approx((1.0, 1.5))
+    assert p.put_legs == 2 and p.clamp_hit == 0 and p.clamp_bound >= 1
+    # put alone: +1.5 pts = $150 less 4 leg-sides; R over the $200 net debit.
+    assert S.package_R(p, 1, diag=False) == pytest.approx((150.0 - 0.65 * 4) / 200.0)
+    # package: 4 put sides + 2 + 2*3 diagonal sides = 12; debit 2.0 + 11.0 = 13.0.
+    gross = (1.5 + p.diag_pnl) * 100.0
+    assert S.package_R(p) == pytest.approx((gross - 0.65 * 12) / 1300.0)
+
+
+def test_put_spread_clamp_binds_on_an_over_wide_net_value():
+    rs = rule(SESSIONS, disarms=[EXIT])
+    ch = spread_chain(long_exit=(9.9, 10.1), short_exit=(0.0, 0.1))
+    p = S.walk_package(ch, package(put_short=PUT_SHORT), rs, SESSIONS, CLOSES)
+    # net out 10.0 - 0.05 = 9.95 > width 5 (100 - 95) -> clamped to 5.
+    assert p.put_out == pytest.approx(5.0) and p.clamp_hit == 1
+
+
+def test_put_spread_selection_picks_the_0_95_short_on_the_same_monthly():
+    q = {D: (1.0, 1.1)}
+    contracts = {PUT: q, PUT_SHORT: q, ("Put", E1, 90.0): q}
+    for e in (E1, E2, E3):
+        contracts[("Call", e, 105.0)] = q
+    contracts[("Call", date(2025, 1, 17), 90.0)] = {date(2023, 12, 1): (11.0, 11.2)}
+    ch = chain_of(contracts)
+    closes = {d: 100.0 for d in SESSIONS}
+    pk = S.select(ch, set(), S.Listing(ch), closes, set(SESSIONS), SESSIONS[-1],
+                  S.Geom(put_spread=True), "K", D, ENTRY)
+    assert pk.status == "built", (pk.status, pk.reason, pk.fetch)
+    assert pk.put == ("Put", E1, 100.0) and pk.put_short == PUT_SHORT
+    naked = S.select(ch, set(), S.Listing(ch), closes, set(SESSIONS), SESSIONS[-1],
+                     S.Geom(), "K", D, ENTRY)
+    assert naked.put_short is None
+
+
+# ── secondary grades ────────────────────────────────────────────────────────
+
+def test_holm_step_down_adjusts_monotonically_and_caps_at_one():
+    h = S.holm({"a": 0.001, "b": 0.02, "c": 0.04, "d": 0.5})
+    assert h["a"] == (pytest.approx(0.004), True)
+    assert h["b"] == (pytest.approx(0.06), False)        # 3 x 0.02
+    assert h["c"] == (pytest.approx(0.08), False)        # 2 x 0.04
+    assert h["d"] == (pytest.approx(0.5), False)
+    # Monotone: a later p never gets a smaller adjusted value than an earlier one.
+    h2 = S.holm({"x": 0.01, "y": 0.011, "z": 0.9})
+    assert h2["x"][0] <= h2["y"][0] <= h2["z"][0]
+    assert S.holm({"x": 0.6, "y": 0.9})["x"][0] == 1.0  # 2 x 0.6 capped
+    assert S.holm({}) == {}
+
+
+def test_secondary_family_replaces_c1_and_skips_underpowered():
+    base = dict(c0=True, c1=True, c2=True, c3=True, gain=1.0, n=10)
+    objs = {"a": dict(base, p=0.02), "b": dict(base, p=0.03), "u": dict(n=5, c0=False)}
+    out = S.secondary_family(objs)
+    # m = 2 powered: a -> 0.04 (reject), b -> 0.04 (monotone); u stays out.
+    assert out["a"]["adj_p"] == pytest.approx(0.04) and out["a"]["c1"]
+    assert out["b"]["adj_p"] == pytest.approx(0.04)
+    assert "adj_p" not in out["u"]
+    assert S.token(out["u"], "P", "N") == S.UNDERPOWERED
+    tight = S.secondary_family({"a": dict(base, p=0.02), "b": dict(base, p=0.026),
+                                "c": dict(base, p=0.9)})
+    assert tight["a"]["c1"] is False                      # 3 x 0.02 = 0.06
+    assert S.token(tight["a"], "P", "N") == S.NULL
+
+
+def test_draws_p_and_standing():
+    assert S.draws_p(sorted([-1.0, 1.0, 2.0, 3.0] * 25)) > 0.4
+    assert S.draws_p([1.0] * 100) == pytest.approx(2 / 101)
+    assert S.secondary_standing("PAYS", "SELLOFF-ENTRY-HELPS", "PUT-ADDS", 0.3) \
+        == "CANDIDATE (SECONDARY)"
+    assert S.secondary_standing("PAYS", "SELLOFF-ENTRY-HELPS", None, 0.6) == "BLOCKED (PBO)"
+    assert S.secondary_standing("PAYS", "NULL", None, 0.1) == "-"
+    assert S.secondary_standing("PAYS", "SELLOFF-ENTRY-HELPS", "PUT-COSTS", 0.1) == "-"

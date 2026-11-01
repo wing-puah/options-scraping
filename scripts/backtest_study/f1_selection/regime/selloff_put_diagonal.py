@@ -32,7 +32,9 @@ rule), `common_entry_day` inside `entry_window_end` (the five-session entry
 window), `junk_day_mark` and `_snap_asof` (the daily mark, with the B5
 zero-bid ceiling), `_monotonicity_violation`, and `_cost_knobs`. The
 defined-risk clamp is `helpers._defined_risk_bounds`; it returns None for
-every leg set here (two expiries, or one leg), and the run counts that.
+every leg set here (two expiries, or one leg) except the printed-only bear put
+spread cell's vertical, where it bounds the net put value and the run counts
+the values it actually moved.
 
 THE LEG-PATH WALKER. The frozen harness replays one single-expiry debit path
 against exit thresholds; this package has rolls, a put with its own exit and a
@@ -100,6 +102,8 @@ PUT_DTE = 30
 LONG_DTE = 365
 LONG_MIN_DTE = 270
 PUT_MULT = 1.00
+#: Put-leg cell: the bear put spread's short put at spot x 0.95.
+PUT_SPREAD_SHORT_MULT = 0.95
 CALL_LONG_MULT, CALL_SHORT_MULT = 0.90, 1.05
 #: OD1 secondary (ARM PD): long put at spot x 1.00, short put at spot x 0.95.
 PUT_LONG_MULT, PUT_SHORT_MULT = 1.00, 0.95
@@ -154,6 +158,7 @@ class Geom:
     cycles: int = CYCLES
     put_mult: float = PUT_MULT
     fill: str = "D+1"                  # D+1 (PRIMARY) | D
+    put_spread: bool = False           # put leg: naked (PRIMARY) | bear put spread
 
 
 @dataclasses.dataclass(frozen=True)
@@ -175,6 +180,7 @@ CELLS = (
     Cell("puts per diagonal 2", Geom(), n_puts=2),
     Cell("trigger -8% (E-DD8)", Geom(trigger=ALT_TRIGGER)),
     Cell("fill D close", Geom(fill="D")),
+    Cell("put leg = bear put spread", Geom(put_spread=True)),
 )
 GEOMS = tuple(dict.fromkeys(c.geom for c in CELLS))
 
@@ -365,19 +371,24 @@ class Listing:
         return "await", ((opt, expiry, k0),)
 
 
+#: The longest long-leg expiry walked, in calendar days. A LEAP is allowed; this
+#: only bounds the walk, which stops at the first expiry listed by the decision day.
+LONG_MAX_WALK_DTE = 1100
+
+
 def long_expiries(entry: date) -> list[date]:
-    """The long leg's expiries in walk order: the monthly nearest 365 DTE, then
-    each earlier monthly down to 270 DTE (Resolved at build 2026-11-01)."""
-    e365 = MBL.rule_expiry(entry, LONG_DTE)
-    if e365 is None or (e365 - entry).days < LONG_MIN_DTE:
-        return []
-    cands = MB.monthly_expiries(entry + timedelta(days=LONG_MIN_DTE), e365)
-    return sorted(cands, reverse=True)
+    """The long leg's expiries in walk order: every monthly of at least 270 DTE,
+    nearest 365 DTE first, with no upper cap (Resolved at build 2026-11-01: the
+    operator approved longer-dated calls). A tie goes to the nearer expiry."""
+    cands = MB.monthly_expiries(entry + timedelta(days=LONG_MIN_DTE),
+                                entry + timedelta(days=LONG_MAX_WALK_DTE))
+    return sorted(cands, key=lambda e: (abs((e - entry).days - LONG_DTE), e))
 
 
 def select_long(chain, evidence, listing: Listing, opt: str, entry: date,
                 target: float, spot: float, asof: date) -> tuple[Sel, date | None, bool]:
-    """`(sel, expiry, substituted)` for the diagonal's long leg."""
+    """`(sel, expiry, substituted)` for the diagonal's long leg; substituted =
+    the expiry is not the nearest-365 monthly."""
     for i, e in enumerate(long_expiries(entry)):
         st, fetch = listing.state(evidence, e, opt, target, spot, asof)
         if st == "await":
@@ -402,6 +413,7 @@ class Package:
     status: str
     reason: str = ""
     put: tuple | None = None           # (opt, expiry, strike)
+    put_short: tuple | None = None     # the put spread's short put, else None
     long: tuple | None = None
     shorts: list = dataclasses.field(default_factory=list)   # [(opt, expiry, strike)]
     rolls: list = dataclasses.field(default_factory=list)    # [E_1, ..., E_n]
@@ -452,6 +464,11 @@ def select(chain, evidence, listing: Listing, closes: dict[date, float],
     sels: list[Sel] = []
     put = nearest_listed(chain, evidence, e1, spot * geom.put_mult, spot, signal, "Put")
     sels.append(put)
+    pshort = None
+    if geom.put_spread:
+        pshort = nearest_listed(chain, evidence, e1, spot * PUT_SPREAD_SHORT_MULT, spot,
+                                signal, "Put")
+        sels.append(pshort)
     lng, l_exp, pk.subst = select_long(chain, evidence, listing, dopt, entry,
                                        spot * l_mult, spot, signal)
     sels.append(lng)
@@ -466,6 +483,10 @@ def select(chain, evidence, listing: Listing, closes: dict[date, float],
         if s.status == "drop":
             pk.reason = s.reason
             return pk
+    if (pshort is not None and pshort.status == "built" and put.status == "built"
+            and pshort.strike >= put.strike):
+        pk.reason = "put_spread_degenerate"
+        return pk
     fetch = tuple(f for s in sels for f in s.fetch)
     if any(s.status == "await" for s in sels):
         pk.status, pk.fetch = "await", fetch
@@ -473,6 +494,8 @@ def select(chain, evidence, listing: Listing, closes: dict[date, float],
         return pk
     pk.status, pk.reason = "built", ""
     pk.put = ("Put", e1, put.strike)
+    if pshort is not None:
+        pk.put_short = ("Put", e1, pshort.strike)
     pk.long = (dopt, l_exp, lng.strike)
     pk.shorts = [(dopt, e, s.strike) for e, s in zip(rolls, shorts)]
     return pk
@@ -556,6 +579,10 @@ class Priced:
     short_out: list                    # buy-back price per cycle
     tags: Counter
     clamp_bound: int                   # leg sets the defined-risk clamp bounded
+    put_legs: int = 1                  # 1 naked put, 2 bear put spread
+    clamp_hit: int = 0                 # put-spread values the clamp actually moved
+    put_short_in: float | None = None  # put spread only: the short put's sale price
+    put_short_out: float | None = None
 
     @property
     def put_debit(self) -> float:
@@ -577,7 +604,7 @@ class Priced:
     def sides(self, n_puts: int) -> int:
         """Leg-sides traded: the put in and out, the long in and out, and
         every short sold and bought back."""
-        return 2 * n_puts + 2 + 2 * len(self.short_in)
+        return 2 * self.put_legs * n_puts + 2 + 2 * len(self.short_in)
 
 
 def put_exit_day(rs: RuleState, sessions: list[date], signal: date, entry: date,
@@ -618,7 +645,8 @@ def walk_package(chain, pk: Package, rs: RuleState, sessions: list[date],
     p_leg = _leg(*pk.put, qty=1)
     l_leg = _leg(*pk.long, qty=1)
     s_legs = [_leg(*s, qty=-1) for s in pk.shorts]
-    entry_legs = [p_leg, l_leg, s_legs[0]]
+    ps_leg = _leg(*pk.put_short, qty=-1) if pk.put_short else None
+    entry_legs = [p_leg, l_leg, s_legs[0]] + ([ps_leg] if ps_leg else [])
     day = fill_day(chain, entry_legs, pk.entry, pk.signal)
     if day is None:
         return SIM.NO_COMMON_ENTRY_DAY
@@ -631,12 +659,19 @@ def walk_package(chain, pk: Package, rs: RuleState, sessions: list[date],
     tags.update(ftags)
     if SIM._monotonicity_violation(entry_legs, prices, ftags):
         return SIM.NON_MONOTONIC_REFUSAL
-    put_in, long_in, short_in0 = prices
-    if put_in <= 0:
+    put_in, long_in, short_in0 = prices[:3]
+    ps_in = prices[3] if ps_leg else 0.0
+    clamp, hit = int(_defined_risk_bounds(entry_legs) is not None), 0
+    bounds = _defined_risk_bounds([p_leg, ps_leg]) if ps_leg else None
+    if ps_leg:
+        clamp += int(bounds is not None)
+    net_in = put_in - ps_in
+    if net_in <= 0:
         return "put_priced_at_zero"
+    if bounds is not None and net_in > bounds[1]:
+        net_in, hit = bounds[1], hit + 1
     if long_in - short_in0 <= 0:
         return "diagonal_priced_to_credit"
-    clamp = int(_defined_risk_bounds(entry_legs) is not None)
     # 2. the put
     pe, why = put_exit_day(rs, sessions, pk.signal, day, p_leg.expiration)
     if pe is None:
@@ -646,6 +681,16 @@ def walk_package(chain, pk: Package, rs: RuleState, sessions: list[date],
         return "put_unmarked"
     put_out = m[0]
     tags[m[1]] += 1
+    ps_out = None
+    if ps_leg:
+        m2 = leg_mark(chain, ps_leg, pe, closes.get(pe), max_carry)
+        if m2 is None:
+            return "put_unmarked"
+        ps_out = m2[0]
+        tags[m2[1]] += 1
+        put_out = put_out - ps_out
+        if bounds is not None and not bounds[0] <= put_out <= bounds[1]:
+            put_out, hit = min(max(put_out, bounds[0]), bounds[1]), hit + 1
     # 3. the rolls
     short_in, short_out = [short_in0], []
     for i, (s_leg, e) in enumerate(zip(s_legs, pk.rolls)):
@@ -669,9 +714,11 @@ def walk_package(chain, pk: Package, rs: RuleState, sessions: list[date],
     if m is None:
         return "long_unmarked"
     tags[m[1]] += 1
-    return Priced(pk=pk, entry_day=day, put_in=put_in, put_out=put_out, put_exit=pe,
+    return Priced(pk=pk, entry_day=day, put_in=net_in, put_out=put_out, put_exit=pe,
                   put_reason=why, long_in=long_in, long_out=m[0], short_in=short_in,
-                  short_out=short_out, tags=tags, clamp_bound=clamp)
+                  short_out=short_out, tags=tags, clamp_bound=clamp,
+                  put_legs=2 if ps_leg else 1, clamp_hit=hit,
+                  put_short_in=ps_in if ps_leg else None, put_short_out=ps_out)
 
 
 # ── the graded unit ─────────────────────────────────────────────────────────
@@ -687,7 +734,7 @@ def package_R(p: Priced, n_puts: int = 1, diag: bool = True, net: bool = True,
     pnl = n_puts * p.put_pnl + (p.diag_pnl if diag else 0.0)
     gross = pnl * 100.0
     if net:
-        sides = 2 * n_puts + ((2 + 2 * len(p.short_in)) if diag else 0)
+        sides = 2 * p.put_legs * n_puts + ((2 + 2 * len(p.short_in)) if diag else 0)
         gross -= commission * sides
     return gross / (debit * 100.0)
 
@@ -788,7 +835,7 @@ def census_counts(pks: list[Package]) -> dict:
             c["built"] += 1
         if p.subst and p.status == "built":
             c["subst"] += 1
-            by_year[(p.signal.year, "long_expiry_substituted")] += 1
+            by_year[(p.signal.year, "long_expiry_not_nearest_365")] += 1
     return dict(c=c, fetch=fetch, by_year=by_year)
 
 
@@ -847,10 +894,23 @@ def _mean(rows, key="R") -> float:
     return statistics.fmean(r[key] for r in rows)
 
 
-def boot_ci_independent(a: list[float], b: list[float], n: int = BOOT_N,
-                        seed: int = SEED, alpha: float = 0.05) -> tuple[float, float]:
-    """CI of mean(a) - mean(b), each arm resampled on its own (C1 for
-    `ARM K` vs `ARM C`)."""
+def draws_p(draws: list[float]) -> float:
+    """Two-sided bootstrap p that the statistic is zero, from sorted draws:
+    twice the smaller tail, with a +1 so it is never exactly 0."""
+    n = len(draws)
+    le = sum(1 for d in draws if d <= 0)
+    ge = sum(1 for d in draws if d >= 0)
+    return min(1.0, 2.0 * (min(le, ge) + 1) / (n + 1))
+
+
+def _ci_of(draws: list[float], alpha: float = 0.05) -> tuple[float, float]:
+    n = len(draws)
+    return draws[int(alpha / 2 * n)], draws[int((1 - alpha / 2) * n)]
+
+
+def boot_draws_independent(a: list[float], b: list[float], n: int = BOOT_N,
+                           seed: int = SEED) -> list[float]:
+    """Sorted draws of mean(a) - mean(b), each arm resampled on its own."""
     rng = random.Random(seed)
     out = []
     for _ in range(n):
@@ -858,7 +918,54 @@ def boot_ci_independent(a: list[float], b: list[float], n: int = BOOT_N,
         sb = [b[rng.randrange(len(b))] for _ in b]
         out.append(statistics.fmean(sa) - statistics.fmean(sb))
     out.sort()
-    return out[int(alpha / 2 * n)], out[int((1 - alpha / 2) * n)]
+    return out
+
+
+def boot_ci_independent(a: list[float], b: list[float], n: int = BOOT_N,
+                        seed: int = SEED, alpha: float = 0.05) -> tuple[float, float]:
+    """CI of mean(a) - mean(b), each arm resampled on its own (C1 for
+    `ARM K` vs `ARM C`)."""
+    return _ci_of(boot_draws_independent(a, b, n, seed), alpha)
+
+
+def boot_draws_by_date(rows: list[dict], key: str, n: int = BOOT_N,
+                       seed: int = SEED) -> list[float]:
+    """Sorted draws of the mean, resampling dates as `protocol.boot_ci_by_date`
+    does (the same random sequence, so the interval is the same one)."""
+    by: dict[str, list[float]] = {}
+    for r in rows:
+        if r.get(key) is not None:
+            by.setdefault(str(r["date"]), []).append(float(r[key]))
+    dates = list(by)
+    rng = random.Random(seed)
+    out = []
+    for _ in range(n):
+        pool = []
+        for _ in range(len(dates)):
+            pool.extend(by[rng.choice(dates)])
+        out.append(statistics.fmean(pool))
+    out.sort()
+    return out
+
+
+def boot_draws_paired(rows: list[dict], n: int = BOOT_N, seed: int = SEED) -> list[float]:
+    """Sorted draws of mean(R_T) - mean(R_C) over resampled dates (the same
+    sequence as `protocol.boot_ci_paired_by_date`)."""
+    by: dict[str, list[tuple[float, float]]] = {}
+    for r in rows:
+        by.setdefault(str(r["date"]), []).append((float(r["R_T"]), float(r["R_C"])))
+    dates = list(by)
+    rng = random.Random(seed)
+    out = []
+    for _ in range(n):
+        a_pool, b_pool = [], []
+        for _ in range(len(dates)):
+            for a, b in by[rng.choice(dates)]:
+                a_pool.append(a)
+                b_pool.append(b)
+        out.append(statistics.fmean(a_pool) - statistics.fmean(b_pool))
+    out.sort()
+    return out
 
 
 def _big_cut(rows: list[dict]) -> list[dict]:
@@ -873,7 +980,8 @@ def grade_vs_zero(rows: list[dict], key: str = "R", floor: int = C0_K,
     if not g["c0"]:
         return g
     g["mean"] = _mean(rows, key)
-    g["ci"] = P.boot_ci_by_date(rows, key, n=n, seed=seed)
+    dr = boot_draws_by_date(rows, key, n=n, seed=seed)
+    g["ci"], g["p"] = _ci_of(dr), draws_p(dr)
     g["c1"] = excludes_zero(g["ci"])
     folds = [_mean([r for r in rows if r["date"] != x["date"]], key) for x in rows]
     g["loo"] = (min(folds), max(folds))
@@ -896,7 +1004,8 @@ def grade_vs_calm(k_rows: list[dict], c_rows: list[dict], key: str = "R",
     a, b = [r[key] for r in k_rows], [r[key] for r in c_rows]
     g["mean_T"], g["mean_C"] = statistics.fmean(a), statistics.fmean(b)
     g["gain"] = g["mean_T"] - g["mean_C"]
-    g["ci"] = boot_ci_independent(a, b, n=n, seed=seed)
+    dr = boot_draws_independent(a, b, n=n, seed=seed)
+    g["ci"], g["p"] = _ci_of(dr), draws_p(dr)
     g["c1"] = excludes_zero(g["ci"])
     folds = [_mean([r for r in k_rows if r["date"] != x["date"]], key) - g["mean_C"]
              for x in k_rows]
@@ -917,7 +1026,8 @@ def grade_paired(rows: list[dict], n: int = BOOT_N, seed: int = SEED) -> dict:
         return g
     g["mean_T"], g["mean_C"] = _mean(rows, "R_T"), _mean(rows, "R_C")
     g["gain"] = g["mean_T"] - g["mean_C"]
-    g["ci"] = P.boot_ci_paired_by_date(rows, "R_T", "R_C", n=n, seed=seed)
+    dr = boot_draws_paired(rows, n=n, seed=seed)
+    g["ci"], g["p"] = _ci_of(dr), draws_p(dr)
     g["c1"] = excludes_zero(g["ci"])
     folds = [statistics.fmean(r["R_T"] - r["R_C"] for r in rows if r["date"] != x["date"])
              for x in rows]
@@ -971,6 +1081,51 @@ def forward_token(provisional: str, k_rs: list[float], diffs: list[float]) -> st
     if provisional.startswith("CANDIDATE") and diffs and statistics.fmean(diffs) > 0:
         return "CONFIRMED"
     return "STILL-OPEN"
+
+
+SECONDARY = " (SECONDARY)"
+FAMILY_ALPHA = 0.05
+WRAP_TOKENS = ("WRAP-BEATS-SHARES", "SHARES-BEAT-WRAP")
+
+
+def holm(pvals: dict[str, float], alpha: float = FAMILY_ALPHA) -> dict[str, tuple[float, bool]]:
+    """Holm-Bonferroni step-down: `{name: (adjusted p, rejected)}`. The i-th
+    smallest of m p-values is scaled by (m - i); the adjusted values are made
+    monotone and capped at 1."""
+    order = sorted(pvals, key=lambda k: (pvals[k], k))
+    m, run, out = len(order), 0.0, {}
+    for i, k in enumerate(order):
+        run = max(run, min(1.0, (m - i) * pvals[k]))
+        out[k] = (run, run < alpha)
+    return out
+
+
+def secondary_family(objs: dict[str, dict]) -> dict[str, dict]:
+    """Re-grade one question's secondary objects under Holm. An object below
+    its C0 floor stays out of the family. Each result is a copy of its grade
+    with `c1` replaced by the family decision and `raw_p`, `adj_p` added."""
+    powered = {k: g for k, g in objs.items() if g.get("c0")}
+    h = holm({k: g["p"] for k, g in powered.items()})
+    out = {}
+    for k, g in objs.items():
+        if k in powered:
+            adj, rej = h[k]
+            out[k] = dict(g, c1=rej, raw_p=g["p"], adj_p=adj)
+        else:
+            out[k] = dict(g)
+    return out
+
+
+def secondary_standing(k: str, kc: str, put: str | None, pbo: float | None) -> str:
+    """`CANDIDATE (SECONDARY)` needs PAYS, SELLOFF-ENTRY-HELPS, a put that is not
+    PUT-COSTS, and a PBO below 0.5 across the full cell set. Never a promotion."""
+    if NOT_BUILT in (k, kc):
+        return NOT_BUILT
+    if not (k == "PAYS" and kc == "SELLOFF-ENTRY-HELPS" and put != "PUT-COSTS"):
+        return "-"
+    if pbo is None or pbo >= PBO_MAX:
+        return "BLOCKED (PBO)"
+    return "CANDIDATE" + SECONDARY
 
 
 def quarter(d: date) -> tuple[int, int]:
@@ -1221,8 +1376,8 @@ def outcomes(book: Book, cens: dict, comm: float) -> int:
               f"{_f(hold_R(book.closes, p.pk.entry, p.pk.exit_day))}  "
               f"{p.put_exit} {p.put_reason}")
 
-    hdr("PARAMETERS PRINTED BOTH WAYS — never a verdict")
-    rows_by_cell = {}
+    hdr("PARAMETERS PRINTED BOTH WAYS — raw, uncorrected; graded under SECONDARY GRADES")
+    rows_by_cell, cell_data = {}, {}
     for cell in CELLS:
         if awaits(cell.geom):
             print(f"  {cell.name:<34} {NOT_BUILT}")
@@ -1234,6 +1389,10 @@ def outcomes(book: Book, cens: dict, comm: float) -> int:
         else:
             kr, cr = rows(pk_, cell.n_puts), rows(pc_, cell.n_puts)
         rows_by_cell[cell.name] = kr
+        cell_data[cell.name] = dict(
+            cell=cell, kr=kr, cr=cr,
+            pr=([dict(date=a["date"], R_T=a["R"], R_C=b["R"])
+                 for a, b in zip(kr, rows(pk_, 0))] if cell.n_puts else None))
         gk = grade_vs_zero(kr)
         gkc = grade_vs_calm(kr, cr)
         line = (f"  {cell.name:<34} K n {len(kr):>2} {token(gk, 'PAYS', 'LOSES', 'mean'):<12} "
@@ -1242,9 +1401,14 @@ def outcomes(book: Book, cens: dict, comm: float) -> int:
             pr = [dict(date=a["date"], R_T=a["R"], R_C=b["R"])
                   for a, b in zip(kr, rows(pk_, 0))]
             line += f"  put {token(grade_paired(pr), 'PUT-ADDS', 'PUT-COSTS')}"
+        if cell.geom.put_spread:
+            hits = sum(p.clamp_hit for p in pk_ + pc_)
+            line += (f"  [put-spread clamp moved {hits} of "
+                     f"{sum(1 for p in pk_ + pc_ if p.put_legs == 2)} values]")
         print(line)
 
     hdr("C4 OVERFITTING — PBO by CSCV across the trade-level cells, quarter blocks")
+    pbo = None
     if len(rows_by_cell) < 2:
         print("  not computed: fewer than two cells built")
     else:
@@ -1255,6 +1419,8 @@ def outcomes(book: Book, cens: dict, comm: float) -> int:
         print(f"  cells {len(rows_by_cell)}  quarters {M.shape[0]} (+{padded} zero pad)  "
               f"S {S}  PBO {res.pbo:.3f}  "
               f"({'no non-primary cell may be promoted' if res.pbo >= PBO_MAX else 'below 0.5'})")
+        pbo = res.pbo
+    secondary_report(book, pk_k, kp_net, cell_data, pbo)
 
     hdr("VERDICT")
     st = study_token(t_k, t_kc, t_p, t_dk, t_dkc)
@@ -1268,6 +1434,45 @@ def outcomes(book: Book, cens: dict, comm: float) -> int:
     print("  Nothing ships from this study.")
     write_trades(book, pk_k + pk_c)
     return 0
+
+
+def secondary_report(book: Book, pk_k: list, kp_net: list, cell_data: dict,
+                     pbo: float | None) -> None:
+    """The secondary grades (registration, Secondary grades): every non-primary
+    cell, `ARM K-put` and `ARM K` vs `ARM H`, each under Holm within its question."""
+    hdr("SECONDARY GRADES — Holm–Bonferroni within each question, family alpha 0.05")
+    cells = {n: d for n, d in cell_data.items() if d["cell"] != PRIMARY}
+    zero = {n: grade_vs_zero(d["kr"]) for n, d in cells.items()}
+    zero["ARM K-put"] = grade_vs_zero(kp_net)
+    calm = {n: grade_vs_calm(d["kr"], d["cr"]) for n, d in cells.items()}
+    put = {n: grade_paired(d["pr"]) for n, d in cells.items() if d["pr"]}
+    wrap_rows = []
+    for p in pk_k:
+        h = hold_R(book.closes, p.pk.entry, p.pk.exit_day)
+        if h is not None:
+            wrap_rows.append(dict(date=p.pk.signal.isoformat(), R_T=package_R(p), R_C=h))
+    wrap = {"ARM K vs ARM H": grade_paired(wrap_rows)}
+    fam = {"vs zero": (secondary_family(zero), "PAYS", "LOSES", "mean"),
+           "vs own ARM C": (secondary_family(calm), "SELLOFF-ENTRY-HELPS",
+                            "SELLOFF-ENTRY-HURTS", "gain"),
+           "put contribution": (secondary_family(put), "PUT-ADDS", "PUT-COSTS", "gain"),
+           "wrap vs shares": (secondary_family(wrap), *WRAP_TOKENS, "gain")}
+    toks: dict = {}
+    print(f"  {'question':<17}{'object':<36}{'n':>3}  {'token':<34}{'raw p':>7}{'adj p':>7}")
+    for q, (gs, pos, neg, val) in fam.items():
+        for name, g in gs.items():
+            t = token(g, pos, neg, val)
+            toks[(q, name)] = t
+            shown = t if t == UNDERPOWERED else t + SECONDARY
+            rp = _f(g.get("raw_p"), ".3f")
+            ap = _f(g.get("adj_p"), ".3f")
+            print(f"  {q:<17}{name:<36}{g['n']:>3}  {shown:<34}{rp:>7}{ap:>7}")
+    print("  standing (never a promotion; needs PBO < 0.5, forward confirmation and a new "
+          "registration):")
+    for name in cells:
+        k, kc = toks[("vs zero", name)], toks[("vs own ARM C", name)]
+        pt = toks.get(("put contribution", name))
+        print(f"    {name:<36}{secondary_standing(k, kc, pt, pbo)}")
 
 
 def forward_rows(book: Book) -> tuple[list[float], list[float], int]:
@@ -1299,7 +1504,7 @@ def forward_rows(book: Book) -> tuple[list[float], list[float], int]:
 def write_trades(book: Book, ps: list[Priced]) -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     cols = ["arm", "signal", "entry_day", "put", "long", "shorts", "put_in", "put_out",
-            "put_exit", "put_reason", "long_in", "long_out", "short_in", "short_out",
+            "put_short_in", "put_short_out", "put_exit", "put_reason", "long_in", "long_out", "short_in", "short_out",
             "R_K_net", "R_K_gross", "R_Kdiag_net", "R_Kput_net", "R_H"]
     with open(TRADES_CSV, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols)
@@ -1309,7 +1514,8 @@ def write_trades(book: Book, ps: list[Priced]) -> None:
                 arm=p.pk.arm, signal=p.pk.signal, entry_day=p.entry_day,
                 put=f"{p.pk.put[1]} {p.pk.put[2]:g}P", long=f"{p.pk.long[1]} {p.pk.long[2]:g}",
                 shorts=" ".join(f"{e} {k:g}" for _o, e, k in p.pk.shorts),
-                put_in=p.put_in, put_out=p.put_out, put_exit=p.put_exit,
+                put_in=p.put_in, put_out=p.put_out, put_short_in=p.put_short_in,
+                put_short_out=p.put_short_out, put_exit=p.put_exit,
                 put_reason=p.put_reason, long_in=p.long_in, long_out=p.long_out,
                 short_in=" ".join(f"{v:g}" for v in p.short_in),
                 short_out=" ".join(f"{v:g}" for v in p.short_out),

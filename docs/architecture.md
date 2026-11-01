@@ -969,6 +969,9 @@ SCRAPE` and stops. `Book.price` raises until `open_outcomes` finds none.
 - Pricing is production's shared functions in `simulate.py`: `entry_day_fill`,
   `common_entry_day`, `junk_day_mark`. The frozen harness replays one
   single-expiry path, so `walk_package` prices the legs on their event days.
+- The put leg is a naked ATM put. One printed-only cell (`Geom.put_spread`)
+  swaps in a bear put spread, short leg at spot × 0.95; the defined-risk clamp
+  applies to that vertical and its moved values are counted.
 - The fetch plan is `fetch_targets()`; the collector imports `plan()`.
 
 ### ruin_bound
