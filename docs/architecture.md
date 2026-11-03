@@ -2296,3 +2296,374 @@ retry to get a conforming response" apart. `--skip-llm` runs (which never call t
 carry neither key.
 
 Tests: `tests/test_analysis_guards_robustness.py`.
+
+## Agent rules in full
+
+`CLAUDE.md` keeps one line per rule. This section holds the full text, the reasons and the incidents behind each one.
+
+### Commands, with notes
+
+Canonical invocation per workflow. Full flag matrices: `docs/architecture.md` §Command variants.
+Common flags on the data steps: `--date YYYY-MM-DD` · `--backfill` (all dates, idempotent) ·
+`--dry-run` · `--force` (clear + redo).
+
+```bash
+source .venv/bin/activate       # required before any script
+pytest                          # all tests; pytest tests/test_drive_client.py for one file
+python3 scripts/auth_drive.py   # one-time Drive OAuth2
+
+# Data collection (GitHub Actions: flow-pacemaker.yml paces each NYSE session's scrapes,
+# self-started 10:00 UTC Mon-Fri; scrape.yml's hourly crons are the backup)
+make pacemaker                                        # LAPTOP twin when Actions is down: paces today's
+                                                      # scrapes + close scrape, then compiles (DRY=1 to preview)
+SCRAPE_HEADLESS=false python3 scripts/collector/daily/scrape_flow.py --mode flow    # or --mode unusual
+python3 scripts/collector/daily/scrape_flow.py --start 2026-01-02 --end 2026-05-30 --skip-existing  # historical
+python3 scripts/compile_flow.py                       # dedupe hourly snapshots → compiled CSV (→ Drive)
+python3 scripts/gc_flow.py                            # trash raws verified-present in compiled file;
+                                                      # also thins unusual snapshots to the richest one
+python3 scripts/build_baseline.py                     # market-baseline row → BaselineDaily tab
+python3 scripts/collector/daily/enrich_oi.py                # next-day OI change + EOD greeks (needs D+1)
+python3 scripts/collector/daily/fetch_iv_percentile.py      # per-ticker Barchart IV percentile (IVpct)
+python3 scripts/collector/daily/fetch_counterpart_iv.py     # matched-pair leg settlement IV → sidecar
+python3 scripts/collector/daily/fetch_price_catalyst.py     # price/earnings-catalyst columns
+python3 scripts/backfill_mech_cell.py                 # fill mech_cell on older analysis rows
+python3 scripts/regime_watch.py                    # daily REGIME-WATCH report (unvalidated; changes nothing); --as-of D, --json, --backfill N
+python3 scripts/align_tab_headers.py --dry-run        # check tab headers against ROW_COLUMNS
+python3 scripts/check_pipeline.py                     # WATCHDOG: did every collection stage run?
+                                                      # exit!=0 = the GitHub failure email; --as-of to replay
+
+# Full analysis pipeline: fetch → headless engine (claude) → write Sheets
+python3 -m scripts.analysis_pipeline                  # latest date → AnalysisClaude
+python3 -m scripts.analysis_pipeline --date 2026-04-21 --tickers NVDA,AMD   # → AnalysisTickerSpecific tab
+python3 -m scripts.analysis_pipeline --skip-llm       # fetch + audit CSV only, no LLM
+# A date the target tab ALREADY holds is REFUSED before the first fetch. --allow-duplicate-date
+# is the override and is almost never right: delete the unwanted run's rows first.
+python3 -m scripts.analysis_pipeline --date 2026-04-21 --allow-duplicate-date
+
+# Backtest
+python3 -m scripts.backtest --config config/backtest.yml            # add --dry-run to preview
+python3 -m scripts.backtest.proxy --config config/backtest.yml      # untested plays → BacktestProxy tab
+# BOTH are idempotent: a play already on the destination tab is SKIPPED. --redo re-simulates
+# it and DELETES the existing rows first; it needs a date bound (--date, or --start/--end).
+python3 -m scripts.backtest --config config/backtest.yml --date 2026-04-21 --redo
+# --dry-run makes NO Barchart call (backtest and proxy): reads the tabs, prints per play cached vs
+# to-scrape, writes nothing. Plays already on BacktestProxy are SKIPPED by default (no play has ever
+# gone proxy -> real); --retry-proxied re-fetches them. --redo still touches BacktestResults only.
+# An unbounded run that would scrape >500 contracts WARNS: bound it with --start.
+
+# Research-tier caches (feed studies that need real bars / priceable counterparts)
+python3 scripts/collector/history/fetch_underlying_ohlc.py        # stock OHLC per book ticker
+python3 scripts/collector/history/fetch_counterpart_history.py    # opposite-leg option history (--limit N, resumable)
+python3 scripts/backup_research_caches.py push            # dated Drive snapshot of the irreplaceable backtests/ caches;
+                                                          # then PERMANENTLY deletes snapshots beyond the newest 3 + empties old ones from the trash (--keep N / --no-prune)
+python3 scripts/backup_research_caches.py prune --dry-run # the prune step alone (permanent, bypasses the trash)
+python3 scripts/backup_research_caches.py pull            # rehydrate them on a fresh checkout BEFORE any study/backtest run
+                                                          # (additive — never clobbers newer local files; --force = full restore)
+
+# Backtest tuning studies (research tier — reports, not production)
+python3 scripts/export_tabs.py                        # re-pull the Sheets tabs → backtests/to_evaluate/
+                                                      # (overwrites; staged + era-checked before install,
+                                                      #  --dry-run/--list/--tabs A,B)
+python3 -m scripts.backtest_study list                # available studies
+python3 -m scripts.backtest_study run <name>          # → backtests/study_output/<name>-latest.txt
+python3 -m scripts.backtest_study run account_sim -- --compounding   # arms: see docs/architecture.md §account_sim
+python3 -m scripts.study_review <name>                # A/B replication grading + digest (--skip-run reuses report)
+make dashboard                                        # rebuild site/dashboard.html (the study map is
+                                                      # its studies section) + open
+python3 -m scripts.study_charts.account_sim           # render a study result; never computes a new one
+
+# Reset the checkout (both cleaners; see docs/architecture.md §Cleaning)
+make clean-list                       # every clean target, its size, how to rebuild it
+make clean-dry                        # preview; make clean ARGS="--yes" to skip prompts
+make clean ARGS="--caches --yes"      # also drop the refetchable network caches
+
+# Daily production loop, laptop half: mech-regime -> bounded backtest+proxy (START default today-45d)
+# -> journal -> recommend -> cache backup. One writer (exit 3 if another runs), caffeinated,
+# one log per run in backtests/run_logs/. DRY=1 previews; ARGS="--skip-backtest|--skip-backup".
+make daily-loop
+make daily-loop START=2026-09-23 ARGS="--skip-backup"
+
+# Daily trade journal (PRODUCTION tier — the analysis → trade → evidence loop)
+python3 -m scripts.journal                    # Flex fetch → reconcile → risk → report → write
+python3 -m scripts.journal --offline          # read portfolio/input/ only, no network
+python3 -m scripts.journal --quiet            # print NOTHING; output goes to Drive only
+python3 -m scripts.journal pull-page          # download the latest page from Drive → site/
+python3 -m scripts.journal recommend          # deploy card for the NEXT session — persisted to
+                                               # the Recommendations tab + journal/recommendations.csv
+python3 -m scripts.journal recommend --as-of 2026-08-14 --allow-stale  # replay a past morning
+python3 -m scripts.journal recommend --no-persist                      # print only, record nothing
+# recommend is built AS OF a date (--as-of, default today): analysis past
+# RECOMMENDATION_MAX_AGE_DAYS is refused unless --allow-stale; analysis dated AFTER as-of is
+# refused unconditionally (lookahead, not staleness — --allow-stale never reaches it).
+# --dry-run/--no-sheets now also apply to recommend (skip/local-only the persisted row); --no-llm
+# still skips the judge() annotation pass. Other: --date, --net-liq, --from-raw/--from-flex/
+# --from-flex-positions
+
+```
+
+### Sharp edges per tier
+
+Research tier (`backtest_study/`, `study_*`):
+
+- `scripts/backtest_study/lib/harness.py` is the FROZEN exit-replay engine — do not edit; every
+  recorded conclusion rests on it. `tests/test_harness_replay.py` pins its behaviour against a
+  committed fixture; that test is the regression check, not a study gate. Write-ups go to
+  `research/current.md`.
+- **A study runs on ONE ERA, names it, and refuses if the exports are not it.**
+  `scripts/backtest_study/lib/era.py` is the single encoding. The BARE export filename
+  (`analysis - BacktestResults.csv`) does NOT name a fixed population — a `vN_` rename makes it
+  mean whatever the live tab holds now, which on 2026-08-15 turned four months of v3 evidence
+  into 14 dates of v4 with no code change, failing 5 studies loudly and silently rewriting 14
+  more. `load_book()` resolves paths from `STUDY_ERA` (default `current`), refuses (exit 3)
+  when the exports are not the era asked for or disagree with each other, and refuses (exit 2)
+  an era too thin to conclude from. Run a past era with `--era v3`; every report's header names
+  the era it ran on. Do NOT pin a study to a frozen snapshot to dodge this, and do not lower
+  `MIN_ERA_DATES` to make a young era run.
+- **Never hardcode an expected figure off one export.** A stored `expected_positions: 220`
+  fingerprints a snapshot, not a hypothesis: the book grows, the constant breaks, and the
+  operator learns to edit it — which is what destroyed it as a check. Four gates did this and
+  are gone. A code-behaviour claim goes in `tests/`; a data claim goes in `research/` with its
+  population stated. A pre-registration (`research/pre-registrations/`) is IMMUTABLE IN
+  SUBSTANCE — no gate, bar, arm definition, or verdict changes meaning after it is written —
+  but not in prose: the file may be consolidated editorially (a later refinement folded into
+  the section it amends, so the file states one final design; what changed and when lives in
+  git, not inline). A build-time ruling that changes what a gate refuses or how a clause is
+  read is folded in too, tagged `Resolved at build (date)` beside the text it amends — never
+  kept in a separate errata file (one was, for exit_drawdown, 2026-09-05 -> 2026-09-08, and
+  was unreadable beside the registration). Read only by `scripts/study_review/` — no study code reads a number out
+  of one.
+- `account_sim` is config-driven and stateless: `config/account-sim.yml` IS the simulation.
+  There are no `--capital`/`--risk-dollars`/cap flags. Every ARM (`--compounding`,
+  `--structure-universe`, `--live-select`) writes its own report/CSV stem; a different
+  `--config` does NOT — it overwrites the default export (the report records which config
+  produced it). Arms, gates (G2–G5 — G1 was a stored book-calibration checksum, removed
+  2026-08-15; the survivors were deliberately NOT renumbered), and the live-select judge
+  cache: `docs/architecture.md` §account_sim.
+- `site/` is GENERATED OUTPUT and gitignored — a fresh checkout has no pages until
+  `make study-docs` or any study run. It was called `docs/` until 2026-08-15; `docs/` is now
+  TRACKED hand-written prose, so never point a generator at it.
+- Study-map verdicts are hand-written in `scripts/study_map/catalog.py`; a study with no entry
+  there fails the test suite. Last-run excerpts are quoted verbatim, never paraphrased.
+- **`backtests/` is NOT uniformly disposable**, despite the `.gitignore` comment saying so.
+  `to_evaluate/` (hand-exported study inputs), `option_history_cache/` (~337MB of scraped
+  option history), `live_loop/` (point-in-time broker snapshots), `underlying_ohlc_cache/` (stock bars from a
+  rolling 1000-bar feed), the `v1_*`/`v2_*` frozen
+  evidence exports and the hand-written `*.md` date lists have NO git history to recover from.
+  `scripts/clean_generated.py` encodes which paths are safe — extend its table rather than
+  writing a new `rm -rf`, and never widen a glob without re-reading its PROTECTED_PREFIXES.
+  The price-history feed request the page fires carries the page's DEFAULT RANGE
+  (`startDate=` three months back); `lib/barchart/session.py::_augment_history_url` pins
+  it to `HISTORY_START_DATE` because a verbatim re-issue returns no rows for an expired
+  contract — and `scripts/backtest/shared/history.py` UNLINKS a shallow cache file before
+  refetching, which is how 178 files were lost between the 2026-09-05 snapshot and
+  2026-09-08 (restored; unlink fix filed in `research/next-steps.md` §2.11). Run
+  `backup_research_caches.py push` after every scrape.
+- Study charts reconcile every CSV-recomputed figure against the report before writing —
+  mismatch exits non-zero. Never add a statistic the study refuses to print (no annualised
+  figure / Sharpe / time-to-recover), and never add a regime table to a page without adding
+  the cut to the study first.
+- **`lib/mtm_curve.py` and `account_sim.equity_curve` are TWO implementations of the same
+  booked series, on purpose.** `tests/test_mtm_curve.py` reconciles them against the real
+  export; G-MTM reconciles the marked exit against the row's own stored columns. Keep both
+  and keep them INDEPENDENT — one must never call the other, and the comparison is never
+  loosened to get a green test. Mind the BASIS: `daily_pnl_csv` is gross of transaction costs while
+  `realized_pnl_abs` is net of them, so `book_curves` charges the row's `cost_total`
+  (`row_cost`) under `TARGET_STORED` and leaves the marks gross under `TARGET_POSITION`,
+  whose target is the pre-cost frozen harness. A G-MTM failure means the row's columns
+  disagree — read it, never widen the tolerance.
+
+Journal / production tier (`scripts/journal/`):
+
+- Flex is the ONLY broker transport and it fetches by default (`IBKR_FLEX_TOKEN` +
+  `IBKR_FLEX_QUERY_TRADES_ID`, optional `IBKR_FLEX_OPEN_POSITIONS_QUERY_ID`); `--offline`
+  reads disk only. The IBKR MCP is claude.ai-hosted and unreachable from scripts. Transport
+  details, netting/coverage semantics, and the flat-book guards: `docs/architecture.md` §Daily
+  trade journal.
+- A short Flex statement OMITS positions it didn't touch. Fix a coverage gap by dropping a
+  fresh export into `portfolio/input/`, NEVER by re-scoping the saved Flex query.
+- `journal/` is gitignored in full (account ids, live position sizes). The leading slash in
+  the `.gitignore` rule is load-bearing: a bare `journal/` would also exclude
+  `scripts/journal/`, the pipeline's own source.
+- Exposure caps (0.25 per-position / 2.50 net) come from `config/account-sim.yml` but bind
+  against live NetLiquidation, not the study's $25k. The per-position cap is evaluated on a
+  TICKER's SIGNED total, not per (ticker, expiry) row. `s03_risk.py::assess` and
+  `s04b_page.py::_breach_count` are two DELIBERATE implementations of that rule — s04b_page.py
+  recomputes so drift surfaces as a ReconcileError; change both, by hand; never make s04b_page.py
+  call s03_risk.py's helper.
+- ONE model call in the whole pipeline: the judgment pass in `s06_recommend.py` (see Invariants).
+- **`JOURNAL_DRIVE_FOLDER_ID` is the journal's OWN Drive folder, never
+  `GOOGLE_DRIVE_FOLDER_ID`.** The flow folder holds Barchart scrapes and may be shared; this one
+  holds account ids and live P&L. Unset = `lib/drive_sync.py` no-ops entirely. Reports and deploy
+  cards group one file per MONTH inside a `YYYY-MM/` folder, broker pulls one line per that
+  month's JSONL; the three archives go whole into `_history/`, un-partitioned, because each is one
+  continuous series the next run of any month must find in one known place. They are the WRITERS'
+  RECORD, not a copy of the tabs: the tabs dedup against themselves, but `generation` is computed
+  from the CSV and written INTO them, and the OpenBook tab is a MIRROR so open_book.csv is the only
+  place that book's past marks exist. Those archives ROUND-TRIP — pulled before the writers read their own history, pushed
+  after — because a fresh checkout restarts every `generation` at 1 and re-appends rows it has
+  already written. Divergence is never merged on a guess: append-only makes "behind or ahead"
+  exact (`relation()`), and a genuine fork leaves Drive's copy untouched and uploads the local one
+  under `-conflict-<stamp>`. `--quiet` prints no report and no card (an Actions log is not a
+  private place for position sizes), REFUSES to run without the folder set, and makes a Drive
+  failure fatal (exit 4) because Drive is then the only copy. Full contract:
+  `docs/architecture.md` §The Drive mirror.
+### Invariants (do not regress)
+
+- **Per-play `regime` and `signal` are ticker-specific, never copies of the market read.** The
+  MARKET row carries the top-level `regime` + `signals`; each play row carries its OWN, taken
+  from inside the play dict — either may be empty, but they must NEVER fall back to the market
+  values. See the invariant comment on `analysis_to_rows()` in
+  `scripts/analysis_pipeline/core.py` and `ANALYSIS_PROMPT_CONTRACT` in its `config.py`. This
+  regression has happened before — keep the JSON contract, row expansion, and claude.md in sync.
+
+- **An analysis is written ONCE per date.** `append_rows` appends — no upsert, no undo —
+  and the analysis step is not deterministic, so a second run on a date the target tab
+  already holds does not duplicate it: it proposes DIFFERENT plays and the tab ends up
+  pooling two populations, silently, into every study that loads the export. It happened
+  on 2024-09-16, 2025-09-10 and 2025-09-18, and on 2025-09-18 the two runs disagreed about
+  the `MARKET` regime itself. `scripts/analysis_pipeline/core.py::_drop_already_analysed`
+  REFUSES such a date, checked in ONE Sheets read before the first fetch and long before
+  any LLM spend — a guard that costs a run to reach is not a guard. `--tickers` runs key on
+  (date, TICKER); `--dry-run` only warns; `--skip-llm` and `--output-dir` are exempt because
+  neither can reach `append_rows`. `--allow-duplicate-date` is the override and is almost
+  never right — delete the unwanted run's rows, keyed on `created_datetime`, instead.
+  `--output-dir` remains a SEPARATE structural guard: a candidate prompt's rows for a NEW
+  date pass this one and must still never reach the tab.
+
+- **A play is backtested ONCE per results tab, and both writers key on the SAME row
+  identity.** The results tabs append too, and a re-run is not a copy: it reprices the same
+  play on whatever the exit config, the cached Barchart history and the classifier say
+  TODAY, so the two rows can disagree about the exit, the basis and the P&L while looking
+  equally authoritative — `exit_basis` exists because that already happened once. The
+  2025-12-22 SPY duplicate found on 2026-09-06 came from a re-run of `scripts.backtest`,
+  which until 2026-09-07 never read its own destination. `scripts/backtest/core.py::
+  _drop_already_backtested` now drops a play already on `BacktestResults` BEFORE the
+  Barchart fetch, mirroring `proxy.py`'s long-standing check against `BacktestProxy`.
+  `--redo` is the override: it DELETES the existing rows and then appends, in that order,
+  and refuses to run without a date bound because an unbounded `--redo` rewrites the whole
+  tab. The key — `(date, TICKER, 60-char play prefix)` — lives in
+  `scripts/backtest/shared/identity.py` and there is exactly ONE copy: two would let the
+  real backtest and the proxy disagree about what a duplicate is. It is deliberately the
+  same normalisation `backtest_study/lib/book.py::norm_play` joins on, so the writers'
+  notion of row identity and the studies' are the same one. `core.py` must never import
+  `proxy.py` — the proxy reads `BacktestResults` as an INPUT, so that dependency runs one
+  way only. **Two exceptions are re-priced in place by default on both CLIs.** A row stored
+  `path_status = open_at_data_end` (its data ran out before an exit fired); `--no-reprice-open`
+  skips it. And a finished row whose leg cache file is newer than its `created_datetime`
+  (another play's refresh rewrote a shared file), re-simulated on its stored legs with NO fetch;
+  `--no-reprice-stale` skips it. An open row is replaced on a later data end or a new
+  status/exit; a finished one when any `identity.SIMULATED_COLUMNS` cell changed; only replaced keys are
+  deleted (CSV → delete → append). `shared/history.py` refetches a cached file that stops short
+  of its path end, until a fetch dated on or after that end makes it final; it never unlinks a
+  cache file. A cache file's mtime is its fetch time, so `backup_research_caches.py pull` keeps
+  the archived mtimes.
+
+- **A missing greek is `None`, never `0.0`.** A delta of `0.0` is a real value; an absent one
+  is not, and conflating them silently UNDERSTATES book exposure — the single most dangerous
+  way this pipeline could be wrong. Enforced at three layers, all of which must stay:
+  `scripts/journal/lib/rawpull.py::validate` refuses a pull whose greek claims a `source` in
+  `DELTA_SOURCES_REAL` with a null delta; `scripts/journal/s03_risk.py` computes a position's
+  delta all-or-nothing across legs and excludes unpriceable positions from every total
+  (`BookRisk.complete` → False); the report states such totals are a FLOOR. Never sum
+  `delta_notional` without filtering on `PositionRisk.priced`, and test greek sources by
+  membership in `DELTA_SOURCES_REAL`, never equality with one named source.
+
+- **The model may annotate the deploy card; it may never promote a play.** `s06_recommend.py`
+  ranks deterministically from `docs/deployment-rules.md` via `ladder_tier()`, then shows
+  the headless model ONLY the survivors. Verdicts are applied as annotations onto that
+  ordering — never a re-sort or rebuild, and a returned ticker outside the survivor set is
+  dropped. The rules encode backtest evidence with confidence intervals; a model's read of
+  today's tape does not outrank them.
+
+- **A deploy card never sees anything dated after its as-of date.** `recommend` is built AS
+  OF a date (`--as-of`, default today), and three things are bounded by it:
+  `lib/analysis.py::latest_date_on_or_before()` picks the analysis session (never the unbounded
+  `latest_date()`, which stays correct for `s02_reconcile.py`'s backward-looking match);
+  `__main__._raw_on_or_before()` picks the broker pull — the newest one whose `trade_date` is
+  ≤ the session, confirmed against that field rather than trusted from the filename — and
+  marks the book AT the session, never `date.today()`. `check_freshness()` raises two
+  different refusals and only one is overridable: analysis older than
+  `RECOMMENDATION_MAX_AGE_DAYS` is refused unless `--allow-stale`; analysis dated AFTER as-of
+  is refused UNCONDITIONALLY, because that is lookahead rather than staleness and
+  `--allow-stale` must never reach it. With no broker pull dated on or before the session, the
+  card ranks against an EMPTY book rather than the newest one on disk — `rank()` stamps
+  `duplicate_exposure=False` off an empty book, which reads as "checked, clear", so both
+  book-derived verdicts serialise as a BLANK cell (never `False`) whenever `book_evaluable` is
+  False, on the card and in every persisted row. The one thing that CANNOT be bounded this way
+  is `judge()`: `JUDGMENT_MODEL`'s training cutoff overlaps the analysis dates, so a verdict on
+  a historical session may be recall rather than reasoning — every row carries `judge_status`
+  and `judge_lookahead_risk` so a later reader can segregate judge-touched rows instead of
+  discovering the contamination after building on them. `scripts/backtest_study/lib/live_select.py`
+  documents the same concern for its own judge layer.
+
+- **`ladder_tier()` is the ONLY encoding of `docs/deployment-rules.md` §1–§3.** It lives in
+  `scripts/journal/lib/mapping.py`; the deploy card (`s06_recommend.py`), the reconcile step
+  (`s02_reconcile.py`) and the research live-select arm (`scripts/backtest_study/lib/live_select.py`)
+  all import it from there. One copy is what keeps those three from disagreeing about a tier —
+  never inline a tier rule elsewhere. A financed multi-leg position is tiered off
+  `event.core_structure` (the vertical `mapping.decompose_core()` finds at its centre), NOT
+  off its `"3-leg combo (debit)"` label; `_live_to_canonical` matches bare substrings, so a
+  cosmetic rename containing `"bull_call"` would flip a tier silently.
+
+- **The match vocabulary is defined once, in `mapping.CONFIDENCES`.** `MATCH_CONFIDENCES`
+  (`scripts/journal/config.py`) DERIVES from it. `EXACT`/`STRUCTURE` = the emitted play was
+  traded; `CORE` = traded as the core of a larger financed position, never promoted to
+  `EXACT`; `OVERLAY` = a financing/carry leg, excluded from BOTH sides of the matched/unmatched
+  ratio. An ambiguous multi-leg group is reported undecidable rather than decomposed on a
+  guess.
+### Google Sheets tabs
+
+- **AnalysisClaude** — `scripts.analysis_pipeline` output, one row per ticker/play per run.
+  A date the tab already holds is REFUSED (see Invariants); `created_datetime` is what a
+  bad run is deleted by. Also
+  carries deterministic per-ticker rollup context (`oi_confirm_pct`/`cpir`/`iv_spread`/`iv_skew`/
+  `iv_pct`) joined from that date's audit rollup CSV at row-expansion time — NOT
+  model-produced, appended at the end of `ROW_COLUMNS`.
+- **AnalysisTickerSpecific** — `--tickers` runs; same row schema, kept separate.
+- **BacktestResults** / **BacktestProxy** — `backtest.py` / `backtest/proxy.py` (proxy rows:
+  skip_reason + fallback-chain verdict; result columns mirror BacktestResults).
+- **BaselineDaily** — one market-aggregate row per trading date. NOT versioned — regime
+  history carries across prompt versions.
+- **TradeJournal** — journal rows, in **`TRADE_JOURNAL_SPREADSHEET_ID`, not
+  `GOOGLE_SPREADSHEET_ID`** (separate workbook so the trade record can be shared, or kept
+  unshared, independently). Schema = `JOURNAL_COLUMNS` in `scripts/journal/config.py`;
+  deduped on `source_ref` (broker exec ids), so re-runs append only genuinely new fills.
+- **Recommendations** — the deploy card's own record, in the SAME workbook as TradeJournal
+  (one loop, two halves: what was recommended, what was actually traded). Schema =
+  `RECOMMENDATION_COLUMNS`; append-only and GENERATIONAL — `rec_id` ends in a content hash so
+  an unchanged re-run appends nothing, while a card whose verdict or cap headroom changed
+  appends a new row at `generation = n+1` rather than overwriting the earlier one. Written to
+  `journal/recommendations.csv` first (its failure is fatal); a Sheets failure is reported but
+  never loses the row.
+- **OpenBook** — the held book, in the SAME workbook as TradeJournal and Recommendations (one
+  loop, three halves: recommended, traded, HELD). One row per open position, schema =
+  `OPEN_BOOK_COLUMNS`. UNLIKE the other two tabs it is a MIRROR, not a record: every run
+  REPLACES it with the book as marked, and a flat book clears it. That is because rows lead with
+  `status` (ATTENTION/WATCH/OK) + `flags` so the tab can be SORTED to find what is amiss —
+  overdue §5 exits, unpriced positions, breached caps — and appending puts a closed position's
+  last ATTENTION row at the top of that sort forever. The append-only, GENERATIONAL history
+  lives in `journal/open_book.csv` instead, which is written first and is the copy that survives
+  a Sheets outage. Flags are ATTENTION, NEVER VERDICTS: nothing reads one, the caps still bind in
+  `s03_risk.py`. Columns and the full flag vocabulary: `docs/open-book-reference.md`.
+- **\_meta** — dedup hashes (`sheets_client.py`).
+
+**Header rule:** `append_rows` writes positionally — adding a column to `ROW_COLUMNS` or
+`JOURNAL_COLUMNS` means the tab HEADER must gain it too (append-at-end), or new rows write an
+unlabelled trailing column. `align_tab_headers.py --dry-run` checks, and since 2026-10-20
+`append_rows` REFUSES a tab whose live header differs from the rows' keys (`HeaderMismatch`).
+
+**Prompt versions / `vN_` tabs.** Any change to the analysis prompt or its inputs is a version
+bump: live tabs are renamed in place (`v3_AnalysisClaude`, …) and the pipeline recreates empty
+ones — a rename, NOT a new spreadsheet; ids and tab names in code stay unchanged. Rows from
+two prompt versions are never pooled.
+
+- **v4 is current** (2026-08-11): `score_flow`/`score_dealer` dropped, so `score_total` runs
+  0–50 (0–55 for VOLATILITY) — NOT comparable to v3's 0–100. `ROW_COLUMNS` is 29 since
+  `framework_sha256`/`method_sha256`/`model` were appended 2026-10-20 (row provenance,
+  append-at-end, not a version bump; blank on rows written before).
+- **v3 is frozen** as the evidence base for every shipped rule in
+  `docs/deployment-rules.md`. Pass `--tab v3_AnalysisClaude` to run against it; a bare
+  backtest reads the (empty) v4 tab.
+- Studies read CSV exports in `backtests/to_evaluate/` by filename — unaffected by renames.
+- `RESULT_COLUMNS` (`scripts/backtest/core.py`) deliberately KEEPS `score_flow`/`score_dealer`
+  (blank on v4) so study loaders work on pooled v3+v4 exports.
