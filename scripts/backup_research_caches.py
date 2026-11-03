@@ -21,10 +21,13 @@ checkout before any study run that needs real bars or priceable
 counterparts; run `push` by hand after a scrape that grew the caches.
 
 Every snapshot is a full copy (~550MB), so `push` PRUNES after a successful
-upload: snapshots beyond the newest `--keep` (default DEFAULT_KEEP) are moved
-to Drive's trash, never hard-deleted, so a mistaken prune is recoverable for
-about 30 days. The one just uploaded is by construction the newest and is
-never a candidate. `--no-prune` skips the step; `prune` runs it on its own.
+upload: snapshots beyond the newest `--keep` (default DEFAULT_KEEP) are
+PERMANENTLY deleted, bypassing Drive's trash — at ~550MB each, trashed copies
+filled the bin faster than its 30-day purge emptied it. The kept snapshots are
+the safety net, not the bin. Each prune also empties any of this folder's
+snapshots already sitting in the trash (left by older trash-based prunes). The
+one just uploaded is by construction the newest and is never a candidate.
+`--no-prune` skips the step; `prune` runs it on its own.
 
 Research tier — hand-run, never scheduled, never imported by production or
 by scripts/backtest_study/.
@@ -39,7 +42,7 @@ Usage:
   python3 scripts/backup_research_caches.py push --dry-run
   python3 scripts/backup_research_caches.py push --keep 5     # prune to the newest 5 after upload
   python3 scripts/backup_research_caches.py push --no-prune
-  python3 scripts/backup_research_caches.py prune              # trash all but the newest DEFAULT_KEEP
+  python3 scripts/backup_research_caches.py prune              # delete all but the newest DEFAULT_KEEP
   python3 scripts/backup_research_caches.py prune --keep 2 --dry-run
   python3 scripts/backup_research_caches.py pull                 # newest snapshot, additive
   python3 scripts/backup_research_caches.py pull --stamp 20260819-1200
@@ -179,7 +182,7 @@ def select_snapshot(files: list[dict], stamp: str | None) -> dict | None:
 # ── Pruning ───────────────────────────────────────────────────────────────────
 
 def select_prunable(files: list[dict], keep: int) -> list[dict]:
-    """The snapshots to trash so that only the newest `keep` remain, oldest first.
+    """The snapshots to delete so that only the newest `keep` remain, oldest first.
 
     Only names matching the archive pattern are candidates — anything else in
     the folder is left alone. `keep` must be at least 1: a prune that empties
@@ -196,21 +199,27 @@ def select_prunable(files: list[dict], keep: int) -> list[dict]:
 
 def prune_snapshots(client: DriveClient, folder_id: str, keep: int,
                     dry_run: bool = False) -> list[dict]:
-    """Trash every snapshot beyond the newest `keep`; returns what was (or
-    would be) trashed. Trash, not delete: recoverable from Drive for ~30 days."""
+    """PERMANENTLY delete every snapshot beyond the newest `keep`, plus any of
+    this folder's snapshots already in the trash; returns what was (or would
+    be) deleted. Not recoverable — the `keep` newest snapshots are the safety
+    net, and `select_prunable` refuses keep < 1."""
     files = client.list_folder(folder_id)
     victims = select_prunable(files, keep)
-    if not victims:
-        print(f"Prune: {len(files)} snapshot(s) on Drive, keep {keep} — nothing to trash.")
+    # Snapshots an earlier trash-based prune left in the bin. Archive names only,
+    # so nothing else that happens to be trashed from this folder is touched.
+    binned = [f for f in client.list_trashed_in_folder(folder_id) if parse_stamp(f["name"])]
+    if not victims and not binned:
+        print(f"Prune: {len(files)} snapshot(s) on Drive, keep {keep} — nothing to delete.")
         return []
-    freed = sum(int(f.get("size") or 0) for f in victims)
-    for f in victims:
+    for f in victims + binned:
         if not dry_run:
-            client.trash(f["id"])
-        print(f"  {'would trash' if dry_run else 'trashed'}  {f['name']}  ({_human(int(f.get('size') or 0))})")
+            client.delete(f["id"])
+        where = " (from trash)" if f in binned else ""
+        print(f"  {'would delete' if dry_run else 'deleted'}  {f['name']}{where}  ({_human(int(f.get('size') or 0))})")
+    freed = sum(int(f.get("size") or 0) for f in victims + binned)
     verb = "would free" if dry_run else "freed"
-    print(f"Prune: kept newest {keep}, {verb} {_human(freed)} (trash, recoverable ~30 days)")
-    return victims
+    print(f"Prune: kept newest {keep}, {verb} {_human(freed)} (permanent — bypasses the trash)")
+    return victims + binned
 
 
 # ── Extraction (path-traversal guarded) ──────────────────────────────────────
@@ -377,7 +386,7 @@ def main(argv=None) -> int:
     p_push.add_argument("--dry-run", action="store_true",
                         help="build the archive locally, print everything, upload nothing")
     p_push.add_argument("--keep", type=int, default=DEFAULT_KEEP, metavar="N",
-                        help=f"after uploading, trash snapshots beyond the newest N (default {DEFAULT_KEEP})")
+                        help=f"after uploading, permanently delete snapshots beyond the newest N (default {DEFAULT_KEEP})")
     p_push.add_argument("--no-prune", action="store_true",
                         help="upload only; leave every older snapshot in place")
 
@@ -387,11 +396,11 @@ def main(argv=None) -> int:
     p_pull.add_argument("--force", action="store_true",
                         help="overwrite existing local files too (full restore)")
 
-    p_prune = sub.add_parser("prune", help="trash snapshots beyond the newest N (recoverable ~30 days)")
+    p_prune = sub.add_parser("prune", help="permanently delete snapshots beyond the newest N, and empty old ones from the trash")
     p_prune.add_argument("--keep", type=int, default=DEFAULT_KEEP, metavar="N",
                          help=f"snapshots to retain (default {DEFAULT_KEEP}; must be at least 1)")
     p_prune.add_argument("--dry-run", action="store_true",
-                         help="print what would be trashed, trash nothing")
+                         help="print what would be deleted, delete nothing")
 
     sub.add_parser("list", help="print available snapshots with sizes and stamps")
 

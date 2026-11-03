@@ -280,6 +280,20 @@ class DriveClient:
         self._svc.files().update(fileId=file_id, body={
             "trashed": True}).execute(num_retries=_RETRIES)
 
+    def delete(self, file_id: str) -> None:
+        """PERMANENTLY delete a Drive file — it skips the trash and cannot be
+        recovered. Only for callers whose victims are by construction redundant
+        (e.g. backup snapshots older than the newest N kept ones); every other
+        cleanup step uses trash()."""
+        log.debug("Permanently deleting Drive file")
+        self._svc.files().delete(fileId=file_id).execute(num_retries=_RETRIES)
+
+    def list_trashed_in_folder(self, folder_id: str) -> list[dict]:
+        """Files from folder_id that sit in the trash — the complement of
+        list_folder(), which filters them out."""
+        q = f"'{folder_id}' in parents and trashed = true"
+        return self._paginate(q, "id, name, size, createdTime", order_by="name")
+
     def list_files(self, prefix: str) -> list[dict]:
         """
         List all Drive files matching {prefix}-*.csv across all folders, newest first.

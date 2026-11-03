@@ -310,15 +310,19 @@ def test_cmd_list_no_backup_folder_yet(capsys):
 
 # ── prune ─────────────────────────────────────────────────────────────────────
 
-class _TrashingStub(_StubClient):
-    """_StubClient that also records trash() calls."""
+class _DeletingStub(_StubClient):
+    """_StubClient that also records delete() calls and serves a trash listing."""
 
-    def __init__(self, folder_id, files=None):
+    def __init__(self, folder_id, files=None, binned=None):
         super().__init__(folder_id, files)
-        self.trashed: list[str] = []
+        self._binned = binned or []
+        self.deleted: list[str] = []
 
-    def trash(self, file_id: str) -> None:
-        self.trashed.append(file_id)
+    def list_trashed_in_folder(self, folder_id: str) -> list[dict]:
+        return list(self._binned)
+
+    def delete(self, file_id: str) -> None:
+        self.deleted.append(file_id)
 
 
 def _snap(stamp: str, size: int = 100) -> dict:
@@ -328,15 +332,14 @@ def _snap(stamp: str, size: int = 100) -> dict:
 def _svc_with_snapshots(*stamps: str) -> MagicMock:
     """A googleapiclient service mock for a push: the backup folder and the
     uploaded name do not exist yet (so get_or_create creates, upload creates),
-    while list_folder() afterwards shows `stamps` already on Drive.
-
-    upload() also calls files().update() when replacing a same-named file, so
-    trash() calls are told apart by their body (see _trashed_ids)."""
+    while list_folder() afterwards shows `stamps` already on Drive and the
+    trash listing is empty."""
     svc = MagicMock()
 
     def _list(**params):
         q = params.get("q", "")
-        files = [_snap(s) for s in stamps] if "name =" not in q else []
+        live = "name =" not in q and "trashed = true" not in q
+        files = [_snap(s) for s in stamps] if live else []
         resp = MagicMock()
         resp.execute.return_value = {"files": files}
         return resp
@@ -348,9 +351,8 @@ def _svc_with_snapshots(*stamps: str) -> MagicMock:
     return svc
 
 
-def _trashed_ids(svc: MagicMock) -> list[str]:
-    return [c.kwargs["fileId"] for c in svc.files.return_value.update.call_args_list
-            if c.kwargs.get("body") == {"trashed": True}]
+def _deleted_ids(svc: MagicMock) -> list[str]:
+    return [c.kwargs["fileId"] for c in svc.files.return_value.delete.call_args_list]
 
 
 def test_select_prunable_keeps_newest_and_returns_oldest_first():
@@ -382,34 +384,46 @@ def test_select_prunable_refuses_keep_below_one():
         brc.select_prunable([_snap("20260101-0000")], keep=0)
 
 
-def test_cmd_prune_trashes_beyond_keep(capsys):
-    client = _TrashingStub("folder-id", files=[
+def test_cmd_prune_deletes_beyond_keep(capsys):
+    client = _DeletingStub("folder-id", files=[
         _snap("20260101-0000", 1000), _snap("20260201-0000", 1000),
         _snap("20260301-0000", 1000), _snap("20260401-0000", 1000),
     ])
     rc = brc.cmd_prune(argparse.Namespace(keep=3, dry_run=False), client=client)
     assert rc == 0
-    assert client.trashed == ["id-20260101-0000"]
+    assert client.deleted == ["id-20260101-0000"]
     out = capsys.readouterr().out
-    assert "trashed  research-caches-20260101-0000.tar.gz" in out
+    assert "deleted  research-caches-20260101-0000.tar.gz" in out
     assert "kept newest 3" in out
 
 
-def test_cmd_prune_dry_run_trashes_nothing(capsys):
-    client = _TrashingStub("folder-id", files=[
-        _snap("20260101-0000"), _snap("20260201-0000"),
+def test_cmd_prune_empties_binned_snapshots_only(capsys):
+    """Snapshots an older trash-based prune left in the bin are purged; a
+    non-archive file trashed from the same folder is left alone."""
+    client = _DeletingStub("folder-id", files=[_snap("20260401-0000")], binned=[
+        _snap("20251101-0000"), {"id": "x", "name": "notes.txt", "size": "1"},
     ])
+    rc = brc.cmd_prune(argparse.Namespace(keep=3, dry_run=False), client=client)
+    assert rc == 0
+    assert client.deleted == ["id-20251101-0000"]
+    assert "(from trash)" in capsys.readouterr().out
+
+
+def test_cmd_prune_dry_run_deletes_nothing(capsys):
+    client = _DeletingStub("folder-id", files=[
+        _snap("20260101-0000"), _snap("20260201-0000"),
+    ], binned=[_snap("20251101-0000")])
     rc = brc.cmd_prune(argparse.Namespace(keep=1, dry_run=True), client=client)
     assert rc == 0
-    assert client.trashed == []
-    assert "would trash" in capsys.readouterr().out
+    assert client.deleted == []
+    assert "would delete" in capsys.readouterr().out
 
 
 def test_cmd_prune_no_backup_folder_yet(capsys):
-    client = _TrashingStub(None)
+    client = _DeletingStub(None)
     rc = brc.cmd_prune(argparse.Namespace(keep=3, dry_run=False), client=client)
     assert rc == 0
-    assert client.trashed == []
+    assert client.deleted == []
     assert "nothing to prune" in capsys.readouterr().out
 
 
@@ -425,7 +439,7 @@ def test_push_prunes_after_upload(mock_media, monkeypatch, tmp_path, capsys):
     rc = brc.cmd_push(argparse.Namespace(dry_run=False, keep=3, no_prune=False),
                       root=tmp_path, client=client)
     assert rc == 0
-    assert sorted(_trashed_ids(svc)) == ["id-20260101-0000", "id-20260201-0000"]
+    assert sorted(_deleted_ids(svc)) == ["id-20260101-0000", "id-20260201-0000"]
     assert "kept newest 3" in capsys.readouterr().out
 
 
@@ -440,7 +454,7 @@ def test_push_no_prune_leaves_old_snapshots(mock_media, monkeypatch, tmp_path):
     rc = brc.cmd_push(argparse.Namespace(dry_run=False, keep=3, no_prune=True),
                       root=tmp_path, client=client)
     assert rc == 0
-    assert _trashed_ids(svc) == []
+    assert _deleted_ids(svc) == []
 
 
 def test_cli_prune_defaults_and_keep_floor(monkeypatch):
