@@ -1848,7 +1848,8 @@ python3 -m scripts.backtest.proxy --config config/backtest-local.yml \
     --analysis-csv backtests/prompt_eval/run1/2026-04-21-rows.csv
 
 # Research-tier caches
-python3 scripts/collector/history/fetch_underlying_ohlc.py     # every book ticker; --date/--dry-run
+python3 scripts/collector/history/fetch_underlying_ohlc.py     # every book ticker; --date/--dry-run; --merge keeps rolled-off dates
+scripts/collector/daily/refresh_etf_prices.sh                  # launchd each morning: the six BaselineDaily ETFs, merged
 python3 scripts/collector/history/fetch_counterpart_history.py --dry-run
 python3 scripts/collector/history/fetch_counterpart_history.py --limit 200   # resumable
 python3 scripts/collector/study_legs/fetch_substitute_legs.py --dry-run   # narrow_to_fit F3; --limit N, --scope between
@@ -2623,7 +2624,8 @@ Journal / production tier (`scripts/journal/`):
 - **BacktestResults** / **BacktestProxy** — `backtest.py` / `backtest/proxy.py` (proxy rows:
   skip_reason + fallback-chain verdict; result columns mirror BacktestResults).
 - **BaselineDaily** — one market-aggregate row per trading date. NOT versioned — regime
-  history carries across prompt versions.
+  history carries across prompt versions. `make dashboard` charts its six ETFs at
+  `site/put-call.html` (`scripts/put_call_page/`): price, put/call ratio and premium by date.
 - **TradeJournal** — journal rows, in **`TRADE_JOURNAL_SPREADSHEET_ID`, not
   `GOOGLE_SPREADSHEET_ID`** (separate workbook so the trade record can be shared, or kept
   unshared, independently). Schema = `JOURNAL_COLUMNS` in `scripts/journal/config.py`;

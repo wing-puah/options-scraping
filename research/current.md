@@ -27,6 +27,12 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-06: the operator now views BaselineDaily flow from 2026-09-23, so `baseline_read`'s forward read is no longer blind**
+([entry](#2026-11-06--the-operator-views-flow-inside-baseline_reads-forward-window)).
+
+**2026-11-06: no repo result or source found tests long straddles or ratio backspreads after a vol expansion; one SPY study is proposed and awaits the operator**
+([entry](#2026-11-06--long-straddles-and-backspreads-after-a-vol-expansion-untested-one-spy-study-proposed)).
+
 **2026-10-26: on the one-clock book 16 of 54 study reports move their verdict and nothing ships; the GLD flag is gone, and both repro gates pass**
 ([entry](#2026-10-26--suite-re-run-on-the-one-clock-book-16-verdicts-moved-nothing-ships)).
 
@@ -298,6 +304,118 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-11-06 — the operator views flow inside baseline_read's forward window
+
+The dashboard's ETF put/call page now shows BaselineDaily flow and ETF prices from
+2026-09-23 on. The operator chose this to see current flow.
+
+**What stays the same.** `baseline_read`'s forward read has fixed cells and thresholds,
+so its computation does not change. The page reads no play outcome, so the seal on
+book rows in `lib/era.py` is unchanged.
+
+**What changes.** That forward read is no longer a blind first look. Report it with
+this note. A new flow rule designed after today cannot use these viewed dates as
+out-of-sample evidence.
+
+---
+
+## 2026-11-06 — long straddles and backspreads after a vol expansion: untested, one SPY study proposed
+
+**No repo result and no source found in this search shows that a long straddle or ratio backspread pays after volatility has started expanding.** Nothing ships. The repo's straddle verdicts are `NULL` or closed, but none of them conditions on an expanding-vol state, so none settles the question. The proposed test is one SPY study of `E-VOL` onsets, and it awaits the operator ([`next-steps.md`](next-steps.md#waiting-on-the-operator), item 18). Nothing is registered or built.
+
+_Sources: the repo files cited per row · literature seen in the search of 2026-11-06 · model illustration and descriptive count described under each table. No option price from the proposed window was read._
+
+**In production.** Nothing changes. The analysis prompt already recommends straddles and backspreads for its gamma-expansion playbook (`config/prompts/analysis-framework.md:186,227`). The repo holds no evidence for that advice.
+
+### What the repo measured
+
+| Object | Era, instrument | Entry trigger | Verbatim verdict | Source |
+|---|---|---|---|---|
+| [`structure_sweep` ARM D](arm-index.md#structure_sweep) | v4, flow-picked single names | the play's own signal date | `ARM D long straddle S1 n= 97/53d dR -0.015 [-0.182, +0.155] Holm p 1.000 S2 n=221 -> NULL` | `research/study-results/f3_structure/structure_sweep.md:22` |
+| [`earnings_vol` ARM S](arm-index.md#earnings_vol) | v4, 25 mega-caps, 11 seasons | close of E−5, exit close of E | `ARM S (mid, exit E, in-sample): n 271 mean +0.019 CI95 [-0.085, +0.123]`; `earnings_vol ARM S NULL` | `research/study-results/f3_structure/earnings_vol.md:18,20` |
+| [`index_vrp`](arm-index.md#index_vrp) short straddle | v4, SPY monthly cycles from 2022-03 | nearest-30-DTE monthly, held to expiry | `SPY \| +0.0019 \| [−0.0057, +0.0086] \| +1.15 [−0.85, +2.69] \| NO-PREMIUM` | `research/current.md:2300` |
+| `vol_sleeve` straddle | v3, 101 tickers, real-priced | the engine's signal dates | `straddle 758 +0.106 [+0.039, +0.172]`, then `ex_BOTH windows n=364 E +0.029 CI [-0.044, +0.101] <- dead` | `research/archive/12-wrappers-and-vol-sleeve.md:204,216` |
+
+None of the four triggers is a volatility state. Four points follow.
+
+- **ARM D measures a swap.** Its `dR` is the difference against the vertical it replaced on the same row, so a value near zero says the wrapper did not matter on flow dates.
+- **The high-VIX cut points against entering after a spike, weakly.** SPY's high-VIX tercile paid sellers +3.41 points over 14 cycles, a descriptive cut (`research/current.md:2303-2305`). A premium for sellers is a cost for buyers.
+- **`vol_sleeve` paid only in two volatility windows.** The record calls that a "textbook window artifact" (`research/archive/12-wrappers-and-vol-sleeve.md:222-223`) and closed the line (`:323-327`).
+- **Ratio spreads have never been tested.** Searches of `research/`, `scripts/`, `docs/`, `config/`, `lib/` and `tests/` found only an out-of-scope line (`research/pre-registrations/f5_hedging/hedge_structure.md:30-33`), pricer unit tests (`tests/test_backtest.py:1379-1431`) and journal handling (`scripts/journal/s02_reconcile.py:469-475`).
+
+### What the literature says
+
+Published index evidence says long volatility loses on average. A study conditioning straddle returns on a just-occurred expansion day was not found in this search. Most sources were seen as abstracts or summaries only.
+
+- **Verified at abstract level.** Coval and Shumway 2001: zero-beta ATM S&P straddles lose about 3% per week (sample period not confirmed). Goyal and Saretto 2009: stocks with realized above implied vol outperform in a straddle sort (qualitative; the 4.1% monthly net figure is secondary and unverified). Muravyev and Pearson 2020: timed executions pay under 40% of conventional spreads.
+- **Search summary or secondary, magnitudes unverified.** Bakshi and Kapadia 2003 (delta-hedged index option gains are negative on average). Moreira and Muir 2017 (lagged vol relates to current vol). Johnson 2015 via CXO (VIX term slope and next-day straddle returns; sign not known). Dubinsky et al. 2019 (conference slides not opened).
+- **Full text, limited.** Corsi 2009 HAR forecasts the level of realized vol, in-sample; the asset mapping is unconfirmed.
+- **Not a test.** Fidelity's description of a 1x2 (max loss at the long strike, net positive vega, net negative theta) is retail education.
+
+Not found in this search: a peer-reviewed or index-provider test of backspreads, a head-to-head against straddles, an exit study, and a figure for wing vol against ATM vol in a sell-off. The only backspread return argument is indirect and is inference: a net long-vega position pays the variance premium unless realized vol beats what was priced.
+
+Coval and Shumway report a large weekly loss, while `index_vrp` finds no detectable premium. Samples, holds and instruments differ, and the two are not reconciled here. The repo figure stands for this repo's window, and a negative mean is the prior.
+
+### Structure by view
+
+**Model illustration only, not evidence of returns.** Black-Scholes, flat 25% vol, no skew, 4% rate, no dividends. The repo prices its backtests from real quotes only. All three structures are long volatility at 30 DTE near entry, and gamma per vega is the same for all of them at one spot and expiry. A pure volatility view therefore gives no reason to prefer a backspread. Choose by direction first.
+
+The 1x2 call is short one 100 call and long two 105 calls. The 1x2 put is short one 100 put and long two 95 puts. The table gives the spot at or beyond which gamma and vega both turn negative, so the position is short volatility there. The straddle is long gamma and vega everywhere.
+
+| Spot where vega and gamma turn negative | 7 DTE | 14 DTE | 30 DTE | 60 DTE |
+|---|---|---|---|---|
+| Call 1x2 | ≤ 100.5 | ≤ 98.5 | ≤ 94.5 | ≤ 87.5 |
+| Put 1x2 | ≥ 99 | ≥ 100.5 | ≥ 104 | ≥ 111 |
+
+At 7 DTE with spot at the short strike, both backspreads are short volatility. Fidelity's "net positive vega" holds near and beyond the long strike and at longer tenors.
+
+| At entry, 30 DTE, spot 100 | Net value | Max loss | Vega | Vega per unit of max loss |
+|---|---|---|---|---|
+| Straddle | 5.71 debit | 5.71 | 0.228 | 0.040 |
+| Call 1x2 | 0.69 credit | 4.31 | 0.077 | 0.018 |
+| Put 1x2 | 0.90 credit | 4.10 | 0.052 | 0.013 |
+
+A straddle carries two to three times the vega per unit of max loss. "Cheap" describes the backspread's entry cash, not its risk. The net sign also moves with the vol level and skew, so real quotes decide it trade by trade.
+
+Inference from the model, five-session P&L as a share of max loss, entered at 35% vol and 30 DTE:
+
+| View | Structure | Why, in the model | What hurts it |
+|---|---|---|---|
+| Vol rises, direction unknown | Long straddle | Most vega and gamma per max loss; pays on both sides | Spot flat with vol falling (−0.32 of max loss) |
+| Vol rises as spot keeps falling | Put 1x2, 30 DTE or longer | Vega grows as spot nears the long strike (+0.31 on a −6% move with vol +8) | Stalling at the long strike near expiry; it buys the rich wing |
+| Spot rallies hard through the long strike | Call 1x2, 30 DTE or longer | Largest payoff in that cell (+0.38) | A falling market moves it toward its short-vol zone, so it is a rebound trade |
+
+### How to identify an expansion day
+
+An expansion day cannot be known before it ends on this repo's data. The usable label is causal at the close, with the fill on the next close. It is a state label, not a forecast.
+
+- **The label.** `lib/mech_regime.py:11-13` defines `E-VOL` as "VIX >= 30 OR 5-day VIX change >= +25%" from closes on or before D (`:5-6`). The repo already uses it and its thresholds are frozen.
+- **After-the-fact definitions** (range over ATR, move larger than implied) use the day's own data and can only grade a trade.
+- **Pre-open forecasts** (VIX/VIX3M, term slope) have only blog assertions and one unverified summary behind them. HAR's high R² is for the level of realized vol, in-sample.
+- **Compression signals** (NR4, NR7, squeeze) have practitioner sources only.
+- **Same-session work is out.** The option cache holds one row per contract per day and the frozen harness cannot test intraday stops (`research/deployment-evidence.md:820`).
+
+### Descriptive count, 1993-2022
+
+**Unregistered, not option P&L; VIX stands in for SPY implied vol.** The window ends before the option cache starts, so it touches none of the proposed test's option data.
+
+_Method. Window 1993-02-08 to 2022-02-28. Input table `backtests/mech_regime/spy_base_rate_daily.csv`. An onset is an `E-VOL` close with no `E-VOL` in the prior five sessions. Moves are measured from the D+1 close over h sessions. Implied move = 0.8 × VIX × √(h/252). CIs are bootstrapped. The grid is every non-`E-VOL` day at the same spacing._
+
+| Object | Horizon | n | Mean abs SPY move ÷ implied | CI95 | Median VIX change | CI95 | VIX fell |
+|---|---|---|---|---|---|---|---|
+| `E-VOL` onset | 5 sessions | 140 | 0.745 | [0.660, 0.837] | −7.0% | [−8.8, −4.8] | 72% |
+| Non-`E-VOL` grid | 5 sessions | 1,285 | 0.746 | [0.715, 0.779] | −0.1% | [−0.8, +0.6] | 51% |
+| `E-VOL` onset | 10 sessions | 140 | 0.787 | [0.691, 0.882] | −8.5% | [−12.5, −4.2] | 74% |
+| Non-`E-VOL` grid | 10 sessions | 643 | 0.738 | [0.693, 0.783] | −0.2% | [−1.3, +1.1] | 51% |
+
+After onsets SPY moved no more relative to implied than on other days, while VIX usually fell. A buyer at D+1 would see no extra gamma and would usually lose vega. The ten-session ratio is slightly higher with overlapping intervals, so the design also prints a ten-session hold. Inference: the expectation for the straddle arm is `NULL` or `CONTRARY`.
+
+**Disclosure for any later registration.** While counting onsets, the SPY and VIX moves after 23 onsets from 2023-06 to 2026-09-22 were also printed, inside the proposed window. VIX fell in 15 of the 23. No option price was read and no design choice used those moves. A later registration lists this under plan-time observations.
+
+**Next.** [`next-steps.md`](next-steps.md#waiting-on-the-operator) item 18 files the proposal, including the exit-profile trap, the bounds-helper asymmetry and the coverage census. It is a decision for the operator, not a registered study.
 
 ---
 

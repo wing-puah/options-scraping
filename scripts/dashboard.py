@@ -54,6 +54,7 @@ NEXT_MD = ROOT / "research" / "next-steps.md"
 OUT = ROOT / "site" / "dashboard.html"
 LEDGER_SRC = ROOT / "research" / "flow-edge-ledger.html"
 LEDGER_NAME = "flow-edge-ledger.html"
+PUT_CALL_NAME = "put-call.html"
 
 
 # Pages shown inside the dashboard: (wrapper file, source page in site/, tab label, group).
@@ -70,6 +71,7 @@ NAV = [
     ("dashboard", "Dashboard", "dashboard.html"),
     ("charts", "Backtest charts", "charts-feasibility.html"),
     ("ledger", "Flow Edge Ledger", LEDGER_NAME),
+    ("putcall", "ETF put/call", PUT_CALL_NAME),
 ]
 NAV_H = 52
 
@@ -95,7 +97,7 @@ html{{scroll-padding-top:{NAV_H + 12}px}}
 def site_pages(out_dir: Path, ledger_src: Path = LEDGER_SRC) -> set[str]:
     """The NAV targets that this build will write into out_dir."""
     have = {"dashboard.html"} | {w for w, src, _, _ in EMBEDS if (out_dir / src).exists()}
-    return have | ({LEDGER_NAME} if ledger_src.exists() else set())
+    return have | {PUT_CALL_NAME} | ({LEDGER_NAME} if ledger_src.exists() else set())
 
 
 def nav_html(active: str, pages: set[str] | None = None) -> str:
@@ -998,6 +1000,11 @@ def main(argv=None) -> int:
     ledger = write_ledger(out.parent, pages=pages)
     embeds = write_embeds(out.parent, pages)
     try:
+        from scripts.put_call_page.build import write_page
+        put_call, put_call_err = write_page(out.parent, document, pages), ""
+    except Exception as ex:  # noqa: BLE001  a chart page must never stop the dashboard
+        put_call, put_call_err = None, type(ex).__name__
+    try:
         from scripts.study_map.build import write_digests
         digests = write_digests(out.parent)
     except Exception as ex:  # noqa: BLE001  a digest page must never stop the dashboard
@@ -1007,6 +1014,7 @@ def main(argv=None) -> int:
     if not a.quiet:
         print(f"dashboard -> {out} ({len(page):,} bytes), as of {a.today}")
         print(f"ledger    -> {ledger or f'not written: {LEDGER_SRC} is missing'}")
+        print(f"put/call  -> {put_call or f'not written ({put_call_err})'}")
         print(f"embedded  -> {', '.join(x.name for x in embeds) or 'none (no study chart pages in site/ yet)'}")
         print(f"digests   -> {len(digests)} page(s)" + (f", failed ({digest_err})" if digest_err else ""))
         for i in d["flow"]["items"]:

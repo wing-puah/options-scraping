@@ -123,6 +123,25 @@ and the separate plain-language briefs were retired. The reference file is
 - **A second reader fact-checks** any rewrite of a registered file, clause by
   clause against the committed text, before it is committed.
 
+## The second reader, before every new registration freezes
+
+Adopted 2026-11-06. The operator no longer reads registrations, so this reader
+is the check. Every new registration gets one before its first outcome and
+before it is committed.
+
+- **Who.** A fresh agent that did not draft or build the study. Give it the
+  files, not the drafter's reasoning.
+- **What it never does.** It reads no outcome of the study, because the
+  registration must still be free to change.
+- **Sound.** Would a pass or a fail mean what it claims? It checks lookahead,
+  statistics on overlapping trades, pricing, verdicts that cannot print or can
+  both be true, and every rule against the code.
+- **Readable.** A trader new to this project can say from the file what is
+  tested, how it passes, and what they would do with the result.
+- **What follows.** Fix every blocker, and each finding that should change before
+  the freeze, or record why not beside the rule. Then tell the operator the
+  result in plain words, in about five lines.
+
 ## Terminology legend
 
 Every registration is a scientific pre-registration. Its recurring sections
@@ -209,6 +228,7 @@ controls, cells and descriptive cuts under the same letters.
 | [`index_vrp.md`](f3_structure/index_vrp.md) | Does a monthly short SPY iron condor lose in the same windows as the ladder book? | run · accepted by default | `NO-TAIL-LINK` — 2026-10-12 · [record](../study-results/f3_structure/index_vrp.md) |
 | [`earnings_vol.md`](f3_structure/earnings_vol.md) | Does a long straddle or a calendar across earnings pay? | run · accepted by default | `ARM S NULL`; `ARM K NULL` (natural-fill secondary `CONTRARY`); forward `STILL-OPEN` — 2026-10-13 · [record](../study-results/f3_structure/earnings_vol.md) |
 | [`structure_sweep.md`](f3_structure/structure_sweep.md) | Would another option structure on the same 2026 plays have done better? | registered · accepted by default | not yet run — 2026-10-22 |
+| [`daily_vol_structure.md`](f3_structure/daily_vol_structure.md) | Do daily straddles and 1x2 ratios on QQQ and SMH pay, and do results move with volume, price or the analysis page? | registered · accepted by default | not yet run — 2026-11-06 |
 
 ## ④ Deployment — `f4_deployment/`
 

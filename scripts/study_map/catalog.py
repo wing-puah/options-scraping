@@ -1087,6 +1087,12 @@ STUDIES: dict[str, Study] = {
                 "0.30 delta, stored book, v3) prints `NO-TAIL-LINK`, and both premiums print "
                 "`NO-PREMIUM`. Nothing ships.",
     ),
+    "daily_vol_structure": Study(
+        family="structure", state="open",
+        question="Do a daily straddle and 1x2 ratios on QQQ and SMH pay net of commission, and do "
+                 "their results move with volume, price or the analysis page's text?",
+        verdict="Not yet run.",
+    ),
     "earnings_vol": Study(
         family="structure", state="null",
         question="Across 11 earnings seasons on a fixed list of 25 names, does a long ATM "

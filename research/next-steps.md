@@ -444,6 +444,73 @@ Decisions owed. None of these is a study.
     change which pairs exist after outcomes have printed, so it would need
     its own build ruling and a re-run.
 
+18. **PROPOSAL 2026-11-06 — awaiting the operator. Nothing is registered or
+    built; the name `vol_expansion_long_vol` is a placeholder.** The question is
+    whether long straddles and ratio backspreads earn a net return after an
+    expanding-vol label that calm weeks do not. Evidence and literature:
+    [`current.md`](current.md#2026-11-06--long-straddles-and-backspreads-after-a-vol-expansion-untested-one-spy-study-proposed).
+    Default if accepted: draft the registration, then queue the build.
+
+    Design in compact form:
+
+    | Item | Proposal |
+    |---|---|
+    | Underlying, window | SPY; in-sample 2022-03-01 to 2026-09-22, forward from registration |
+    | Trigger | `E-VOL` onset at D's close, 5-session re-arm |
+    | Fill | every leg at the D+1 closing mid |
+    | Expiry | monthly nearest 30 DTE, at least 21 DTE at fill |
+    | Arms | S straddle; BC short 1 ATM call, long 2 calls at spot × 1.05; BP short 1 ATM put, long 2 puts at spot × 0.95 |
+    | Exit | fixed D+6 close, no target or stop; 10 sessions printed |
+    | Controls | calm-week ARM C; implied-move ratio; ATM IV change, MFE and MAE per trade |
+    | Gates C0, C1 | C0 power: 20 trades per arm, 60 calm weeks. C1 sign: Holm over arms, and the difference from ARM C |
+    | Gates C2-C4 | C2 leave-one-out. C3 sign survives cutting `vol_sleeve`'s windows 2025-03-01 to 04-30 and 2026-02-01 to 04-30. C4 PBO by CSCV over 12 cells, 0.5 or more bars promotion |
+
+    Build traps found while drafting:
+
+    - **The CREDIT exit profile.** `_exit_basis` returns `"CREDIT"` when
+      `entry_net < 0` (`scripts/backtest/simulate.py:784-785`). Such a row takes
+      `CREDIT_PROD`: a 65% target, no stop, no time exit
+      (`scripts/backtest_study/lib/book.py:187-188`). The call 1x2 can open as
+      a credit or a debit, so one arm could split across two profiles. The
+      study needs its own fixed exit, as `earnings_vol.run_trade` has, and
+      must not use the harness exit scan.
+    - **A side asymmetry.** `_defined_risk_bounds` returns `None` for the call
+      ratio and a bound for the put ratio, because it tests net call quantity
+      only (`scripts/backtest/helpers.py:53-54`). `entry_outside_bounds` can
+      therefore refuse ARM BP rows and never ARM BC rows. Print refusals by
+      arm and take no capital-at-risk figure from the helper.
+
+    Coverage and power:
+
+    - A read-only census of the option cache found 29 onsets with a 5-session
+      re-arm. Straddle legs were quoted at entry and exit for 29, and each 1x2
+      for 28. It is an upper bound: it took the nearest cached strike with a
+      positive bid and applied no strike tolerance, junk-quote rule or 21-DTE
+      floor. The calm grid was not censused.
+    - Power is thin. Assuming a five-session R standard deviation of 0.25
+      (unmeasured), 29 trades give a CI half-width near 0.09 R. A `NULL`
+      means no large effect. About six onsets a year make the forward grade slow.
+
+    Open decisions, each with its default:
+
+    | Decision | Default | If changed |
+    |---|---|---|
+    | Reopen the closed straddle line (`hedge_structure.md:33`, `archive/12:323-327`)? | Yes, as a new question: the closure concerned flow dates | Declining cancels ARM S |
+    | Hold length | 5 sessions, 10 printed; no source supports either | Changes the graded result |
+    | Does the operator trade within the session? | Next-close entry only; end-of-day data | Intraday practice stays ungraded |
+    | Sizing above the $1,000 stop | R at one unit, which risks roughly $3,500 on SPY (unverified arithmetic) | A printed stop cell shows the effect; a narrower width is a new cell |
+
+    Queue position: behind the running ARM U fetch, `after_armu_queue.sh`,
+    `mechanical_baseline`, `selloff_put_diagonal` and the daily loop. Any leg
+    fetch refuses while another cache writer runs
+    (`research/next-steps.md:1419`). Drafting needs no cache access.
+
+    Unchecked, unrelated to the study: whether the journal's `ratio` label for
+    unequal leg quantities, named at `research/robustness-review.md:80`, was
+    ever added. The reconcile code counts contracts by gcd
+    (`scripts/journal/s02_reconcile.py:469-475`), which is a different fix. A
+    live 1x2 would otherwise read as a 1-lot vertical.
+
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14
 
@@ -1434,6 +1501,56 @@ Operator answers of 2026-11-01, folded into the registration before any outcome:
   compares all 154 and flags a change of sign.
 
 No choice is left open.
+
+### 2.24 `daily_vol_structure` — built, awaiting its leg fetch — OPEN, filed 2026-11-06
+
+The study is built and its first run stops at `NOT BUILT — AWAITING SCRAPE`, as designed. It enters
+a straddle and 1x2 ratios on QQQ and SMH every session, then scans for links to price, volume and
+analysis text ([pre-registration](pre-registrations/f3_structure/daily_vol_structure.md)). No QQQ or
+SMH option outcome has been read.
+
+| Census item | Count |
+|---|---|
+| Sessions in the window | 632 |
+| Uncached first-round contracts | 3,928 |
+| Scaled estimate once OHLC is refreshed | about 4,100 |
+| Cells in the scan | 252 |
+
+Later fetch rounds add contracts, because a fetch can expose a nearer strike.
+
+How to resume, after `mechanical_baseline` (§2.18) and `selloff_put_diagonal` (§2.23) have run:
+
+1. Refresh the QQQ and SMH OHLC, which ends 2026-08-11. Another session had uncommitted OHLC refresh
+   work on 2026-11-06, so check its state first.
+2. `python3 scripts/collector/study_legs/fetch_daily_vol_structure_legs.py --dry-run`. Stop and ask
+   the operator if the count exceeds 6,000. Otherwise run it without `--dry-run`, measure the rate
+   from the first batch and report the ETA.
+3. `python3 scripts/backup_research_caches.py push`, once.
+4. `python3 -m scripts.backtest_study run daily_vol_structure`. Repeat the fetch and run until nothing
+   awaits.
+5. Reconcile three sampled trades per structure by hand, one with a credit entry. Then record the
+   result. Run the replication pair on any `CANDIDATE`.
+
+Analysis features cannot reach `CANDIDATE` on these dates: LIVE holds at most 28 MARKET dates and
+the floor is 60.
+
+### 2.25 Regroup `scripts/collector/study_legs/` — OPEN, approved 2026-11-06, waits on the ARM U queue
+
+The folder holds 11 scripts, past the limit of about nine. Nothing moves while the ARM U loop or
+`backtests/run_logs/after_armu_queue.sh` can still run, because both call these scripts by path.
+
+Regroup after both have exited, and before the next leg fetch starts:
+
+| Group | Scripts (`fetch_*_legs.py`) |
+|---|---|
+| `f1_selection/` | `mechanical`, `mechanical_baseline`, `selloff_put_diagonal` |
+| `f3_structure/` | `daily_vol_structure`, `earnings`, `financing`, `ladder`, `structure_sweep` |
+| `f4_deployment/` | `substitute` |
+| `f5_hedging/` | `far`, `sweep` |
+
+Use `git mv`. Add one to each `parents[N]`, then fix every path and import in `scripts/`, `tests/`,
+`docs/` and `research/next-steps.md`. Dated log entries stay as written. `fetch_earnings_legs.py`
+imports `fetch_sweep_legs`, so that import crosses groups.
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open

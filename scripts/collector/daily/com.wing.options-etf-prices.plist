@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.wing.options-etf-prices</string>
+
+  <!-- Refreshes the six BaselineDaily ETFs' price files for the dashboard's put/call page.
+       Install: cp this file to ~/Library/LaunchAgents, then
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.wing.options-etf-prices.plist
+       Remove: launchctl bootout gui/$(id -u)/com.wing.options-etf-prices -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-i</string>
+    <string>/bin/bash</string>
+    <string>scripts/collector/daily/refresh_etf_prices.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/wing/claude_playground/options-trading</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+  </dict>
+
+  <!-- Every day at 07:17 local, after the US close in Singapore time. A run missed while
+       the laptop slept fires on wake. Off the hour on purpose. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>7</integer>
+    <key>Minute</key><integer>17</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/wing/claude_playground/options-trading/backtests/run_logs/etf-prices-launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/wing/claude_playground/options-trading/backtests/run_logs/etf-prices-launchd.log</string>
+</dict>
+</plist>

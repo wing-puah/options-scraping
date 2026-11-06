@@ -358,6 +358,47 @@ def recheck_rescaled() -> dict[str, tuple[float, int]]:
 
 # ─── Barchart fetch ──────────────────────────────────────────────────────────────
 
+def merge_history(old_text: str, new_text: str, tol: float = 0.0001) -> tuple[str | None, list[str]]:
+    """``(merged csv, [])``, or ``(None, problems)`` when the merge must not be written.
+
+    The feed is a rolling window of about 1,000 rows, so a plain overwrite loses the
+    oldest dates. The merge keeps them. It refuses when an existing date's close has
+    moved, because studies read these files. The old file's newest bar is exempt: it
+    may have been written before that session's close settled.
+    """
+    def parse(text: str) -> tuple[str, dict[str, str]]:
+        lines = text.splitlines()
+        rows = {}
+        for line in lines[1:]:
+            try:
+                rows[date.fromisoformat(line.split(",", 1)[0].strip()).isoformat()] = line
+            except ValueError:
+                continue
+        return (lines[0] if lines else ""), rows
+
+    old_head, old = parse(old_text)
+    new_head, new = parse(new_text)
+    if old_head != new_head:
+        return None, [f"header changed: {new_head[:60]!r}"]
+    if not new:
+        return None, ["the feed returned no dated rows"]
+    idx = next(csv.reader([new_head])).index("Latest")
+
+    def close(line: str) -> float | None:
+        return to_float(next(csv.reader([line]))[idx])
+
+    newest_old = max(old) if old else ""
+    problems = []
+    for d in sorted(set(old) & set(new)):
+        a, b = close(old[d]), close(new[d])
+        if d != newest_old and (a is None or b is None or abs(b - a) > tol * abs(a)):
+            problems.append(f"{d}: close {a} became {b}")
+    if problems:
+        return None, problems
+    merged = {**old, **new}
+    return "\n".join([new_head] + [merged[d] for d in sorted(merged, reverse=True)]) + "\n", []
+
+
 async def _fetch_ohlc(session, ticker: str, timeout_ms: int) -> str | None:
     """Scrape one ticker's stock price history → raw CSV text, or None on failure."""
     try:
@@ -369,15 +410,16 @@ async def _fetch_ohlc(session, ticker: str, timeout_ms: int) -> str | None:
 
 
 async def _scrape(pending: list[str], *, headless: bool, timeout_ms: int = 30000,
-                  sleep_s: float = 0.4, session=None) -> dict:
+                  sleep_s: float = 0.4, session=None, merge: bool = False) -> dict:
     """Fetch each pending ticker, write its cache file, run the split gate.
 
     Files are written as they arrive, so an interrupt keeps everything already
     scraped. A ``session`` may be injected for tests; otherwise a BarchartSession
-    is opened (needs BARCHART_EMAIL/PASSWORD).
+    is opened (needs BARCHART_EMAIL/PASSWORD). ``merge`` writes `merge_history`'s
+    result atomically, and a refused merge leaves the file as it was.
     """
     OHLC_CACHE.mkdir(parents=True, exist_ok=True)
-    stats = {"fetched": 0, "failed": 0, "no_overlap": 0}
+    stats = {"fetched": 0, "failed": 0, "no_overlap": 0, "refused": 0}
     rescaled: dict[str, tuple[float, int]] = {}
     checked: set[str] = set()
 
@@ -388,7 +430,18 @@ async def _scrape(pending: list[str], *, headless: bool, timeout_ms: int = 30000
                 stats["failed"] += 1
                 log.warning("[%d/%d] %s: no data", i, len(pending), sym)
                 continue
-            cache_path(sym).write_text(csv_text)
+            if merge and cache_path(sym).exists():
+                csv_text, problems = merge_history(cache_path(sym).read_text(), csv_text)
+                if problems:
+                    stats["refused"] += 1
+                    log.error("[%d/%d] %s: merge REFUSED, file unchanged: %s",
+                              i, len(pending), sym, "; ".join(problems[:5]))
+                    continue
+                tmp = cache_path(sym).with_suffix(".tmp")
+                tmp.write_text(csv_text)
+                os.replace(tmp, cache_path(sym))
+            else:
+                cache_path(sym).write_text(csv_text)
             span = cache_span(sym)
             med, n_overlap = split_check(sym, csv_text)
             if med is None:
@@ -442,6 +495,9 @@ def main() -> None:
                         help="Report what would be fetched; scrape nothing.")
     parser.add_argument("--force", action="store_true",
                         help="Re-fetch every selected ticker, cached or not.")
+    parser.add_argument("--merge", action="store_true",
+                        help="Keep dates the feed rolled off; refuse a write if an existing "
+                             "date's close changed.")
     parser.add_argument("--skip-existing", dest="skip_existing", action="store_true",
                         default=True, help="Skip tickers whose cache already spans "
                                            "the window (default).")
@@ -515,10 +571,13 @@ def main() -> None:
         return
 
     headless = os.getenv("SCRAPE_HEADLESS", "true").lower() != "false" and not args.no_headless
-    stats = asyncio.run(_scrape(pending, headless=headless))
+    stats = asyncio.run(_scrape(pending, headless=headless, merge=args.merge))
     log.info("Done — %d fetched, %d failed, %d unchecked (no Price~ overlap), "
              "%d on a rescaled basis",
              stats["fetched"], stats["failed"], stats["no_overlap"], stats.get("rescaled", 0))
+    if args.merge and (stats["failed"] or stats["refused"]):
+        log.error("%d failed, %d refused", stats["failed"], stats["refused"])
+        sys.exit(1)
 
 
 if __name__ == "__main__":

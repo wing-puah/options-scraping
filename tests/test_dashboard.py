@@ -181,3 +181,8 @@ def test_embeds_wrap_existing_pages_under_the_bar(tmp_path):
     assert w.name == "charts-feasibility.html" and 'aria-current="page">Backtest charts' in html
     assert 'srcdoc="&lt;title&gt;x&lt;/title&gt;&lt;p&gt;chart &amp; &quot;body&quot;' in html
     assert 'class="tabs"' not in html                                        # one page, no tab row
+
+
+def test_put_call_page_is_on_the_bar(tmp_path):
+    assert ("putcall", "ETF put/call", "put-call.html") in d.NAV
+    assert "put-call.html" in d.site_pages(tmp_path)

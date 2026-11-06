@@ -89,6 +89,8 @@ python3 -m scripts.journal recommend          # deploy card for the next session
 Full text: §Agent rules in full → Sharp edges per tier.
 
 Research tier (`backtest_study/`, `study_*`):
+- Every new registration gets a fresh second reader for soundness and readability before its first
+  outcome and its commit (`research/pre-registrations/README.md`). The operator no longer reads them.
 - `scripts/backtest_study/lib/harness.py` is FROZEN; `tests/test_harness_replay.py` pins it.
 - A study runs on ONE era (`lib/era.py`, `STUDY_ERA`), names it, and refuses a mismatched
   export. Never pin to a snapshot or lower `MIN_ERA_DATES` to dodge it.
