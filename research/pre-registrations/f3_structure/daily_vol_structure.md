@@ -10,7 +10,7 @@ _Registered 2026-11-06._
 [2026-10-09 ruling](../../current.md#2026-10-09--parked-drafts-accepted-by-default-and-run). A
 revisit after a result is a NEW registration, never an edit.**
 
-A second reader reviewed the draft twice on 2026-11-06, before any outcome was read. Its findings are
+A second reader reviewed the draft three times on 2026-11-06, before any outcome was read. Its findings are
 folded into the rules below.
 
 ## The question
@@ -26,8 +26,9 @@ forward test, and nothing ships.
 
 **The analysis page cannot be tested on these dates**, because almost all its labels were written
 after the fact. Its cells print as description. Three of its market-wide features get a separate
-read on labels written at the time. That read stays `UNDERPOWERED`, meaning too few dates to judge,
-until it has 60 such dates in 6 blocks, with 12 rows per arm.
+read on labels written at the time. That read prints `UNDERPOWERED`, meaning too few dates to judge,
+until it has 60 such dates in 6 blocks, with 12 rows per arm. Those 60 dates allow a test and no more: a
+`CANDIDATE` there needs the position's arm to hold 63 rows, which takes far more dates.
 
 **The most likely result is that no filter passes.** The sample detects only large effects.
 
@@ -397,12 +398,13 @@ The two "whole bar" rows are a synthetic run with no commission: the circular-sh
 position's arm mean clearing zero, and the cycle clause. The cycle clause cost almost nothing in that
 run, and the arm-mean clause cost up to 0.1 SD. A textbook estimate puts the T30 confirmation figure near
 0.5% of spot per trade, or about 12% of a QQQ straddle's premium. Every analysis cell is expected to stay
-`RETRO-ONLY`, and the LIVE read `UNDERPOWERED`.
+`RETRO-ONLY`, and the LIVE read `UNDERPOWERED`, including after 60 LIVE dates on any test that passes on an
+arm under 63 rows.
 
 **The exit-drop limit is expected to bite.** A junk-quote proxy on other tickers' cached quotes runs 2%
-to 30%, so a plain 5% limit would remove most SMH ratio results. So an over-limit cell or side reads
-`UNDERPOWERED` only if its verdict changes with dropped rows closed at the adverse touch, or a short leg
-has no ask to bound it.
+to 30%, so many SMH ratio cells may go over 5%. Over the limit a `CANDIDATE` or `CONTRARY` can stand if it
+is unchanged with dropped rows closed at the adverse touch. Every `NULL` over the limit reads
+`UNDERPOWERED`, so those cells are expected to say too little data, not no effect.
 
 ## What it compares
 
@@ -528,9 +530,10 @@ direction from fill to exit, and each side's mean with dropped rows closed at th
   dropped row against its own sign: the low figure in the arm its sign favours, the high figure in the
   other.
 - **The limit.** 5% of a series, or of an arm on the dates and lag bin read.
-- **Over the limit.** The cell or side is re-graded with the dropped rows included. It reads
-  `UNDERPOWERED` if its verdict changes, or if a short leg has no ask to bound a dropped row. Otherwise its
-  verdict stands.
+- **Over the limit.** Only `CANDIDATE` or `CONTRARY` can stand. Each is re-graded with the dropped rows
+  included, and stands only if it is unchanged and every dropped row in an arm has an ask to bound its
+  short legs. Anything else reads `UNDERPOWERED`. A `NULL` cannot stand, because closing dropped rows
+  against the cell's sign can only weaken a result, so a `NULL` would nearly always hold.
 - **Everywhere.** The rule applies to the unconditional read, confirmation, unranked cells in the tally,
   the LIVE read and both forward reads.
 
@@ -543,13 +546,31 @@ direction from fill to exit, and each side's mean with dropped rows closed at th
 2. **Tradable at mid.** Take the position with the larger net mean in its arm: for S, long in the higher
    arm; for a ratio, the back ratio in the higher arm or the front ratio in the lower arm. Its mean must
    clear zero at p<.05 on 10,000 block draws. A positive mean alone is not enough, because at mid front =
-   −back, so one of a ratio's two positions looks positive whenever the arms differ.
+   −back, so one of a ratio's two positions looks positive whenever the arms differ. Its arm must hold 63
+   rows, three full blocks. Below that the cell reads `UNDERPOWERED`.
 3. **Expiry cycle.** The row-weighted average of the bucket contrasts has discovery's sign and is at least
    half the overall contrast, with at least two readable buckets. T30's buckets are DTE 21 to 30, 31 to
    38, and 39 to 53. T7's are the fill's weekday. A bucket is readable when each arm has 5 rows.
 
-Clause 2 takes the better of two positions on short block-resampled arms, so it is not a strict 5% test:
-it passed about 18% of a synthetic null taken alone. It is a further check on a confirmed contrast.
+Clause 2 is not a strict 5% test, and its false-pass rate depends on arm size. It is a further check on a
+confirmed contrast. Synthetic null pass rates:
+
+| Rows in the arm | One position | Best of two (a ratio) | Standing |
+|---|---|---|---|
+| 12 to 21 | about 50% | about 75% | Below 63: not read |
+| 22 to 42 | 27% | 47% | Below 63: not read |
+| 43 to 63 | 12% to 14% | 22% to 25% | Read only at exactly 63 |
+| 84 | 11% | 21% | Read |
+| 126 | 7% | 14% | Read |
+
+**What the 63-row limit implies.**
+
+- **`evol`.** Its top arm holds 17 confirmation dates. A position held in that arm cannot reach `CANDIDATE`
+  on these dates. Only a position in the other arm, the sessions without `E-VOL`, can.
+- **The LIVE read.** No arm reaches 63 rows on the 28 LIVE dates in the window, so no LIVE cell can reach
+  `CANDIDATE` there. The floor of 60 dates only lets the read print a test: a cell then reads `NULL` if the
+  test fails and `UNDERPOWERED` if it passes on a thin arm. By arithmetic, a tercile arm reaches 63 rows
+  near 190 LIVE dates. Direction and vol-state arms depend on how often each label prints.
 
 Clause 3 exists because a feature tied to DTE and a P&L tied to DTE correlate with no signal. The fixed
 T30 wing moves from about 1.2 sigma at 21 DTE to about 0.75 sigma at 53 DTE, and the same calendar
@@ -569,10 +590,11 @@ known feature: <cells, or none>` and `LIVE read, its own forward test: <cells, o
 
 | Token | When |
 |---|---|
-| `UNDERPOWERED` | Below its floor on the dates read, or the statistic is NaN, or over the exit limit with a verdict that changes or cannot be bounded |
+| `UNDERPOWERED` | Below its floor on the dates read, or the statistic is NaN, or over the exit limit unless an unchanged `CANDIDATE` or `CONTRARY` stands |
 | `NULL` | Above its discovery floor and not on the ranked list |
 | `NULL` | Ranked, and q > 0.05 on confirmation |
 | `CONTRARY` | Ranked, q ≤ 0.05 on confirmation, on the opposite sign from discovery |
+| `UNDERPOWERED` | Ranked and confirmed, and the position's arm has fewer than 63 rows |
 | `NULL` | Ranked and confirmed, and the position's net mean does not clear zero at p<.05 |
 | `UNDERPOWERED` | Ranked, confirmed and tradable, with fewer than two readable cycle buckets |
 | `NULL` | Ranked, confirmed and tradable, and the cycle clause fails |
@@ -585,7 +607,7 @@ does not mean no effect.
 
 | Token | When |
 |---|---|
-| `UNDERPOWERED` | Below its floor, or over the exit limit with a verdict that changes or cannot be bounded |
+| `UNDERPOWERED` | Below its floor, or over the exit limit unless an unchanged `CANDIDATE` or `CONTRARY` stands |
 | `CONTRARY` | Holm-adjusted p below 0.05 on a negative mean |
 | `CANDIDATE` | Its bar holds. It earns only a forward grade |
 | `NULL` | Otherwise |
@@ -602,14 +624,16 @@ Two caveats print with this table, word for word:
 
 | Token | When |
 |---|---|
-| `UNDERPOWERED` | Below 60 LIVE dates in 6 blocks, or below an arm floor, or over the exit limit with a verdict that changes or cannot be bounded |
-| `CANDIDATE` | q ≤ 0.05 across the shortlist, and the position's net mean clears zero at p<.05 |
+| `UNDERPOWERED` | Below 60 LIVE dates in 6 blocks, or below 12 rows in an arm, or over the exit limit unless an unchanged `CANDIDATE` stands |
+| `NULL` | q > 0.05 across the shortlist |
+| `UNDERPOWERED` | q ≤ 0.05, and the position's arm has fewer than 63 rows |
+| `CANDIDATE` | q ≤ 0.05, and the position's net mean clears zero at p<.05 on an arm of 63 rows |
 | `NULL` | Otherwise |
 
 **FORWARD.** Each `CANDIDATE`, cell or unconditional side, on signal dates from 2026-09-23. A side reads
 its mean. A cell reads its frozen-cut contrast on the null. The floors are the same. `STILL-OPEN` until
-they are met; then `CANDIDATE`, `CONTRARY` or `NULL` at p below 0.05, with the cell's tradability clause
-and the exit-drop rule. Forward legs need their own fetch. A `qqq_*` cell waits until the holdout opens.
+they are met; then `CANDIDATE`, `CONTRARY` or `NULL` at p below 0.05, with the cell's tradability clause,
+its 63-row arm (`UNDERPOWERED` below that) and the exit-drop rule. Forward legs need their own fetch. A `qqq_*` cell waits until the holdout opens.
 
 **The banner.**
 

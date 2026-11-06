@@ -928,17 +928,55 @@ def over_limit_ds():
     return ds, key, gone
 
 
-def test_an_unranked_over_limit_cell_tallies_by_its_bound():
+def test_an_unranked_over_limit_cell_reads_underpowered_not_null():
     ds, key, gone = over_limit_ds()
     disc = V.discover(ds, draws=20)
     i = next(n for n, c in enumerate(disc) if c.cell == key + ("ret1",))
-    disc[i].q = 0.9
-    ds.exit_drops[key] = [drop_of(r, y_low=None) for r in gone]
-    assert V.unranked_token(ds, disc, i, draws=20) == V.UNDERPOWERED
+    ds.exit_drops[key] = [drop_of(r) for r in gone]
+    assert V.unranked_token(ds, disc, i) == V.UNDERPOWERED
     ds.exit_drops[key] = []
-    assert V.unranked_token(ds, disc, i, draws=20) == V.NULL
+    assert V.unranked_token(ds, disc, i) == V.NULL
     j = next(n for n, c in enumerate(disc) if not c.gradable)
-    assert V.unranked_token(ds, disc, j, draws=20) == V.UNDERPOWERED
+    assert V.unranked_token(ds, disc, j) == V.UNDERPOWERED
+
+
+def test_over_the_limit_a_null_never_stands_in_any_read():
+    assert V.can_stand_over_limit(V.CANDIDATE) and V.can_stand_over_limit(V.CONTRARY)
+    assert not V.can_stand_over_limit(V.NULL)
+    # Unconditional: a mean of zero is NULL under the limit and UNDERPOWERED over it.
+    ds = dataset()
+    key = ("QQQ", "T30", "S")
+    ds.rows = {k: (v if k == key else []) for k, v in ds.rows.items()}
+    for r in ds.rows[key]:
+        r["net"]["long"] = 0.01 if r["si"] % 42 < 21 else -0.01
+    assert V.grade_unconditional(ds, n_boot=100)[key + ("long",)]["token"] == V.NULL
+    moved = ds.rows[key][::5]
+    ds.rows[key] = [r for r in ds.rows[key] if r not in moved]
+    ds.exit_drops[key] = [drop_of(r, bound={"long": 0.0}) for r in moved]
+    assert V.grade_unconditional(ds, n_boot=100)[key + ("long",)]["token"] == V.UNDERPOWERED
+    # A confirmed-cell NULL over the limit, with every drop boundable.
+    ds2, k2, gone = over_limit_ds()
+    d = V.DiscCell(k2 + ("ret1",), 100, True, 0.3, 0.01, 0.01, 0.01)
+    ds2.exit_drops[k2] = [drop_of(r) for r in gone]
+    c = V.confirm(ds2, [d], draws=20, n_boot=20)[0]
+    assert c.token == V.UNDERPOWERED
+
+
+def test_a_17_row_arm_reads_underpowered_not_tradable():
+    pairs = noisy_pairs(0.02, 0.0, n=17, sd=0.001, seed=1)
+    pos = V.best_position(pairs, (0, 1), "S", 1, n_boot=100)
+    assert pos["n"] == 17 and pos["ok"]                 # its one-block p looks perfect
+    assert V.position_clears(pos) is None
+    assert V.confirm_token(1, 0.02, 0.01, True, True, V.position_clears(pos), True) == V.UNDERPOWERED
+    assert V.forward_cell_token(True, 0.02, 0.01, 1, V.position_clears(pos)) == V.UNDERPOWERED
+    base = dict(cell=("a",), point=0.1, p=0.001, floors=True, exit_ok=True, tradable=None)
+    assert V.live_tokens([base])[("a",)] == V.UNDERPOWERED
+    # A CONTRARY needs no position, and a failed test stays NULL.
+    assert V.confirm_token(1, -0.02, 0.01, True, True, None, True) == V.CONTRARY
+    assert V.confirm_token(1, 0.02, 0.2, True, True, None, True) == V.NULL
+    # At three full blocks the test is read again.
+    wide = noisy_pairs(0.02, 0.0, n=63, sd=0.001, seed=1)
+    assert V.position_clears(V.best_position(wide, (0, 1), "S", 1, n_boot=100)) is True
 
 
 def test_a_confirmed_cell_over_the_limit_reads_underpowered_when_unbounded():
@@ -1256,7 +1294,6 @@ def test_outcomes_run_end_to_end_on_synthetic_quotes(monkeypatch, tmp_path, caps
     monkeypatch.setattr(V.unconditional, "__defaults__", (5, V.SEED, V.BLOCK))
     monkeypatch.setattr(V.grade_unconditional, "__defaults__", (5, V.SEED))
     monkeypatch.setattr(V.live_read, "__defaults__", (5, 5))
-    monkeypatch.setattr(V.unranked_token, "__defaults__", (5, V.SEED))
     monkeypatch.setattr(V.run_pbo, "__defaults__", (4,))
     monkeypatch.setattr(V.era_mod, "SEAL_LIFTED", None)
     monkeypatch.setattr(V, "file_fetched_on", lambda *a: V.DEPTH_TRUST)

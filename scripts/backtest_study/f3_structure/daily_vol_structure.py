@@ -119,6 +119,8 @@ MIN_DATES = 60
 MIN_BLOCKS = 6
 MIN_ARM_DATES = 12
 MIN_ARM_BLOCKS = 3
+#: A position's arm needs three full blocks, or its block bootstrap p means little.
+MIN_POSITION_ROWS = 63
 #: Above this share of a series or an arm, exit drops are re-graded at the adverse
 #: touch: UNDERPOWERED if the verdict changes, or a short leg has no ask to bound it.
 EXIT_DROP_MAX = 0.05
@@ -1355,8 +1357,14 @@ def best_position(pairs: list[tuple], cuts: tuple[float, float], structure: str,
                 touch=_mean_or_nan([r["touch"][side] for r in rows]))
 
 
-def position_clears(pos: dict | None) -> bool:
-    return bool(pos and pos["ok"])
+def position_clears(pos: dict | None) -> bool | None:
+    """True or False, or None when the chosen arm is under three full blocks and the
+    test cannot be read: on 21 rows or fewer its block bootstrap has one block."""
+    if pos is None:
+        return False
+    if pos["n"] < MIN_POSITION_ROWS:
+        return None
+    return bool(pos["ok"])
 
 
 def bucket_contrasts(pairs: list[tuple], cuts: tuple[float, float], tenor_name: str) -> dict:
@@ -1415,6 +1423,12 @@ def exit_limit_ok(series_share: float, arm_shares: dict) -> bool:
     return series_share <= EXIT_DROP_MAX and all(v <= EXIT_DROP_MAX for v in arm_shares.values())
 
 
+def can_stand_over_limit(token: str) -> bool:
+    """Over the exit limit only these words can stand. Closing dropped rows against the
+    cell's sign can only weaken a result, so a `NULL` would nearly always hold."""
+    return token in (CANDIDATE, CONTRARY)
+
+
 def _synth_row(e: dict, y: float | None) -> dict:
     """A dropped row closed at the adverse touch, in a kept row's shape."""
     return dict(d=e["d"], date=e["date"], exit=e["exit"], si=e["si"], dte=e["dte"], wd=e["wd"],
@@ -1453,7 +1467,7 @@ def _with_replaced(ps: list[float], i: int, p: float) -> list[float]:
 
 
 def confirm_token(disc_sign: int, point: float, q: float, floors: bool, exit_ok: bool,
-                  tradable: bool, cycle: bool | None) -> str:
+                  tradable: bool | None, cycle: bool | None) -> str:
     """The cell's verdict. The first matching row wins (registration, Verdicts)."""
     if not floors or point != point or not exit_ok:
         return UNDERPOWERED
@@ -1461,6 +1475,8 @@ def confirm_token(disc_sign: int, point: float, q: float, floors: bool, exit_ok:
         return NULL
     if _sign(point) == -disc_sign:
         return CONTRARY
+    if tradable is None:
+        return UNDERPOWERED
     if not tradable:
         return NULL
     if cycle is None:
@@ -1501,7 +1517,7 @@ class Confirmed:
 
     @property
     def tradable(self) -> bool:
-        return position_clears(self.position)
+        return position_clears(self.position) is True
 
 
 def confirm(ds: Dataset, cells: list[DiscCell], draws: int = SHIFT_N, n_boot: int = BOOT_N,
@@ -1541,13 +1557,16 @@ def confirm(ds: Dataset, cells: list[DiscCell], draws: int = SHIFT_N, n_boot: in
             if unbounded:
                 exit_ok, note = False, "over the limit, and a short leg has no ask"
             else:
-                bx, by = [a for a, _ in pb], [r["y"] for _, r in pb]
-                pt_b, p_b = shift_p(bx, by, cut_stat(*cuts), draws, seed)
-                q_b = RM.bh_q(_with_replaced(raw, i, p_b if floors else float("nan")))[i]
                 t0 = _pairs_token(pairs, cuts, d, point, q, floors, n_boot, seed)
-                exit_ok = _pairs_token(pb, cuts, d, pt_b, q_b, floors, n_boot, seed) == t0
-                note = ("over the limit; the verdict holds at the adverse touch" if exit_ok
-                        else "over the limit; the verdict changes at the adverse touch")
+                if not can_stand_over_limit(t0):
+                    exit_ok, note = False, f"over the limit, and {t0} cannot stand"
+                else:
+                    bx, by = [a for a, _ in pb], [r["y"] for _, r in pb]
+                    pt_b, p_b = shift_p(bx, by, cut_stat(*cuts), draws, seed)
+                    q_b = RM.bh_q(_with_replaced(raw, i, p_b if floors else float("nan")))[i]
+                    exit_ok = _pairs_token(pb, cuts, d, pt_b, q_b, floors, n_boot, seed) == t0
+                    note = ("over the limit; the verdict holds at the adverse touch" if exit_ok
+                            else "over the limit; the verdict changes at the adverse touch")
         o = other_ticker(tk)
         ftk = tk if f.qqq_only else None
         ox, oy, _ = cell_xy(ds, (o, tn, s, name), keep=in_confirmation, feature_ticker=ftk)
@@ -1564,27 +1583,18 @@ def confirm(ds: Dataset, cells: list[DiscCell], draws: int = SHIFT_N, n_boot: in
     return out
 
 
-def unranked_token(ds: Dataset, disc: list[DiscCell], i: int, draws: int = SHIFT_N,
-                   seed: int = SEED) -> str:
-    """The tally word of a cell that did not reach confirmation. Over the exit-drop
-    limit it is `UNDERPOWERED` if the discovery rank changes at the adverse touch, or a
-    short leg has no ask; otherwise `NULL`."""
+def unranked_token(ds: Dataset, disc: list[DiscCell], i: int) -> str:
+    """The tally word of a cell that did not reach confirmation: `NULL`, or
+    `UNDERPOWERED` below its floor or over the exit limit, where a `NULL` cannot stand."""
     c = disc[i]
     if not c.gradable:
         return UNDERPOWERED
     cuts = cell_cuts(ds, c.cell)
     if cuts is None:
         return UNDERPOWERED
-    if exit_limit_ok(exit_share(ds, c.cell[:3]),
-                     arm_exit_shares(ds, c.cell, cuts, in_discovery)):
-        return NULL
-    pb, unbounded = bounded_pairs(ds, c.cell, cuts, c.sign, keep=in_discovery)
-    if unbounded:
-        return UNDERPOWERED
-    bx, by = [a for a, _ in pb], [r["y"] for _, r in pb]
-    _rho, p_b = shift_p(bx, by, FD.spearman, draws, seed)
-    q_b = RM.bh_q(_with_replaced([d.p for d in disc], i, p_b))[i]
-    return UNDERPOWERED if q_b == q_b and q_b <= BH_Q else NULL
+    ok = exit_limit_ok(exit_share(ds, c.cell[:3]),
+                       arm_exit_shares(ds, c.cell, cuts, in_discovery))
+    return NULL if ok else UNDERPOWERED
 
 
 def pbo_matrix(ds: Dataset, cells: list[DiscCell], sessions: list[date]) -> np.ndarray:
@@ -1717,7 +1727,7 @@ def grade_unconditional(ds: Dataset, n_boot: int = BOOT_N, seed: int = SEED) -> 
             token = unconditional_token(*args)
             if share > EXIT_DROP_MAX:
                 rows_b = bounded_rows(ds, key, s)
-                if rows_b is None:
+                if rows_b is None or not can_stand_over_limit(token):
                     token = UNDERPOWERED
                 else:
                     b = unconditional(rows_b, s, n_boot, seed)
@@ -1748,7 +1758,7 @@ def forward_mean_token(n: int, blocks: int, p: float, mean: float, exit_ok: bool
 
 
 def forward_cell_token(floors: bool, point: float, p: float, disc_sign: int,
-                       tradable: bool, exit_ok: bool = True) -> str:
+                       tradable: bool | None, exit_ok: bool = True) -> str:
     if not floors or point != point:
         return STILL_OPEN
     if not exit_ok:
@@ -1757,6 +1767,8 @@ def forward_cell_token(floors: bool, point: float, p: float, disc_sign: int,
         return NULL
     if _sign(point) == -disc_sign:
         return CONTRARY
+    if tradable is None:
+        return UNDERPOWERED
     return CANDIDATE if tradable else NULL
 
 
@@ -1768,7 +1780,7 @@ def _forward_side(fwd: Dataset, key: tuple) -> str:
     tok = forward_mean_token(len(v), blocks, p, mean)
     if exit_share(fwd, key[:3]) > EXIT_DROP_MAX and tok not in (STILL_OPEN,):
         rows_b = bounded_rows(fwd, key[:3], key[3])
-        ok = rows_b is not None
+        ok = rows_b is not None and can_stand_over_limit(tok)
         if ok:
             vb = [r["net"][key[3]] for r in rows_b]
             mb, pb = mean_boot(vb, BOOT_N, SEED)
@@ -1788,7 +1800,7 @@ def _forward_cell(fwd: Dataset, c: "Confirmed", cuts) -> str:
     if tok != STILL_OPEN and not exit_limit_ok(exit_share(fwd, c.cell[:3]),
                                                arm_exit_shares(fwd, c.cell, cuts, None)):
         pb, unbounded = bounded_pairs(fwd, c.cell, cuts, c.disc.sign)
-        ok = not unbounded
+        ok = not unbounded and can_stand_over_limit(tok)
         if ok:
             bx, by = [a for a, _ in pb], [r["y"] for _, r in pb]
             pt_b, p_b = shift_p(bx, by, cut_stat(*cuts))
@@ -1828,7 +1840,9 @@ def live_tokens(rows: list[dict]) -> dict[tuple, str]:
         if not r["floors"] or r["point"] != r["point"] or not r["exit_ok"]:
             out[r["cell"]] = UNDERPOWERED
         else:
-            out[r["cell"]] = CANDIDATE if q == q and q <= CONFIRM_Q and r["tradable"] else NULL
+            passed = q == q and q <= CONFIRM_Q
+            out[r["cell"]] = (NULL if not passed else UNDERPOWERED if r["tradable"] is None
+                              else CANDIDATE if r["tradable"] else NULL)
     return out
 
 
@@ -1866,7 +1880,7 @@ def live_read(book: Book, ds: Dataset, index: dict, baseline: dict, labeler,
                 exit_share(fwd, cell[:3]), arm_exit_shares(fwd, cell, cuts, None, lag="LIVE")):
             continue
         pb, unbounded = bounded_pairs(fwd, cell, cuts, _sign(r["point"]), lag="LIVE")
-        if unbounded:
+        if unbounded or not can_stand_over_limit(base[cell]):
             r["exit_ok"] = False
             continue
         alt = _live_row(cell, pb, cuts, draws, n_boot)
