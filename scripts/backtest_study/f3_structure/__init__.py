@@ -22,8 +22,8 @@ the book's own exposure again.
                         on the same 2026 plays, Holm across seven graded arms, and
                         a second sample that awaits a fetch. Not yet graded.
     daily_vol_structure.py  registered 2026-11-06, accepted by default — daily straddles and
-                        1x2 ratios on QQQ and SMH, read against a fixed feature list. Awaits
-                        its leg fetch. Not yet graded.
+                        1x2 ratios on QQQ and SMH, read against a fixed feature list. The
+                        analysis page prints RETRO-ONLY. Awaits its leg fetch. Not yet graded.
 
 `hedge_structure.py` was here until 2026-09-08 and is now in `../f5_hedging/`,
 with the rest of the hedge programme. So was the DELETED `vol_sleeve.py`, whose

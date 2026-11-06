@@ -1090,7 +1090,7 @@ STUDIES: dict[str, Study] = {
     "daily_vol_structure": Study(
         family="structure", state="open",
         question="Do a daily straddle and 1x2 ratios on QQQ and SMH pay net of commission, and do "
-                 "their results move with volume, price or the analysis page's text?",
+                 "their results move with volume or price?",
         verdict="Not yet run.",
     ),
     "earnings_vol": Study(

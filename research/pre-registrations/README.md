@@ -228,7 +228,7 @@ controls, cells and descriptive cuts under the same letters.
 | [`index_vrp.md`](f3_structure/index_vrp.md) | Does a monthly short SPY iron condor lose in the same windows as the ladder book? | run · accepted by default | `NO-TAIL-LINK` — 2026-10-12 · [record](../study-results/f3_structure/index_vrp.md) |
 | [`earnings_vol.md`](f3_structure/earnings_vol.md) | Does a long straddle or a calendar across earnings pay? | run · accepted by default | `ARM S NULL`; `ARM K NULL` (natural-fill secondary `CONTRARY`); forward `STILL-OPEN` — 2026-10-13 · [record](../study-results/f3_structure/earnings_vol.md) |
 | [`structure_sweep.md`](f3_structure/structure_sweep.md) | Would another option structure on the same 2026 plays have done better? | registered · accepted by default | not yet run — 2026-10-22 |
-| [`daily_vol_structure.md`](f3_structure/daily_vol_structure.md) | Do daily straddles and 1x2 ratios on QQQ and SMH pay, and do results move with volume, price or the analysis page? | registered · accepted by default | not yet run — 2026-11-06 |
+| [`daily_vol_structure.md`](f3_structure/daily_vol_structure.md) | Do daily straddles and 1x2 ratios on QQQ and SMH pay, and do results move with volume or price? | registered · accepted by default | not yet run — 2026-11-06 |
 
 ## ④ Deployment — `f4_deployment/`
 

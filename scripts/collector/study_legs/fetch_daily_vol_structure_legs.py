@@ -12,11 +12,12 @@ collector fetches them. It names calls AND puts.
 
 TARGETS (`daily_vol_structure.fetch_targets`, IMPORTED)
 -------------------------------------------------------
-The strikes an awaiting trade names: each leg's nearest-first walk, read on its
-signal day. Strikes are probed, never inferred from a sparse cache. A fetch can
-expose a nearer strike or prove one unlisted, so the study and this collector
-alternate until nothing awaits. Every run recomputes the targets from the cache
-as it stands, so the loop is resumable.
+The strikes an awaiting trade names: each leg's nearest-first walk on the study's
+fixed strike step, read on its signal day. Strikes are probed, never inferred from
+a sparse cache. A fetch can prove a strike unlisted, so the study and this
+collector alternate until nothing awaits. A cached file from before the range fix
+that has no row by the signal day is re-fetched through `needed_dates`. Every run
+recomputes the targets from the cache as it stands, so the loop is resumable.
 
   --scope window   (default) the graded dates, 2024-03-15 to 2026-09-22
   --scope forward  signal dates from 2026-09-23, once a CANDIDATE has printed
@@ -74,8 +75,9 @@ SCOPES = ("window", "forward")
 async def fetch(targets: list[dict], headless: bool, timeout_ms: int) -> int:
     from scripts.backtest.shared.history import fetch_option_histories
     contracts = to_contracts(targets)
+    needed = {c["key"]: t["needed"] for c, t in zip(contracts, targets) if t.get("needed")}
     series, _details = await fetch_option_histories(
-        contracts, headless, timeout_ms, retry_unlisted=True)
+        contracts, headless, timeout_ms, needed_dates=needed, retry_unlisted=True)
     return sum(1 for c in contracts if series.get(c["key"]))
 
 
@@ -125,8 +127,9 @@ def main(argv=None) -> int:
     by = Counter(t["category"] for t in targets)
     cats = "  ".join(f"{k}={v}" for k, v in sorted(by.items()))
     kinds = Counter(t["opt_type"] for t in targets)
-    print(f"unique uncached contracts to fetch ({args.scope}): {len(targets)}  "
-          f"calls={kinds['Call']} puts={kinds['Put']}  {cats}")
+    print(f"unique contracts to fetch ({args.scope}): {len(targets)}  "
+          f"calls={kinds['Call']} puts={kinds['Put']}  "
+          f"re-fetches={sum(1 for t in targets if t.get('needed'))}  {cats}")
     if args.limit is not None:
         print(f"this run fetches at most {args.limit}")
     if args.dry_run:

@@ -1512,11 +1512,15 @@ SMH option outcome has been read.
 | Census item | Count |
 |---|---|
 | Sessions in the window | 632 |
-| Uncached first-round contracts | 3,928 |
-| Scaled estimate once OHLC is refreshed | about 4,100 |
-| Cells in the scan | 252 |
+| Uncached first-round contracts, with 48 re-fetches | 5,359 |
+| Scaled estimate once OHLC is refreshed | about 5,620 |
+| Graded cells in the scan | 144 |
+| Descriptive analysis cells, `RETRO-ONLY` | 108 |
+| LIVE analysis cells, graded forward | 36 |
 
-Later fetch rounds add contracts, because a fetch can expose a nearer strike.
+Later fetch rounds add contracts, because a fetch can expose a nearer strike. If the refreshed dry run
+passes 6,000, the cheapest cut is QQQ T30 at a $5 strike step. That changes the registration, so make
+it before any outcome is read.
 
 How to resume, after `mechanical_baseline` (§2.18) and `selloff_put_diagonal` (§2.23) have run:
 
