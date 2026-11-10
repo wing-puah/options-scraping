@@ -930,6 +930,49 @@ G-REPRO failures are `bear_put_spread` rows; six carry `exit_fill=deferred_*`.
 done. The queued scrapes are not filed in `next-steps.md`; their re-runs get
 an addendum here when they land.
 
+### Addendum 2026-11-10: the scrapes landed and unblocked nothing that grades
+
+**The `ARM U` scrape finished, but `ARM U` still cannot be graded, and the
+fetch cannot fix it.** Census floor 3 needs a median priceable share of 0.75.
+It stands at 0.695 now, and at most 0.757 if every remaining contract were
+fetched. The remaining contracts return empty feeds. `spy_benchmark` is back to
+`DOES-NOT-BEAT`. `narrow_to_fit`'s F3 cells still await legs Barchart does not
+have.
+
+_Era v4, the bare exports of 2026-10-26 (book 1,806 rows, 279 dates), code
+bb945a6. The loop ran 2026-10-22 to 2026-11-09 with `--no-v3`. The queue ran
+2026-11-10 02:43–03:11Z. Each report is appended to
+[study-results](study-results/README.md), uncommitted._
+
+| Study | Verdict | What blocks the rest |
+|---|---|---|
+| [`spy_benchmark`](arm-index.md#spy_benchmark) | `DOES-NOT-BEAT`, by pick and by date | nothing; 382 SPY wraps built, 0 awaiting |
+| [`mechanical_benchmark`](arm-index.md#mechanical_benchmark) | `SAME-TICKER READ — ARM U NOT BUILT` | floors 3 and 4b, on `ARM U` |
+| [`narrow_to_fit`](arm-index.md#narrow_to_fit) F3 cells | `AWAITING SCRAPE` | GN5; the substitute fetch got 1 of 31 legs |
+
+- **Why the `ARM U` fetch stopped.** The loop stopped itself at 243
+  contracts, after nine chunks fetched none of them. Every one returned an
+  empty feed, not a 404. Floor 4b counts 242 of them as still to fetch, and
+  1,672 universe wraps wait on them.
+- **The floor is not lowered.** The registration fixes 0.75. So `ARM U` and the
+  study-level verdict stay unread unless a later registration changes the
+  universe or the floor before any `ARM U` outcome is seen.
+- **The same-ticker arms do not clear.** Neither `ARM M1` nor `ARM M2` clears
+  C1–C2. The gains are gross of costs.
+
+| Arm | Pairs | Gain in mean R, CI95 |
+|---|---|---|
+| `ARM M1` | 384 | +0.015 [−0.065, +0.092] |
+| `ARM M2` | 350 | −0.009 [−0.121, +0.103] |
+| `ARM M2L`, declared secondary | 373 | −0.021 [−0.119, +0.070] |
+
+- **v3 is not read.** Its `ARM U` legs were left out of the loop on purpose.
+  Its same-ticker floors also stay `AWAITING`.
+
+**Next.** [`mechanical_baseline`](#2026-10-26--mechanical_baseline-registered-a-weekly-spy-call-spread-as-the-replacement-candidate)'s
+fetch was waiting on this loop and can now run. `selloff_put_diagonal`'s leg
+fetch follows it.
+
 ---
 
 ## 2026-10-26 — mechanical_baseline registered: a weekly SPY call spread as the replacement candidate

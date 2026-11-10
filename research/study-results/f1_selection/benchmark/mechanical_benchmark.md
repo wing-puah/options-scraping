@@ -144,3 +144,23 @@ VERDICT: NOT BUILT — AWAITING SCRAPE
     4. re-run this study; a fetch can expose nearer strikes, so steps 2-4 repeat until nothing awaits
 ```
 
+
+## era v4 · inputs 61bda3a · sha bb945a6 — recorded 2026-11-10
+<!-- key era=v4 sha=bb945a6 inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-11-10 10:57:26 · git bb945a6 (main, working tree clean) · exit 0 · 841.1s
+command     python -m scripts.backtest_study.f1_selection.benchmark.mechanical_benchmark
+excerpt     verdict
+
+```
+VERDICT (headline basis): SAME-TICKER READ — ARM U NOT BUILT
+  ARM M1  C0 Y  C1 n  C2 n  clears C0-C2 n  CONTRARY n
+  ARM M2  C0 Y  C1 n  C2 n  clears C0-C2 n  CONTRARY n
+  ARM U is not built, so no study-level verdict prints: every one of them
+  also says something about ARM U. C3, C4 and C5 are graded on ARM U and
+  are not read.
+  M2L is a declared secondary and carries no verdict.
+  pairs written to backtests/study_output/mechanical_benchmark-pairs.csv (no ARM U rows)
+```
+

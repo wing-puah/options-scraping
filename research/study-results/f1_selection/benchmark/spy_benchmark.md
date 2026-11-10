@@ -38,3 +38,18 @@ VERDICT: NOT BUILT — AWAITING SCRAPE
     3. re-run this study; a fetch can expose nearer strikes, so steps 1-3 repeat until nothing awaits
 ```
 
+
+## era v4 · inputs 61bda3a · sha bb945a6 — recorded 2026-11-10
+<!-- key era=v4 sha=bb945a6 inputs=61bda3a -->
+
+population  1,053 results · 2,223 proxy · 3,546 analysis · 854 spy_vix_daily_full  (inputs dated 2026-10-21 14:48 … 2026-10-26 01:06)
+run         2026-11-10 10:55:55 · git bb945a6 (main, working tree clean) · exit 0 · 50.3s
+command     python -m scripts.backtest_study.f1_selection.benchmark.spy_benchmark
+excerpt     verdict
+
+```
+VERDICT (headline basis, SB-UNIT = pick): DOES-NOT-BEAT
+  Not a programme_gate input: recorded beside the gate, never changing it.
+  pairs written to backtests/study_output/spy_benchmark-pairs.csv
+```
+
