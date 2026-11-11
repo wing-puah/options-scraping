@@ -1378,7 +1378,9 @@ What to do: let a study declare its own inputs for the fingerprint, and let the 
 `unversioned` when none of them carries an era. Until then, re-record by hand after a
 `BaselineDaily` re-export. Nothing changed.
 
-### 2.18 `mechanical_baseline` — OPEN, built 2026-10-26, waits for the `ARM U` scrape
+### 2.18 `mechanical_baseline` — RUN 2026-11-11, `NO-REPLACEMENT`; forward read `STILL-OPEN`
+
+**Run 2026-11-11** ([entry](current.md#2026-11-11--mechanical_baseline-the-weekly-spy-call-spread-does-not-replace-the-picks)). Steps 1–5 are done. `study_review` grading and the forward read remain. `ARM RND` and C5 stay `NOT BUILT`.
 
 The [registration](pre-registrations/f1_selection/benchmark/mechanical_baseline.md) is accepted
 and the module is built (`dc9defa`). Its first run prints `NOT BUILT — AWAITING SCRAPE`: 31

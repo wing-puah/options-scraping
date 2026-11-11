@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-11: `mechanical_baseline` prints `NO-REPLACEMENT`; the weekly SPY call spread is `NULL` against zero and against the v4 book, and trails SPY on alpha**
+([entry](#2026-11-11--mechanical_baseline-the-weekly-spy-call-spread-does-not-replace-the-picks)).
+
 **2026-11-06: the operator now views BaselineDaily flow from 2026-09-23, so `baseline_read`'s forward read is no longer blind**
 ([entry](#2026-11-06--the-operator-views-flow-inside-baseline_reads-forward-window)).
 
@@ -304,6 +307,52 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-11-11 — mechanical_baseline: the weekly SPY call spread does not replace the picks
+
+**`mechanical_baseline` prints `NO-REPLACEMENT`.** A weekly SPY ATM/+5% call spread is not shown
+to make money net of commission. It trails SPY shares on monthly alpha, and it does not beat the
+v4 book. Nothing ships, and the analysis is not retired on this evidence.
+
+_Report: `backtests/study_output/mechanical_baseline-latest.txt` · record:
+[`mechanical_baseline.md`](study-results/f1_selection/benchmark/mechanical_baseline.md) · era v4,
+bare exports of 2026-10-26 · code 5ac1a8e · run 2026-11-11 14:36 · not yet graded by
+`study_review`._
+
+**In production.** Nothing changes. The study is not a
+[`programme_gate`](pre-registrations/f4_deployment/programme_gate.md) input, and the gate still
+reads `WAIT`. The forward read sits behind the holdout seal and prints `STILL-OPEN`.
+
+| Arm | Read | Verdict |
+|---|---|---|
+| `ARM X` vs zero, weekly SPY 65 DTE | 140 trades, mean R +0.062 [−0.054, +0.180] | `NULL` |
+| `ARM H`, monthly Jensen alpha vs SPY | 33 months, −0.038 a month [−0.063, −0.018], beta 3.4 | `NEGATIVE-ALPHA` |
+| `ARM BK` v4, daily SPY 65 vs the book | 230 pairs, gain +0.035 [−0.069, +0.138] | `NULL` |
+| `ARM BK` v3, replication | 87 pairs, gain −0.375 [−0.551, −0.208] | `TRAILS-BOOK` |
+| `ARM RND`, vs a random ticker | — | `NOT BUILT` |
+
+- **`ARM X` fails C1 only.** Its interval crosses zero. Leave-one-out, both stress cuts and
+  window B (+0.040, n 97) keep the same sign.
+- **`ARM H` says the spread is levered SPY that costs money.** Its beta is 3.4, and it gives up
+  3.8% a month against SPY held at that beta.
+- **`ARM RND` cannot build.** It reads `mechanical_benchmark`'s floors 3 and 4b, and floor 3 is
+  out of reach
+  ([addendum](#addendum-2026-11-10-the-scrapes-landed-and-unblocked-nothing-that-grades)).
+- **The overfitting check (C5, PBO across the twelve cells) is not read.** Three cells wait on 5
+  trades whose 7 contracts did not fetch in two rounds.
+- **One parameter cell clears zero, and it carries no verdict.** Daily SPY 65 DTE has an
+  interval above zero on 675 trades. Its window B is near zero, and it is one cell of twelve.
+- **The account layer is printed, not graded.** The 0.25 per-position cap refuses all 140 weekly
+  trades. The $500 narrow-to-fit sizing (S-500-F3) takes 67 and nets +$1,536.
+  Its worst MTM drawdown is −$2,917.
+
+**The fetch.** The 31 primary contracts came in on 2026-11-10. The every-cell fetch on 2026-11-11
+took 1,195 of 1,202 in eleven rounds, then stopped with 7 left and no progress. The cache was
+pushed after each fetch.
+
+**Next.** `selloff_put_diagonal`'s 177-contract leg fetch, then the daily loop.
 
 ---
 
