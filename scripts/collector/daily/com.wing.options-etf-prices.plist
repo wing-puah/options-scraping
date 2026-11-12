@@ -26,8 +26,9 @@
     <string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
   </dict>
 
-  <!-- Every day at 07:17 local, after the US close in Singapore time. A run missed while
-       the laptop slept fires on wake. Off the hour on purpose. -->
+  <!-- Every day at 07:17 local, after the US close in Singapore time. On a sleeping laptop this
+       fires during a short background wake, so the script waits for a full wake before
+       it touches Barchart. Off the hour on purpose. -->
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key><integer>7</integer>
