@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-13: `selloff_put_diagonal` prints `NO-EDGE (PROVISIONAL)`; the call diagonal pays after a sell-off, but not detectably more than in calm weeks, and the put adds nothing**
+([entry](#2026-11-13--selloff_put_diagonal-a-sell-off-entry-pays-but-no-more-than-calm-weeks)).
+
 **2026-11-11: `mechanical_baseline` prints `NO-REPLACEMENT`; the weekly SPY call spread is `NULL` against zero and against the v4 book, and trails SPY on alpha**
 ([entry](#2026-11-11--mechanical_baseline-the-weekly-spy-call-spread-does-not-replace-the-picks)).
 
@@ -307,6 +310,56 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-11-13 — selloff_put_diagonal: a sell-off entry pays, but no more than calm weeks
+
+**`selloff_put_diagonal` prints `NO-EDGE (PROVISIONAL)`.** A SPY call diagonal opened after a
+sell-off made money on all nine triggers taken together. The same diagonal opened in calm weeks
+did nearly as well, so the sell-off timing is not shown to help. The near put added nothing.
+Nothing ships.
+
+_Report: `backtests/study_output/selloff_put_diagonal-latest.txt` · record:
+[`selloff_put_diagonal.md`](study-results/f1_selection/regime/selloff_put_diagonal.md) · era v4,
+in-sample window before the seal · code 102d6fb · run 2026-11-13 14:40 · not yet graded by
+`study_review`._
+
+**In production.** Nothing changes. The forward read prints `STILL-OPEN`. It has no forward
+trigger yet and needs three closed ones.
+
+| Primary object | Read | Token |
+|---|---|---|
+| `ARM K` vs zero, sell-off entry | 9 trades, mean R +0.188 [+0.069, +0.294] | `PAYS` |
+| `ARM K` vs `ARM C`, calm-week entry | +0.188 vs +0.069, gain +0.119 [−0.004, +0.232] | `NULL` |
+| Put contribution, `ARM K` minus `ARM K-diag` | −0.053 [−0.197, +0.130] | `NULL` |
+
+- **The study token is `NO-EDGE` because the edge it asks about is the timing.** `ARM K` pays,
+  but its gain over calm weeks misses C1 by a hair. Nine trades is a small sample.
+- **The put mostly loses.** On its own it lost on seven of nine triggers. One trigger
+  (2025-03-04) carries its whole mean.
+- **The diagonal alone also pays.** `ARM K-diag` is printed as a check and is not graded.
+- **Overfitting is low.** PBO across the four built cells is 0.06.
+
+**Secondary grades** are Holm-corrected and can never promote a cell. That needs a forward read
+and a new registration.
+
+| Secondary | Token | Adjusted p |
+|---|---|---|
+| Horizon 6 cycles vs zero | `PAYS` | 0.001 |
+| Horizon 6 cycles vs its own calm weeks | `SELLOFF-ENTRY-HELPS` | 0.003 |
+| `ARM K-diag` vs zero | `PAYS` | 0.024 |
+| `ARM K` vs SPY shares, same horizon | `WRAP-BEATS-SHARES` | 0.012 |
+
+- **Horizon 6 cycles is the one `CANDIDATE`.** It is the only cell where the sell-off entry beats
+  calm weeks after correction.
+- **Six cells are `NOT BUILT`.** They are the put diagonal, horizon 1, strike ×0.95, the −8%
+  trigger, the day-D close fill and the bear put spread. They wait on 157 every-cell contracts.
+
+**The fetch.** It took 163 primary contracts on 2026-11-13 in eight rounds, until nothing
+awaited. The cache was pushed once afterwards.
+
+**Next.** The every-cell fetch for the six unbuilt cells is optional. The daily loop is next.
 
 ---
 

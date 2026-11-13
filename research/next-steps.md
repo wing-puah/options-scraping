@@ -1468,7 +1468,9 @@ What to do: return `None`, exclude the position from the net totals, and print h
 excluded, as production's `s03_risk.py` does. That changes `account_sim` output, so it needs a
 test and a re-run recorded in `current.md`.
 
-### 2.23 `selloff_put_diagonal` — built, awaiting its leg fetch — OPEN, filed 2026-11-01
+### 2.23 `selloff_put_diagonal` — RUN 2026-11-13, `NO-EDGE (PROVISIONAL)`; forward read `STILL-OPEN`
+
+**Run 2026-11-13** ([entry](current.md#2026-11-13--selloff_put_diagonal-a-sell-off-entry-pays-but-no-more-than-calm-weeks)). The primary fetch is done. Six cells wait on 157 every-cell contracts, and `study_review` grading is still to do.
 
 The study is built and its first run stops at `NOT BUILT — AWAITING SCRAPE`, as designed.
 It tests a near put plus a long-dated call diagonal opened on a SPY sell-off trigger
