@@ -267,3 +267,31 @@ def test_run_engine_never_leaves_a_stale_served_model(monkeypatch):
     monkeypatch.setitem(core._RUNNERS, "claude", lambda p, m, cwd: ({"regime": "BULL"}, "{}"))
     core.run_engine("claude", "prompt", "opus")
     assert core._last_served_model is None
+
+
+# ── claude CLI resolution (2026-11-13: a PATH without ~/.local/bin killed a run) ──
+
+def test_claude_bin_env_override_wins(monkeypatch):
+    from scripts.analysis_pipeline import core
+    monkeypatch.setenv("CLAUDE_BIN", "/custom/claude")
+    assert core._claude_bin() == "/custom/claude"
+
+
+def test_claude_bin_falls_back_when_path_lacks_it(monkeypatch, tmp_path):
+    from scripts.analysis_pipeline import config, core
+    fake = tmp_path / "claude"
+    fake.write_text("#!/bin/sh\n")
+    fake.chmod(0o755)
+    monkeypatch.delenv("CLAUDE_BIN", raising=False)
+    monkeypatch.setattr(core.shutil, "which", lambda _n: None)
+    monkeypatch.setattr(config, "CLAUDE_BIN_FALLBACKS", (tmp_path / "missing", fake))
+    assert core._claude_bin() == str(fake)
+
+
+def test_claude_bin_missing_everywhere_names_the_places(monkeypatch, tmp_path):
+    from scripts.analysis_pipeline import config, core
+    monkeypatch.delenv("CLAUDE_BIN", raising=False)
+    monkeypatch.setattr(core.shutil, "which", lambda _n: None)
+    monkeypatch.setattr(config, "CLAUDE_BIN_FALLBACKS", (tmp_path / "nope",))
+    with pytest.raises(FileNotFoundError, match="set CLAUDE_BIN"):
+        core._claude_bin()

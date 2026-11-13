@@ -50,6 +50,17 @@ TICKER_SPECIFIC_TAB = "AnalysisTickerSpecific"
 MAX_ATTEMPTS = 3            # retries for the headless analysis call on failure / bad JSON
 REQUEST_TIMEOUT_S = 600     # per-attempt timeout (seconds) for the engine CLI
 
+# Where to look for the `claude` CLI when PATH does not carry it. A launchd job
+# or a desktop-app session can start with a PATH that lacks ~/.local/bin (the
+# native installer's home), and the run then dies with "No such file or
+# directory: 'claude'" (2026-11-13). $CLAUDE_BIN overrides all of these.
+CLAUDE_BIN_FALLBACKS = (
+    Path.home() / ".local/bin/claude",
+    Path.home() / ".claude/local/claude",
+    Path("/opt/homebrew/bin/claude"),
+    Path("/usr/local/bin/claude"),
+)
+
 
 # ──────────────────────────── Fetch defaults ───────────────────────
 DEFAULT_TOP_N = 20          # top-N tickers by score to show raw trades for

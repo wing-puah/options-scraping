@@ -32,6 +32,8 @@ import hashlib
 import json
 import logging
 import math
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -197,6 +199,27 @@ def _parse_and_validate(text: str) -> dict:
     return analysis
 
 
+def _claude_bin() -> str:
+    """Path to the `claude` CLI: $CLAUDE_BIN, then PATH, then known install dirs.
+
+    Raises FileNotFoundError naming every place looked, so a missing CLI fails
+    with a readable message instead of a bare Errno 2 on each retry.
+    """
+    override = os.environ.get("CLAUDE_BIN")
+    if override:
+        return override
+    found = shutil.which("claude")
+    if found:
+        return found
+    for cand in config.CLAUDE_BIN_FALLBACKS:
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    raise FileNotFoundError(
+        "claude CLI not found on PATH or in "
+        + ", ".join(str(c) for c in config.CLAUDE_BIN_FALLBACKS)
+        + "; set CLAUDE_BIN")
+
+
 def _invoke_claude(prompt: str, model: str | None, cwd: str) -> tuple[dict, str]:
     """One `claude -p` call. Prompt on stdin; stdout is a JSON array of events.
 
@@ -206,7 +229,7 @@ def _invoke_claude(prompt: str, model: str | None, cwd: str) -> tuple[dict, str]
     evaluation is only auditable if the response is kept alongside the parse).
     """
     proc = subprocess.run(
-        ["claude", "-p", "--output-format", "json", "--model", model or config.ENGINES["claude"].default_model or "opus"],
+        [_claude_bin(), "-p", "--output-format", "json", "--model", model or config.ENGINES["claude"].default_model or "opus"],
         input=prompt, capture_output=True, text=True, cwd=cwd,
         timeout=config.REQUEST_TIMEOUT_S, check=False,
     )
