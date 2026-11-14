@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-14: `tail_breach` prints `UNDERPOWERED`; twice-implied-move SPY breaches ran at a steady rate through 2024–2026, and vol state does not detectably forecast them**
+([entry](#2026-11-14--tail_breach-tail-breaches-run-at-a-steady-rate-and-vol-state-does-not-forecast-them)).
+
 **2026-11-13: `selloff_put_diagonal` prints `NO-EDGE (PROVISIONAL)`; the call diagonal pays after a sell-off, but not detectably more than in calm weeks, and the put adds nothing**
 ([entry](#2026-11-13--selloff_put_diagonal-a-sell-off-entry-pays-but-no-more-than-calm-weeks)).
 
@@ -310,6 +313,78 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-11-14 — tail_breach: tail breaches run at a steady rate, and vol state does not forecast them
+
+**`tail_breach` prints `UNDERPOWERED` on every graded object.** A tail breach is a session on which
+SPY fell more than twice the one-day move the prior close's VIX implied. Breaches ran at about the
+same rate in each recent year as over the training years. A model of four VIX readings, fitted on 2006–2023,
+scored a positive Brier skill on 2024 onward, but its interval spans zero. The test window holds 9
+independent breach episodes, one short of the registered floor of 10, so no verdict is read. Nothing
+ships.
+
+_Report: `backtests/study_output/tail_breach-latest.txt` · record:
+[`tail_breach.md`](study-results/f1_selection/regime/tail_breach.md) · unversioned yfinance closes
+to 2026-11-13 · code 1f89e6f (tree dirty: the study itself) · run 2026-11-14 13:27 · registered and
+accepted by default 2026-11-14 after a fresh second reader · not yet graded by `study_review`._
+
+**Part 1, how often.** Down breaches at twice the implied move, per year:
+
+| Year | Sessions | Breaches | Rate [Wilson 95%] | Normal law | Episodes |
+|---|---|---|---|---|---|
+| 2024 | 252 | 4 | 1.59% [0.62%, 4.01%] | 2.28% | 4 |
+| 2025 | 250 | 4 | 1.60% [0.62%, 4.04%] | 2.28% | 2 |
+| 2026 YTD | 219 | 3 | 1.37% [0.47%, 3.95%] | 2.28% | 3 |
+| 2024–26 | 721 | 11 | 1.53% [0.85%, 2.71%] | 2.28% | 9 |
+| 2006–2023 | 4,394 | 70 | 1.59% [1.26%, 2.01%] | 2.28% | 56 |
+
+- The rate is steady. No year differs from the others or from 2006–2023.
+- VIX overstates the ordinary down day but understates the extreme one. At 1.5 times the implied
+  move, breaches run below the normal law; at 2.5 times, above it.
+
+| Threshold, 2024–26 | Breaches | Rate | Normal law |
+|---|---|---|---|
+| 1.5× implied move | 24 | 3.33% | 6.68% |
+| 2.5× implied move | 6 | 0.83% | 0.62% |
+| Upside, 2× | 3 | 0.42% | 2.28% |
+
+- Breaches cluster mildly: a breach follows another within five sessions more often than
+  independence implies, in the recent years and in training alike.
+
+| Clustering | Near another breach | Independence implies |
+|---|---|---|
+| 2024–26 | 2 of 11 (18%) | 7% |
+| 2006–2023 | 14 of 70 (20%) | 8% |
+- Large upside surprises are rarer than large downside ones, as in 2006–2023.
+
+**Part 2, can it be forecast.** Each object forecasts a breach in the next five sessions, scored on
+2024 onward with coefficients frozen on 2006–2023:
+
+| Object | Brier skill [95% CI] | AUC | Verdict |
+|---|---|---|---|
+| `P`, four predictors | +0.028 [−0.066, +0.116] | 0.593 | `UNDERPOWERED` |
+| `S1`, VIX level | +0.006 [−0.005, +0.026] | 0.541 | `UNDERPOWERED` |
+| `S2`, VIX percentile | +0.010 [−0.058, +0.049] | 0.619 | `UNDERPOWERED` |
+| `S3`, VIX/VIX3M | +0.030 [−0.032, +0.117] | 0.551 | `UNDERPOWERED` |
+| `S4`, realized vol / VIX | −0.000 [−0.000, +0.000] | 0.413 | `UNDERPOWERED` |
+| `N1`, next session only | +0.008 [−0.018, +0.031] | 0.603 | `UNDERPOWERED` |
+
+- The gate that failed is the episode count (`GN`: 9, floor 10). Every other gate passed, including
+  the lookahead check.
+- Even read past the gate, no interval clears zero. The widest point estimate, VIX/VIX3M, comes from
+  the term structure inverting before a fall; in training it carried the largest coefficient.
+- The test base rate matched training, so a calibration shift does not explain the result.
+- Per-year skill swings sign: negative in 2024 and 2026, positive in 2025, each with an interval
+  spanning zero.
+
+**In production.** Nothing changes. Forward origins start after 2026-11-14 and need 10 episodes,
+which the normal-law prior puts about two years away; the forward read prints `STILL-OPEN`.
+
+**Next.** `study_review tail_breach --skip-run` when grading is wanted. A re-run when 2026 adds
+breaches would only redraw the same test window; the registered answer arrives through the forward
+read.
 
 ---
 

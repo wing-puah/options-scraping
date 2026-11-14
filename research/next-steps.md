@@ -1560,6 +1560,31 @@ Use `git mv`. Add one to each `parents[N]`, then fix every path and import in `s
 `docs/` and `research/next-steps.md`. Dated log entries stay as written. `fetch_earnings_legs.py`
 imports `fetch_sweep_legs`, so that import crosses groups.
 
+### 2.26 `tail_breach` — RUN 2026-11-14, `UNDERPOWERED`; forward read `STILL-OPEN`
+
+The first run on 2026-11-14 printed `UNDERPOWERED` on every graded object: the test window holds 9
+independent breach episodes against a floor of 10 ([entry](current.md#2026-11-14--tail_breach-tail-breaches-run-at-a-steady-rate-and-vol-state-does-not-forecast-them)).
+`study_review` grading is still owed. The study was registered (accepted by default 2026-11-14). It counts
+the sessions in 2024, 2025 and 2026 on which SPY fell more than twice the one-day move the prior
+close's VIX implied. It then asks whether four VIX readings at that close forecast a breach in the
+next five sessions ([pre-registration](pre-registrations/f1_selection/regime/tail_breach.md)).
+A fresh second reader found no blocker and no leakage before the run; its fixes are in.
+
+| Design choice | Default |
+|---|---|
+| Family | `f1_selection/regime`, beside `regime_confirm` and `baseline_read` |
+| Price basis | SPY `Adj Close` from yfinance, a total return |
+| Training, test | Outcome windows before 2024-01-02; test windows from 2024-01-02 to 2026-11-14 |
+| Forward | Origins after 2026-11-14 |
+| Metric | Brier skill against the training base rate, 21-session moving blocks |
+| Power floor | 10 independent breach episodes in the test window |
+
+How to resume:
+
+1. Run and record: done 2026-11-14.
+2. Optional: `python3 -m scripts.study_review tail_breach --skip-run` for the A/B grading.
+3. Expect forward `STILL-OPEN` for about two years: 10 forward episodes are needed.
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 

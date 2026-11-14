@@ -574,6 +574,33 @@ than every flip is. The unit is a market event, not a position.
 - `RETRO-SUPPORTED` `RETRO-NULL` `RETRO-CONTRARY` (prose) — The
   retrospective verdict words over the two co-primaries.
 
+#### `tail_breach`
+
+_Registered in [`pre-registrations/f1_selection/regime/tail_breach.md`](pre-registrations/f1_selection/regime/tail_breach.md) · module `f1_selection/regime/tail_breach.py`_
+
+Accepted by default 2026-11-14. The study counts the sessions on which SPY fell more than
+twice the one-day move implied by the prior close's VIX, then asks whether
+four VIX readings at that close forecast such a breach in the next five
+sessions. The unit is a SPY session; every BSS CI is a 21-session
+moving-block bootstrap.
+
+- `DOWN` (descriptive cut) — The breach: SPY's total log return below
+  −2 × VIX(t−1)/100/√252. Counted per year in Part 1; the graded outcome.
+- `X1` `X2` `X3` `X4` (axis) — The predictors, read at the prior close: VIX
+  level, its 252-session percentile, VIX/VIX3M, and 20-session realized vol
+  over VIX.
+- `Y5` `Y1` (axis) — Outcomes: any breach in the next five sessions, and a
+  breach on the next session.
+- `P` (arm) — Primary: logistic regression on all four predictors, `Y5`.
+  `PREDICTABLE` when the Brier skill CI sits wholly above zero.
+- `S1` `S2` `S3` `S4` (arm) — Secondary: one predictor each, `Y5`. Holm,
+  m = 4.
+- `N1` (arm) — Secondary: the four-predictor model on `Y1`.
+- `GE` `GB` `GX` `GT` `GN` (gate) — Inputs, price basis, no lookahead,
+  training floor, and the floor of 10 test episodes.
+- `FORWARD` (population scope) — `P` on forecast origins after the
+  registration date. `STILL-OPEN` until 250 rows and 10 episodes.
+
 #### `direction_hit`
 
 _Registered in [`pre-registrations/f1_selection/signal/direction_hit.md`](pre-registrations/f1_selection/signal/direction_hit.md) · module `f1_selection/signal/direction_hit.py`_

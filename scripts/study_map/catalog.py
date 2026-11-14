@@ -523,6 +523,18 @@ STUDIES: dict[str, Study] = {
                 "POSITIVE, A x RM-SMA=below POSITIVE <<<`, both the dip_buy lead from another "
                 "door. Forward `{'STILL-OPEN': 2}`. Nothing ships.",
     ),
+    "tail_breach": Study(
+        family="selection", state="open",
+        question="How often does SPY fall more than twice the one-day move its prior close's VIX "
+                 "implied, in 2024, 2025 and 2026, and do four VIX readings at that close forecast "
+                 "such a breach in the next five sessions better than the base rate?",
+        verdict="Accepted by default and first run 2026-11-14 (yfinance closes to 2026-11-13): "
+                "`>>> tail_breach P (four-predictor logistic, any 2x-VIX down breach in the next "
+                "5 sessions, test from 2024-01-02): UNDERPOWERED <<<` on `BSS +0.0284 [-0.0658, "
+                "+0.1160]`, because `GN: 9 independent down-breach episodes in the test window "
+                "(floor 10) — FAIL`. S1-S4 and N1 `UNDERPOWERED`; `>>> tail_breach FORWARD "
+                "(forecast origins after the registration date): STILL-OPEN <<<`. Nothing ships.",
+    ),
     "regime_confirm": Study(
         family="selection", state="null",
         question="When SPY, QQQ, IWM or ^GSPC first turns mech BEAR after 20 quiet sessions, does "
