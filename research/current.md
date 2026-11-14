@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-14: `tail_breach_intraday` prints `NO-FORECAST` for intraday 2σ breaches and `UNDERPOWERED` for 5% weekly falls; neither is forecastable from vol state on this evidence**
+([entry](#2026-11-14--tail_breach_intraday-intraday-breaches-not-forecastable-5-falls-too-rare)).
+
 **2026-11-14: `tail_breach` prints `UNDERPOWERED`; twice-implied-move SPY breaches ran at a steady rate through 2024–2026, and vol state does not detectably forecast them**
 ([entry](#2026-11-14--tail_breach-tail-breaches-run-at-a-steady-rate-and-vol-state-does-not-forecast-them)).
 
@@ -313,6 +316,76 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-11-14 — tail_breach_intraday: intraday breaches not forecastable, 5% falls too rare
+
+**`tail_breach_intraday` prints `NO-FORECAST` on `PA` and `UNDERPOWERED` on `PB`.** Event A is a
+session on which SPY's intraday low fell more than twice the prior close's VIX-implied move. Event B
+is SPY's low reaching 5% below a close within the next five sessions. The four `tail_breach` VIX
+readings did not beat the base rate for A, with its power gate met. B had only 3 independent
+episodes in the test window against a floor of 10, so no verdict is read. Nothing ships.
+
+_Report: `backtests/study_output/tail_breach_intraday-latest.txt` · record:
+[`tail_breach_intraday.md`](study-results/f1_selection/regime/tail_breach_intraday.md) · unversioned
+yfinance OHLC to 2026-11-13 · code 1b22bc2 (tree dirty: the study itself) · run 2026-11-14 23:52 ·
+registered and accepted by default 2026-11-14 after a fresh second reader · not yet graded by
+`study_review`._
+
+**Part 1, how often.** Event A, the intraday 2σ breach, per year:
+
+| Year | Sessions | Breaches | Rate [Wilson 95%] | Episodes |
+|---|---|---|---|---|
+| 2024 | 252 | 7 | 2.78% [1.35%, 5.62%] | 5 |
+| 2025 | 250 | 6 | 2.40% [1.10%, 5.14%] | 4 |
+| 2026 YTD | 219 | 5 | 2.28% [0.98%, 5.23%] | 4 |
+| 2024–26 | 721 | 18 | 2.50% [1.58%, 3.91%] | 13 |
+| 2006–2023 | 4,394 | 131 | 2.98% [2.52%, 3.53%] | 85 |
+
+- The rate is steady, and slightly lower recently than in training. The 18 matches the plan-time
+  count, and the raw low gives the same count in every test year.
+- A low that dips 2σ is about half as common as a driftless random path predicts. The normal
+  reference for a low is 4.55%; for a close it is 2.28%.
+
+Event B, a 5% fall within five sessions, counted by the window's first session:
+
+| Year | Windows | Rate | Episodes |
+|---|---|---|---|
+| 2024 | 4 of 252 | 1.59% | 1 |
+| 2025 | 10 of 250 | 4.00% | 2 |
+| 2026 YTD | 0 of 215 | 0.00% | 0 |
+| 2006–2023 | 292 of 4,394 | 6.65% | 61 |
+
+- Five-percent falls cluster into very few episodes: one in 2024, two in 2025, none so far in 2026.
+- The recent years ran far below the training rate, and below the normal reference at VIX's level.
+- A 5% intraday fall on a single session happened twice, in one 2025 episode.
+- The upside and either-direction versions are printed only. Either direction gave 26 windows in
+  the test years, in 7 episodes.
+
+**Part 2, can it be forecast.** Coefficients frozen on 2006–2023, scored on 2024 onward:
+
+| Object | Brier skill [95% CI] | AUC | Verdict |
+|---|---|---|---|
+| `PA`, four predictors, A in five sessions | +0.024 [−0.075, +0.114] | 0.595 | `NO-FORECAST` |
+| `SA1`–`SA4`, one predictor each | every CI spans 0 | 0.52–0.61 | `NO-FORECAST` |
+| `NA1`, A on the next session | +0.007 [−0.017, +0.028] | 0.644 | `NO-FORECAST` |
+| `PB`, four predictors, B | +0.044 [−0.059, +0.226] | 0.891 | `UNDERPOWERED` |
+| `SB1`–`SB4`, one predictor each | every CI spans 0 | 0.79–0.93 | `UNDERPOWERED` |
+
+- A cleared both power gates (13 test episodes), so its answer is a real no on this window. The term
+  structure, VIX/VIX3M, carries the largest coefficient again, as in `tail_breach`.
+- B's high AUC rests on 3 episodes. Its ranking may be real, but the interval cannot say, and the
+  registration fixed that before the run.
+- B's test base rate (1.95%) is a third of training (6.65%). A forecast calibrated on 2006–2023 is
+  therefore too high in a calm window.
+- The printed-only upside and either-direction refits show CIs above zero on 7 episodes each. They
+  are below every floor and never graded; they are a lead for the forward read, not a finding.
+
+**In production.** Nothing changes. Forward origins start after 2026-11-14 and need 10 episodes of
+each event; both forward reads print `STILL-OPEN`. For B that is likely several years away.
+
+**Next.** `study_review tail_breach_intraday --skip-run` when grading is wanted.
 
 ---
 

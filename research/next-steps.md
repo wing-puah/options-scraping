@@ -1585,6 +1585,29 @@ How to resume:
 2. Optional: `python3 -m scripts.study_review tail_breach --skip-run` for the A/B grading.
 3. Expect forward `STILL-OPEN` for about two years: 10 forward episodes are needed.
 
+### 2.27 `tail_breach_intraday` — RUN 2026-11-14, `PA` `NO-FORECAST`, `PB` `UNDERPOWERED`
+
+The first run on 2026-11-14 printed `NO-FORECAST` for intraday 2σ breaches, with the power gate met.
+It printed `UNDERPOWERED` for 5% falls within five sessions: 3 test episodes against a floor of 10.
+The forward reads print `STILL-OPEN` ([entry](current.md#2026-11-14--tail_breach_intraday-intraday-breaches-not-forecastable-5-falls-too-rare)). `study_review` grading is still owed. The operator asked for it after
+`tail_breach`: the same four VIX readings, on SPY's intraday low and on a 5% move
+([pre-registration](pre-registrations/f1_selection/regime/tail_breach_intraday.md)). The operator
+chose B down only, over five sessions. A fresh second reader found no leakage; its fixes are in.
+
+| Design choice | Default |
+|---|---|
+| Family | `f1_selection/regime`, beside `tail_breach`, whose code it imports |
+| Price basis | yfinance OHLC; the low scaled by `Adj Close / Close`, a total-return low |
+| Co-primaries | `PA` (event A) and `PB` (event B), Holm m = 2 |
+| Windows, metric | `tail_breach`'s: test 2024-01-02 to 2026-11-14, Brier skill, 21-session blocks |
+| Power floor | 10 independent episodes per event in the test window |
+
+How to resume:
+
+1. Run and record: done 2026-11-14.
+2. Optional: `python3 -m scripts.study_review tail_breach_intraday --skip-run` for the A/B grading.
+3. Expect forward `STILL-OPEN` for years on B: 10 forward episodes of a 5% weekly fall are needed.
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 

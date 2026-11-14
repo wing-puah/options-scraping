@@ -601,6 +601,31 @@ moving-block bootstrap.
 - `FORWARD` (population scope) — `P` on forecast origins after the
   registration date. `STILL-OPEN` until 250 rows and 10 episodes.
 
+#### `tail_breach_intraday`
+
+_Registered in [`pre-registrations/f1_selection/regime/tail_breach_intraday.md`](pre-registrations/f1_selection/regime/tail_breach_intraday.md) · module `f1_selection/regime/tail_breach_intraday.py`_
+
+Accepted by default 2026-11-14. The intraday twin of `tail_breach`, whose
+predictors, split and scoring it imports. It counts two SPY events and asks
+whether four VIX readings at the prior close forecast either. The unit is a
+SPY session; every BSS CI is a 21-session moving-block bootstrap.
+
+- `A` (descriptive cut) — The intraday breach: SPY's total-return low below
+  −2 × VIX(t−1)/100/√252 from the prior close.
+- `B` (descriptive cut) — The 5% fall: SPY's low at or below 0.95 × the origin
+  close within five sessions, indexed by the window's first session.
+- `YA5` `YA1` `YB` (axis) — Outcomes: any `A` in the next five sessions, `A`
+  on the next session, and `B`.
+- `PA` `PB` (arm) — Co-primaries: logistic regression on all four predictors,
+  for `YA5` and `YB`. Holm, m = 2.
+- `SA1` `SA2` `SA3` `SA4` `SB1` `SB2` `SB3` `SB4` (arm) — Secondary: one predictor each, per event.
+  Holm, m = 4 per family.
+- `NA1` (arm) — Secondary: the four-predictor model on `YA1`.
+- `GE` `GB` `GO` `GC` `GX` `GT` `GN` (gate) — Inputs, price basis, OHLC order,
+  the cross-feed low check, no lookahead, and the per-event floors.
+- `FORWARD` (population scope) — `PA` and `PB` on origins after the
+  registration date. `STILL-OPEN` until 250 rows and 10 episodes each.
+
 #### `direction_hit`
 
 _Registered in [`pre-registrations/f1_selection/signal/direction_hit.md`](pre-registrations/f1_selection/signal/direction_hit.md) · module `f1_selection/signal/direction_hit.py`_

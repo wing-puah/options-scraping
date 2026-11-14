@@ -535,6 +535,19 @@ STUDIES: dict[str, Study] = {
                 "(floor 10) — FAIL`. S1-S4 and N1 `UNDERPOWERED`; `>>> tail_breach FORWARD "
                 "(forecast origins after the registration date): STILL-OPEN <<<`. Nothing ships.",
     ),
+    "tail_breach_intraday": Study(
+        family="selection", state="open",
+        question="Does SPY's intraday low breach twice its VIX-implied move, or fall 5% below a close "
+                 "within five sessions, and do four VIX readings at that close forecast either "
+                 "better than the base rate?",
+        verdict="Accepted by default and first run 2026-11-14 (yfinance OHLC to 2026-11-13): "
+                "`>>> tail_breach_intraday PA (four-predictor logistic, any intraday 2x-VIX breach in "
+                "the next 5 sessions, test from 2024-01-02): NO-FORECAST <<<` on `BSS +0.0243 "
+                "[-0.0746, +0.1139]`; `>>> tail_breach_intraday PB (four-predictor logistic, intraday "
+                "low 5% below the origin close within 5 sessions, test from 2024-01-02): UNDERPOWERED "
+                "<<<` because `GN B: 3 independent episodes in the test window (floor 10) — FAIL`. "
+                "Forward `PA STILL-OPEN PB STILL-OPEN`. Nothing ships.",
+    ),
     "regime_confirm": Study(
         family="selection", state="null",
         question="When SPY, QQQ, IWM or ^GSPC first turns mech BEAR after 20 quiet sessions, does "
