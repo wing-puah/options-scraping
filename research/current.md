@@ -376,6 +376,49 @@ not yet graded by `study_review`._
 the forward read waits for the seal. A new entry in
 [`deployment-evidence.md`](deployment-evidence.md#a-fixed-watchlist-to-be-tested-forward).
 
+### Addendum, 2026-11-15: the per-ticker read, post hoc
+
+**Two names carry the v4 result, and they are not the names the operator trades most.** The
+operator asked for this table after the run. The registration grades no name, so it is a
+description with no verdict.
+
+_Same run and populations as above. `ARM F` picks only. "Against the card" is the pick's R minus
+the card's mean R that date, averaged._
+
+| Ticker | v4 picks | v4 mean R | v4 win rate | v4 total R | v4 against the card | v3 picks | v3 mean R | Live opens |
+|---|---|---|---|---|---|---|---|---|
+| NVDA | 83 | +0.232 | 63% | +19.23 | +0.115 | 23 | +0.271 | 9 |
+| GLD | 50 | +0.359 | 82% | +17.94 | +0.257 | 31 | +0.766 | 3 |
+| META | 29 | +0.268 | 59% | +7.76 | +0.112 | 9 | +0.460 | 3 |
+| MU | 23 | +0.015 | 43% | +0.35 | +0.088 | 5 | +0.084 | 24 |
+| AMD | 19 | −0.377 | 37% | −7.17 | −0.263 | 4 | +0.641 | 5 |
+| SMH | 16 | −0.066 | 50% | −1.06 | −0.092 | 0 | — | 15 |
+| TSM | 15 | +0.430 | 73% | +6.44 | +0.316 | 6 | +0.114 | 16 |
+| GOOGL | 14 | +0.492 | 71% | +6.88 | +0.251 | 3 | −0.784 | 0 |
+| QQQ | 11 | +0.109 | 64% | +1.19 | +0.264 | 5 | +0.068 | 11 |
+| XLE | 10 | +0.158 | 60% | +1.58 | +0.074 | 4 | −0.250 | 0 |
+| XLF | 8 | +1.082 | 100% | +8.66 | +0.638 | 3 | +0.776 | 0 |
+| CRWV | 5 | −0.811 | 0% | −4.06 | −0.368 | 0 | — | 7 |
+| PLTR | 5 | −0.060 | 40% | −0.30 | −0.082 | 6 | +0.371 | 3 |
+| GOOG | 1 | −0.784 | 0% | −0.78 | −0.546 | 1 | +1.326 | 6 |
+
+| The card's off-list picks | v4 | v3 |
+|---|---|---|
+| Picks, mean R | 299, −0.027 | 141, +0.337 |
+| TLT picks, total R | 18, −13.85 | 11, −1.53 |
+| TSLA picks, total R | 22, −7.58 | 5, +0.35 |
+
+- **NVDA and GLD are 37 of the list's 57 R on v4.** The operator opened them 12 times live out of
+  102 list opens.
+- **The three names the operator opens most add little.** MU, TSM and SMH hold 55 live opens and
+  about 6 R of the v4 total.
+- **The v4 gain is partly the card's off-list losers.** TLT and TSLA alone cost the card about
+  21 R on v4. On v3 the off-list picks earned as much as the list.
+- **Most rows are too thin to read.** Ten of fourteen tickers have fewer than 20 picks.
+
+A list changed after this table is a new registration, and its in-sample read would be chosen on
+outcomes.
+
 ---
 
 ## 2026-11-15 — focus_list registered: a fixed watchlist against the card
