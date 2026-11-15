@@ -325,6 +325,111 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-11-15 — focus_list first run: beats the card on v4, not on v3
+
+**`focus_list` prints `FOCUS-BEATS-CARD` on the v4 book, and the v3 replication prints `NULL` with
+the opposite sign.** Nothing ships. The result is filed as "to be tested", and the forward read
+behind the holdout seal is the test.
+
+_Report: `backtests/study_output/focus_list-latest.txt` and `focus_list-v3-20261115.txt` · record:
+[`focus_list.md`](study-results/f1_selection/benchmark/focus_list.md) · era v4, bare exports of
+2026-10-26, signal dates before 2026-09-23 · code abab7a3, working tree dirty · run 2026-11-15 ·
+not yet graded by `study_review`._
+
+**In production.** Nothing changes. The card, its tiers and its caps stand.
+
+**Evidence.** [R](glossary.md#r) is net of commission, and intervals resample signal dates.
+
+| Object | v4, in-sample | v3 replication, same path |
+|---|---|---|
+| [`focus_list` P1](arm-index.md#focus_list) verdict | `FOCUS-BEATS-CARD` | `NULL` |
+| Gain, `ARM F` minus `ARM C` | +0.140 [+0.061, +0.220] | −0.064 [−0.241, +0.096] |
+| Dates, `ARM F` positions | 185, 289 | 64, 100 |
+| `ARM N` band, 95th percentile | +0.090 | +0.009 |
+| `ARM F` mean R per position | +0.196 [+0.075, +0.309] | +0.407 [+0.171, +0.663] |
+| `ARM C` mean R per position | +0.067 | +0.411 |
+| Gain without the largest name | +0.107, without NVDA | −0.116, without GLD |
+| Criteria not met | none | 1, 2, 4, 6 |
+| `D1`, list against the card's other names | +0.297 [+0.113, +0.495] | not printed |
+
+**How to read it.**
+
+- **The two eras disagree on one market path.** The same names beat the card's other picks under
+  the v4 prompt and did not under the v3 prompt. So the v4 gain belongs to which plays v4 emitted
+  off the list, not to the names alone.
+- **The v4 card's off-list picks were weak.** `ARM C` earned +0.067 R a position against the
+  list's +0.196. On v3 the two were level.
+- **The list was chosen with hindsight.** The operator named it after trading these names, and
+  every eligible row is a bull play on a rising tape. The registration says no in-sample figure
+  can confirm it.
+- **The pre-run expectation was wrong.** The registration expected `NULL` on v4.
+
+**Caveats.**
+
+- **Pending rows.** The loader dropped 44 pending `ARM C` picks on 29 dates before ranking, so the
+  in-sample read can move as those rows close.
+- **A pre-run review changed the code, not the bar.** An independent reviewer read the module
+  before any outcome. It asked for an era guard, a pinned forward-read file and a count of
+  displaced pending picks. Each is tagged `Resolved at build` in the registration.
+
+**Next.** [`next-steps.md`](next-steps.md) §2.30 stays open: `study_review` grading is owed, and
+the forward read waits for the seal. A new entry in
+[`deployment-evidence.md`](deployment-evidence.md#a-fixed-watchlist-to-be-tested-forward).
+
+---
+
+## 2026-11-15 — focus_list registered: a fixed watchlist against the card
+
+**`focus_list` is registered, and no module exists yet.** It asks whether taking picks only from
+a fixed 14-ticker watchlist beats the card's own top three on the same dates. Nothing ships.
+
+_Registration: [`focus_list.md`](pre-registrations/f1_selection/benchmark/focus_list.md),
+accepted by the operator 2026-11-15 · census on the v4 exports on disk that day, signal dates
+before 2026-09-23, with no outcome column loaded · two fresh second readers, six blockers, all
+fixed before acceptance._
+
+**In production.** Nothing changes. The card, its tiers and its caps stand.
+
+**Why.** The operator asked whether to trade on judgement instead of the system, then said the
+trick is to take fewer trades and focus on a few names. A read of the journal the same day showed
+trades matched to a card play near flat and unmatched trades carrying nearly all of the loss.
+Dollar figures stay in `journal/`.
+
+**The design.** [`focus_list` ARM F](arm-index.md#focus_list) takes up to three Tier A/B picks a
+day from the watchlist. It is paired by date with `ARM C`, the card's top three. `ARM N` draws
+random eligible picks on the same dates and tiers as the null band. Six criteria must hold for
+`FOCUS-BEATS-CARD`.
+
+| Group | Tickers | Eligible rows | Live opening trades |
+|---|---|---|---|
+| semis | MU, TSM, SMH, NVDA, AMD | 158 | 69 |
+| AI | CRWV, GOOG, GOOGL, PLTR, META | 54 | 19 |
+| GLD | GLD | 51 | 3 |
+| QQQ | QQQ | 12 | 11 |
+| traditional | XLE, XLF | 19 | 0 |
+| The watchlist | 14 tickers | 294 of 699 | 102 of 117 |
+
+| Overlap of `ARM F` with the card | Count |
+|---|---|
+| `ARM F` positions the card also takes | 244 of 289 |
+| Dates on which both arms hold the same picks | 48 of 185 |
+
+**Caveats.**
+
+- **The watchlist is close to the card.** Most of its positions are card picks too, so `P1`
+  mostly measures the card's off-list picks.
+- **The in-sample run cannot confirm the list.** The operator chose it after trading these names,
+  and `ticker_pattern` once flagged GLD. The forward read is the test.
+- **Every eligible row is a bull play.** An in-sample pass may only record how these names moved
+  in 2024–26.
+- **The drafter filled two groups by counts.** The AI names are the non-semi stocks with three or
+  more live opening trades. XLE and XLF have the most eligible rows in their sectors.
+
+**Next.** A new item, [`next-steps.md`](next-steps.md) §2.30: build the module, run it on both
+eras, then grade it. The forward read starts 2026-11-16 and waits for the holdout seal to lift.
+
+---
+
 ## 2026-11-15 — tail_rebound_etf: no rebound edge on QQQ or SMH either
 
 **`tail_rebound_etf` prints `NO-EDGE` on all four co-primaries and seven of eight secondaries.**

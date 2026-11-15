@@ -473,6 +473,24 @@ STUDIES: dict[str, Study] = {
         attention="GLD FLAGGED on a pre-re-price read; after the one-clock --redo re-run, decide "
                   "whether step 3 (the next ten names) is written.",
     ),
+    "focus_list": Study(
+        family="selection", state="open",
+        question="Would taking up to three Tier A/B picks a day from a fixed 14-ticker watchlist "
+                 "(semis, AI, GLD, QQQ and two traditional names) beat the card's own top three "
+                 "on the same dates, and beat random same-tier picks? The operator named the "
+                 "groups after trading these names, so only the forward read can confirm it.",
+        verdict="2026-11-15 first run (v4, exports 2026-10-26, git abab7a3 dirty): "
+                "`>>> focus_list P1 (ARM F minus ARM C, paired by date, in-sample v4): "
+                "FOCUS-BEATS-CARD <<<` on `P1  gain (ARM F − ARM C, mean of per-date differences) "
+                "+0.140  CI95 [+0.061, +0.220]  dates 185`, all six criteria `Y`. It does NOT "
+                "replicate on v3, the same market path: `>>> focus_list P1 v3 replication (same "
+                "path; notes agreement, confirms nothing): NULL <<<` on `gain ... -0.064  CI95 "
+                "[-0.241, +0.096]  dates 64`, `criteria not met: 1, 2, 4, 6`. The list was chosen "
+                "with hindsight and every eligible row is a bull play, so the v4 pass may only "
+                "record how these names moved in 2024-26. Filed to be tested, nothing ships. "
+                "`>>> focus_list FORWARD (one read from 2026-11-16): STILL-OPEN <<<` behind the "
+                "holdout seal.",
+    ),
     "dip_buy": Study(
         family="selection", state="open",
         question="Among non-vetoed Tier A/B positions, is meanR higher when SPY closed below its "

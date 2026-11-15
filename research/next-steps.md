@@ -1658,6 +1658,36 @@ How to resume:
 3. Forward: refresh with this module's `--refresh` and `tail_breach_intraday -- --refresh`, then
    rerun. Expect `STILL-OPEN` for years.
 
+### 2.30 `focus_list` — RUN 2026-11-15, v4 `FOCUS-BEATS-CARD`, v3 `NULL`; forward `STILL-OPEN`
+
+The operator wants to trade only a fixed watchlist: semis, AI, GLD, QQQ and two traditional
+names. [`focus_list`](pre-registrations/f1_selection/benchmark/focus_list.md) tests that list
+against the card's own top three on the same dates and against random picks. The first run
+printed `FOCUS-BEATS-CARD` on v4 and `NULL` on the v3 replication. Nothing ships
+([entry](current.md#2026-11-15--focus_list-first-run-beats-the-card-on-v4-not-on-v3)).
+
+| Fact, from a counts-only census | Value |
+|---|---|
+| Watchlist share of live opening trades | 102 of 117 |
+| Watchlist positions the card also takes | 244 of 289 |
+| Dates on which both arms hold the same picks | 48 of 185 |
+
+The list is close to what the card already takes, so `P1` mostly measures the card's off-list
+picks. The in-sample run cannot confirm a list the operator chose after trading it. The forward
+read is the test, and it waits for the holdout seal to lift.
+
+How to resume:
+
+1. Build, run on both eras and record: done 2026-11-15.
+2. Owed: `python3 -m scripts.study_review focus_list --skip-run` for the A/B grading.
+3. Re-run after the next export. 44 pending card picks were dropped before ranking, so the
+   in-sample read can move as they close.
+4. Forward: one read, at 60 closed forward positions after the seal lifts. Never delete
+   `backtests/study_output/focus_list-forward-read.json` once it exists.
+
+`operator_read` ([§2.5](#s2-5)) is still undrafted. The journal now holds 59 mapped closes,
+above its 30 to 50 gate.
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 

@@ -83,6 +83,9 @@ CODE_INPUTS = {
         "builds the account_sim page unguarded",
     "account_sim-positions-latest.csv":
         "same chart build — cli.py's DEFAULT_POSITIONS",
+    "focus_list-forward-read.json":
+        "focus_list's one-shot forward read; deleting it lets the read run a "
+        "second time, which the registration forbids",
 }
 
 # Citations look like `backtests/study_output/<file>` in the tuning write-ups.

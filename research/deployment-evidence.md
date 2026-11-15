@@ -946,6 +946,22 @@ waits behind the holdout seal.
 
 Entry in [`current.md`](current.md#2026-10-12--adaptive_ladder-the-walk-forward-adapter-beats-m0-once-on-a-menu-built-in-hindsight).
 
+### A fixed watchlist (to be tested, forward)
+
+Taking Tier A/B picks only from a fixed 14-ticker watchlist beat the card's own
+top three on v4 in-sample dates. It did not on v3, the same market path. The
+operator named the list after trading these names, so only forward dates can
+test it. It is registered as
+[`focus_list`](pre-registrations/f1_selection/benchmark/focus_list.md) and
+waits behind the holdout seal.
+
+| Era | Watchlist minus card, [meanR](glossary.md#meanr) per date [CI](glossary.md#ci) |
+|---|---|
+| v4, net of cost | +0.140 [+0.061, +0.220] |
+| v3 | −0.064 [−0.241, +0.096] |
+
+Entry in [`current.md`](current.md#2026-11-15--focus_list-first-run-beats-the-card-on-v4-not-on-v3).
+
 ### New market-regime labels (tested, dropped 2026-10-29)
 
 Nine lookahead-free SPY/VIX labels, a 2-state HMM among them, were graded

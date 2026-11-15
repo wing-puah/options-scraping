@@ -371,6 +371,33 @@ before any per-name read.
   of graded rows informative, and a planted +0.50 R detected in 80% of
   simulations. A failure prints UNDERPOWERED.
 
+#### `focus_list`
+
+_Registered in [`pre-registrations/f1_selection/benchmark/focus_list.md`](pre-registrations/f1_selection/benchmark/focus_list.md) · module `f1_selection/benchmark/focus_list.py`_
+
+Accepted by the operator 2026-11-15. It asks whether taking picks only from a
+fixed 14-ticker watchlist beats the card's own top three on the same dates.
+Every label below is local to this study.
+
+- `ARM F` (arm) — Up to three eligible picks per date from the watchlist
+  `LW`, ranked by `ladder_rank`. HEADLINE. Not `structure_sweep`'s `ARM F`.
+- `ARM C` (control) — The card: the top three eligible picks per date from
+  the whole book. Not any other study's `ARM C`.
+- `ARM N` (control) — Random eligible picks on `ARM F`'s dates, matched on
+  tier and count, 2,000 draws. Its 95th percentile is the band. Same role as
+  `portfolio_delta`'s `ARM N`, different study.
+- `P1` (arm) — PRIMARY: `ARM F` minus `ARM C`, paired by date. Unrelated to
+  every other study's `P1`.
+- `D1` `D2` `D3` (descriptive cut) — The list against the card rebuilt
+  without list names; `P1` on the semis group alone; positions and mean R by
+  group. Printed.
+- `L-LIVE` (descriptive cut) — Journal closes from 2026-11-16, on-list and
+  off-list. Printed to `journal/` only.
+- `LW` (population scope) — The watchlist: semis, AI, GLD, QQQ and
+  traditional, 14 tickers.
+- `GF0` `GF1` `GF2` `GF3` `GF4` `GF5` (gate) — Power, era, list hash, window, subset and the random
+  band's floor. A `GF5` failure makes criterion 2 `NOT EVALUABLE`.
+
 #### `dip_buy`
 
 _Registered in [`pre-registrations/f1_selection/regime/dip_buy.md`](pre-registrations/f1_selection/regime/dip_buy.md) · module `f1_selection/regime/dip_buy.py`_
