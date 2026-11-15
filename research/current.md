@@ -27,6 +27,12 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-15: `tail_rebound_etf` prints `NO-EDGE` on all four QQQ and SMH co-primaries; tech ETFs did not detectably rebound after tail falls either, nor beat SPY's rebound on the same dates**
+([entry](#2026-11-15--tail_rebound_etf-no-rebound-edge-on-qqq-or-smh-either)).
+
+**2026-11-15: `tail_rebound` prints `NO-EDGE` on every arm; after an intraday 2σ breach or a 5% fall, SPY's next weeks did not detectably beat a usual span of the same length**
+([entry](#2026-11-15--tail_rebound-no-rebound-edge-after-spy-tail-falls-1993-on)).
+
 **2026-11-14: `tail_breach_intraday` prints `NO-FORECAST` for intraday 2σ breaches and `UNDERPOWERED` for 5% weekly falls; neither is forecastable from vol state on this evidence**
 ([entry](#2026-11-14--tail_breach_intraday-intraday-breaches-not-forecastable-5-falls-too-rare)).
 
@@ -316,6 +322,126 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-11-15 — tail_rebound_etf: no rebound edge on QQQ or SMH either
+
+**`tail_rebound_etf` prints `NO-EDGE` on all four co-primaries and seven of eight secondaries.**
+After the first intraday 2σ VXN breach of an episode, or the first session of a completed 5% fall,
+neither QQQ nor SMH beat its usual one-month return detectably. Neither beat SPY's return on the
+same dates either. Nothing ships.
+
+_Report: `backtests/study_output/tail_rebound_etf-latest.txt` · record:
+[`tail_rebound_etf.md`](study-results/f1_selection/regime/tail_rebound_etf.md) · unversioned
+yfinance OHLC, QQQ 1999-03-10 and SMH 2000-06-05 to 2026-11-13, VXN from 2001-01-23 · code d273f1a
+(tree dirty: this study and `tail_rebound`) · run 2026-11-15 20:27 · registered and accepted by
+default 2026-11-15 after a fresh second reader · not yet graded by `study_review`._
+
+The operator asked `tail_rebound`'s question on two tech ETFs after SPY's null. The
+[registration](pre-registrations/f1_selection/regime/tail_rebound_etf.md) imports `tail_rebound`
+unchanged. VXN supplies the implied move for both ETFs, since SMH has no index of its own. The four
+h = 21 arms form one Holm family, m = 4.
+
+| Object | Entries (clusters) | After the event | Unconditional | Excess [95% CI] | Verdict |
+|---|---|---|---|---|---|
+| `tail_rebound_etf QQQ-A21`, breach | 138 (89) | +0.19% | +0.85% | −0.66% [−1.97%, +0.61%] | `NO-EDGE` |
+| `tail_rebound_etf QQQ-B21`, 5% fall | 152 (96) | +1.39% | +0.83% | +0.56% [−0.86%, +1.94%] | `NO-EDGE` |
+| `tail_rebound_etf SMH-A21`, breach | 335 (106) | +1.04% | +1.01% | +0.02% [−0.99%, +1.06%] | `NO-EDGE` |
+| `tail_rebound_etf SMH-B21`, 5% fall | 223 (107) | +1.08% | +0.81% | +0.27% [−0.97%, +1.47%] | `NO-EDGE` |
+
+- **Secondaries.** QQQ-A5's unadjusted CI sits wholly below 0, so a week after a QQQ breach ran
+  weaker than usual. Its excess is −0.63% [−1.18%, −0.09%]. Holm m = 8 lifts its p to 0.18, so it
+  prints `NO-EDGE`.
+  SMH-A63 is `UNDERPOWERED`: 7 clusters, the largest holding 37% of entries. Every other secondary
+  is `NO-EDGE`.
+- **The answer matches SPY's.** Breach arms lean slightly negative and fall arms slightly positive,
+  the same signs as `tail_rebound`. No interval excludes 0.
+- **A choice that is not one.** The ETFs were picked after SPY's null, and QQQ's falls mostly share
+  SPY's dates. The registration discloses this; a null leaves nothing to discount.
+
+**Printed only, never graded.**
+
+| Cut | What it showed at h = 21 |
+|---|---|
+| `VS-SPY`, the ETF's return minus SPY's on the same dates | All four CIs span 0; QQQ-A21 −0.30%, the rest within ±0.22% |
+| VXN-scaled excess | All four point estimates slightly negative, every CI spans 0 |
+| VIX and RV20 as the vol source | Every CI spans 0 for both ETFs |
+| 7.5% and 10% falls | Every CI spans 0; the rarer falls do not change the answer |
+| k = 1.5 and 2.5, next-open, hit rate, every trigger | Every CI spans 0 |
+| SMH from its 2011 relaunch | A21 −0.32%, B21 +0.30%; both CIs span 0 |
+| Decades and 2024+ | QQQ-A21 in 2020–2026 is −2.60% [−4.66%, −0.28%]; every other span's CI spans 0 |
+
+- The QQQ-A21 2020–2026 cut is post-hoc, 21 clusters, inside a pooled `NO-EDGE`. It is not a
+  finding.
+- SMH before 2012 has no dividends in yfinance, which biases its excess down by under 0.2%. The
+  relaunch subset agrees with the full history.
+
+**In production.** Nothing changes. Forward entries start after 2026-11-15; all four forward reads
+print `STILL-OPEN`. Forward runs refresh the cache with this module's `--refresh` and SPY's with
+`tail_breach_intraday -- --refresh`.
+
+**Next.** [`next-steps.md`](next-steps.md) gains a forward-read line beside `tail_rebound`'s. The
+tail-rebound question is closed on SPY, QQQ and SMH for the sample.
+
+---
+
+## 2026-11-15 — tail_rebound: no rebound edge after SPY tail falls, 1993 on
+
+**`tail_rebound` prints `NO-EDGE` on both co-primaries and all four secondaries.** After the first
+intraday 2σ breach of an episode, or the first session of a completed 5% fall, SPY's total return
+over the following one, four or twelve weeks did not differ detectably from its return over any
+span of the same length. Nothing ships.
+
+_Report: `backtests/study_output/tail_rebound-latest.txt` · record:
+[`tail_rebound.md`](study-results/f1_selection/regime/tail_rebound.md) · unversioned yfinance OHLC,
+1993-01-29 to 2026-11-13, 8,507 sessions · code d273f1a (tree dirty: the study itself) · run
+2026-11-15 20:02 · registered and accepted by default 2026-11-15 after a fresh second reader · not
+yet graded by `study_review`._
+
+The question came from the operator after
+[`tail_breach_intraday`](#2026-11-14--tail_breach_intraday-intraday-breaches-not-forecastable-5-falls-too-rare):
+once such a fall has happened, does SPY rebound? The excess is the mean log return after each
+episode's first trigger, entered at its close, minus the mean over every eligible session. Its CI
+resamples clusters of entries whose windows overlap.
+
+| Arm | Entries (clusters) | After the event | Unconditional | Excess [95% CI] | Verdict |
+|---|---|---|---|---|---|
+| `A21`, breach, 21 sessions | 151 (110) | +0.45% | +0.85% | −0.40% [−1.47%, +0.64%] | `NO-EDGE` |
+| `B21`, 5% fall, 21 sessions | 107 (68) | +1.29% | +0.85% | +0.44% [−0.98%, +1.75%] | `NO-EDGE` |
+| `A5` | 152 (152) | +0.05% | +0.20% | −0.15% [−0.59%, +0.27%] | `NO-EDGE` |
+| `A63` | 151 (51) | +2.75% | +2.57% | +0.18% [−1.50%, +1.93%] | `NO-EDGE` |
+| `B5` | 107 (107) | +0.63% | +0.20% | +0.43% [−0.21%, +1.05%] | `NO-EDGE` |
+| `B63` | 107 (30) | +4.08% | +2.57% | +1.51% [−1.12%, +4.25%] | `NO-EDGE` |
+
+- Every arm cleared its floor by a wide margin, so these are real answers on 34 years.
+- `NO-EDGE` bounds the excess to its interval. After a 5% fall, a month's excess above about 1.75
+  percentage points is ruled out; a smaller one is not.
+- After a breach the point estimates are slightly negative; after a 5% fall they are positive and
+  grow with h. Neither direction is detectable.
+- The unconditional mean was held fixed in the bootstrap, as registered. Its own sampling error,
+  printed in the report, would only widen every interval, so no verdict could move.
+
+**Printed only, never graded.**
+
+| Cut | What it showed |
+|---|---|
+| VIX-scaled excess | Every CI spans 0, with point estimates near zero or negative. Per unit of implied risk there is no excess |
+| MAE and MFE after a 5% fall | Both larger: at 21 sessions the worst point averages 2.4 points deeper, the best 1.8 points higher. A wider range, not a direction |
+| MAE after a breach | 1.4 points deeper at 21 sessions; the best point not detectably higher |
+| Next-open entry, hit rate, every-trigger entry, k = 1.5 and 2.5 | Every CI spans 0 |
+| Decades | B21 and B63 CIs sit above 0 in 1993–1999 and the 2010s, below their point in the 2000s. Printed only; the pooled verdict stands |
+| 2024+ | 12 breach and 3 fall entries; below any floor |
+
+- The decade split is the one place a rebound shows. It is a post-hoc cut of a pooled `NO-EDGE`,
+  and the 2000s bear market pulls the other way, so it is not a finding.
+
+**In production.** Nothing changes. Forward entries start after 2026-11-15 and need 10 clusters
+per arm; both forward reads print `STILL-OPEN`. Forward runs must refresh the cache with
+`tail_breach_intraday -- --refresh` first.
+
+**Next.** `study_review tail_rebound --skip-run` when grading is wanted. An option study on the
+wider post-fall range would be a new registration; none is queued.
 
 ---
 

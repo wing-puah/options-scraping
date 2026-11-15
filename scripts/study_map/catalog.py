@@ -548,6 +548,32 @@ STUDIES: dict[str, Study] = {
                 "<<<` because `GN B: 3 independent episodes in the test window (floor 10) — FAIL`. "
                 "Forward `PA STILL-OPEN PB STILL-OPEN`. Nothing ships.",
     ),
+    "tail_rebound": Study(
+        family="selection", state="null",
+        question="After a SPY tail fall (an intraday 2x-VIX breach, or a completed 5% fall from a "
+                 "recent close), does SPY's total return over the next 5, 21 or 63 sessions beat "
+                 "its unconditional return over the same span, 1993 on?",
+        verdict="Accepted by default and first run 2026-11-15 (yfinance OHLC 1993-01-29 to "
+                "2026-11-13): `>>> tail_rebound A21 (SPY 21-session total return after an intraday "
+                "2x-VIX breach, first of each episode, vs unconditional, 1993 on): NO-EDGE <<<` on "
+                "`excess -0.40% [-1.47%, 0.64%]`; `>>> tail_rebound B21 (SPY 21-session total return "
+                "after a completed 5% fall, first of each episode, vs unconditional, 1993 on): "
+                "NO-EDGE <<<` on `excess 0.44% [-0.98%, 1.75%]`. Secondaries `A5 NO-EDGE A63 "
+                "NO-EDGE B5 NO-EDGE B63 NO-EDGE`; forward `A21 STILL-OPEN B21 STILL-OPEN`. Nothing "
+                "ships.",
+    ),
+    "tail_rebound_etf": Study(
+        family="selection", state="null",
+        question="After a QQQ or SMH tail fall (an intraday 2x-VXN breach, or a completed 5% fall "
+                 "from a recent close), does the ETF's total return over the next 5, 21 or 63 "
+                 "sessions beat its unconditional return over the same span?",
+        verdict="Accepted by default and first run 2026-11-15 (yfinance OHLC, QQQ from 1999-03-10, "
+                "SMH from 2000-06-05, VXN from 2001-01-23, to 2026-11-13): `>>> tail_rebound_etf "
+                "QQQ-A21 (QQQ 21-session total return after an intraday 2x-VXN breach, first of each "
+                "episode, vs unconditional, 2001 on): NO-EDGE <<<` on `excess -0.66% [-1.97%, "
+                "0.61%]`; QQQ-B21, SMH-A21 and SMH-B21 also `NO-EDGE`. Secondaries `NO-EDGE` except "
+                "`SMH-A63 UNDERPOWERED`; forward `STILL-OPEN` on all four. Nothing ships.",
+    ),
     "regime_confirm": Study(
         family="selection", state="null",
         question="When SPY, QQQ, IWM or ^GSPC first turns mech BEAR after 20 quiet sessions, does "

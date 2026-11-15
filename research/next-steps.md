@@ -1608,6 +1608,56 @@ How to resume:
 2. Optional: `python3 -m scripts.study_review tail_breach_intraday --skip-run` for the A/B grading.
 3. Expect forward `STILL-OPEN` for years on B: 10 forward episodes of a 5% weekly fall are needed.
 
+### 2.28 `tail_rebound` — RUN 2026-11-15, every arm `NO-EDGE`
+
+The first run on 2026-11-15 printed `NO-EDGE` on `A21`, `B21` and the four secondaries. After an
+intraday 2σ breach or a completed 5% fall, SPY's next one, four or twelve weeks did not detectably
+beat a usual span, from 1993 on. The forward reads print `STILL-OPEN`
+([entry](current.md#2026-11-15--tail_rebound-no-rebound-edge-after-spy-tail-falls-1993-on)).
+`study_review` grading is still owed. The operator asked for it after `tail_breach_intraday`
+([pre-registration](pre-registrations/f1_selection/regime/tail_rebound.md)). A fresh second reader
+found four blockers; all are folded in.
+
+| Design choice | Default |
+|---|---|
+| Family | `f1_selection/regime`, beside `tail_breach_intraday`, whose cache and event A it imports |
+| Sample | Every SPY session from 1993-01-29; no model is fitted |
+| Co-primaries | `A21` (breach) and `B21` (5% fall), excess 21-session total return, Holm m = 2 |
+| Statistic | Mean after each episode's first trigger minus the mean over every eligible session |
+| Power floor | 10 clusters per arm, the largest at most a third of entries |
+
+How to resume:
+
+1. Run and record: done 2026-11-15.
+2. Optional: `python3 -m scripts.study_review tail_rebound --skip-run` for the A/B grading.
+3. Forward: refresh with `tail_breach_intraday -- --refresh`, then rerun. Expect `STILL-OPEN` for
+   years: 10 forward clusters per arm are needed.
+
+### 2.29 `tail_rebound_etf` — RUN 2026-11-15, every co-primary `NO-EDGE`
+
+The first run on 2026-11-15 printed `NO-EDGE` on `QQQ-A21`, `QQQ-B21`, `SMH-A21` and `SMH-B21`.
+After an intraday 2σ VXN breach or a completed 5% fall, neither ETF's next month detectably beat a
+usual month, nor SPY's return on the same dates. Seven secondaries print `NO-EDGE` and `SMH-A63`
+prints `UNDERPOWERED`. The forward reads print `STILL-OPEN`
+([entry](current.md#2026-11-15--tail_rebound_etf-no-rebound-edge-on-qqq-or-smh-either)).
+`study_review` grading is still owed. A fresh second reader found two blockers and ten fixes; all
+are folded in ([pre-registration](pre-registrations/f1_selection/regime/tail_rebound_etf.md)).
+
+| Design choice | Default |
+|---|---|
+| Family | `f1_selection/regime`, importing `tail_rebound` unchanged |
+| Data | yfinance QQQ, SMH and `^VXN` in `backtests/tail_rebound_etf/`, total-return basis |
+| Vol for event A | VXN for both ETFs; VIX and 20-session realized vol printed only |
+| Co-primaries | `QQQ-A21`, `QQQ-B21`, `SMH-A21`, `SMH-B21`, Holm m = 4 |
+| SMH history | Full history primary; the post-2011-12-20 relaunch subset printed only |
+
+How to resume:
+
+1. Run and record: done 2026-11-15.
+2. Optional: `python3 -m scripts.study_review tail_rebound_etf --skip-run` for the A/B grading.
+3. Forward: refresh with this module's `--refresh` and `tail_breach_intraday -- --refresh`, then
+   rerun. Expect `STILL-OPEN` for years.
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 

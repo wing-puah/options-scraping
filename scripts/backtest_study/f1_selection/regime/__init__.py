@@ -14,6 +14,8 @@
     selloff_put_diagonal.py on a SPY sell-off, does a near put plus a long-dated call diagonal pay?
     tail_breach.py          how often does SPY fall more than 2x its VIX-implied move, and can it be forecast?
     tail_breach_intraday.py the same on SPY's intraday low, plus a 5% fall within 5 sessions
+    tail_rebound.py         after either fall, does SPY beat its usual 5/21/63-session return?
+    tail_rebound_etf.py     the same question on QQQ and SMH, with VXN as the implied vol
 
 `mech_regime_recut` and `regime_gap_reread` do their work at MODULE level, which
 is why the runner reads docstrings with `ast` instead of importing.

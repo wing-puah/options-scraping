@@ -626,6 +626,54 @@ SPY session; every BSS CI is a 21-session moving-block bootstrap.
 - `FORWARD` (population scope) — `PA` and `PB` on origins after the
   registration date. `STILL-OPEN` until 250 rows and 10 episodes each.
 
+#### `tail_rebound`
+
+_Registered in [`pre-registrations/f1_selection/regime/tail_rebound.md`](pre-registrations/f1_selection/regime/tail_rebound.md) · module `f1_selection/regime/tail_rebound.py`_
+
+Accepted by default 2026-11-15. After a SPY tail fall, does SPY's total
+return over the next h sessions beat its unconditional h-session return? No
+model is fitted, so the sample runs from 1993. The unit is an episode's first
+trigger session; every CI resamples clusters of entries fewer than h sessions
+apart.
+
+- `A` (descriptive cut) — `tail_breach_intraday`'s intraday 2σ breach on
+  session s.
+- `B` (descriptive cut) — A 5% fall completed: SPY's total-return low at or
+  below 0.95 × the highest of the five prior adjusted closes.
+- `A21` `B21` (arm) — Co-primaries: excess 21-session log total return after
+  each event's first trigger per episode. Holm, m = 2.
+- `A5` `A63` `B5` `B63` (arm) — Secondary: the same at h = 5 and 63. Holm, m = 4.
+- `GE` `GB` `GO` `GC` `GX` `GN` (gate) — Inputs, price basis, OHLC order from
+  1993, the cross-feed low check, no lookahead, and the floor of 10 clusters
+  with the largest at most a third of entries.
+- `FORWARD` (population scope) — `A21` and `B21` on entries after the
+  registration date. `STILL-OPEN` until each meets the floor.
+
+#### `tail_rebound_etf`
+
+_Registered in [`pre-registrations/f1_selection/regime/tail_rebound_etf.md`](pre-registrations/f1_selection/regime/tail_rebound_etf.md) · module `f1_selection/regime/tail_rebound_etf.py`_
+
+Accepted by default 2026-11-15. `tail_rebound`'s question on QQQ and SMH,
+with `tail_rebound` imported unchanged. VXN gives the implied move for event
+A on both ETFs; SMH has no implied-vol index of its own.
+
+- `A` (descriptive cut) — An intraday 2σ breach of the prior close, σ from
+  VXN. `VOL-ALT` prints it with σ from VIX and from 20-session realized vol.
+- `B` (descriptive cut) — A 5% fall completed, as in `tail_rebound`.
+  `MOVE-PARAM` prints 7.5% and 10%.
+- `QQQ-A21` `QQQ-B21` `SMH-A21` `SMH-B21` (arm) — Co-primaries: excess
+  21-session log total return after each event's first trigger per episode.
+  One Holm family, m = 4.
+- `QQQ-A5` `QQQ-A63` `QQQ-B5` `QQQ-B63` `SMH-A5` `SMH-A63` `SMH-B5` `SMH-B63` (arm) — Secondary: the same at h = 5 and 63, both
+  ETFs. One Holm family, m = 8.
+- `VS-SPY` (descriptive cut) — Each arm's excess of the ETF's return minus
+  SPY's on the same dates. `RELAUNCH` prints SMH from 2011-12-20.
+- `GE` `GB` `GO` `GC` `GX` `GN` (gate) — Inputs, price basis (close/adj steps
+  down up to 3%), OHLC order, the cross-feed low check from 2022-08, no
+  lookahead, and the floor of 10 clusters with the largest at most a third.
+- `FORWARD` (population scope) — The four co-primaries on entries after the
+  registration date. `STILL-OPEN` until each meets the floor.
+
 #### `direction_hit`
 
 _Registered in [`pre-registrations/f1_selection/signal/direction_hit.md`](pre-registrations/f1_selection/signal/direction_hit.md) · module `f1_selection/signal/direction_hit.py`_
