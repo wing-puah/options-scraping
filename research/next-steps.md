@@ -1470,7 +1470,7 @@ test and a re-run recorded in `current.md`.
 
 ### 2.23 `selloff_put_diagonal` — RUN 2026-11-13, `NO-EDGE (PROVISIONAL)`; forward read `STILL-OPEN`
 
-**Run 2026-11-13** ([entry](current.md#2026-11-13--selloff_put_diagonal-a-sell-off-entry-pays-but-no-more-than-calm-weeks)). The primary fetch is done. Graded by `study_review` on 2026-11-16, and the verdict agrees. **2026-11-16: every cell built** after seven every-cell fetch rounds; the verdict holds and PBO over all ten cells is 0.053 ([entry](current.md#2026-11-16--selloff_put_diagonal-every-cell-built-the-verdict-holds)). Grading of this run is owed.
+**Run 2026-11-13** ([entry](current.md#2026-11-13--selloff_put_diagonal-a-sell-off-entry-pays-but-no-more-than-calm-weeks)). The primary fetch is done. Graded by `study_review` on 2026-11-16, and the verdict agrees. **2026-11-16: every cell built** after seven every-cell fetch rounds; the verdict holds and PBO over all ten cells is 0.053 ([entry](current.md#2026-11-16--selloff_put_diagonal-every-cell-built-the-verdict-holds)). Graded by `study_review` the same day, and the verdict agrees.
 
 The study is built and its first run stops at `NOT BUILT — AWAITING SCRAPE`, as designed.
 It tests a near put plus a long-dated call diagonal opened on a SPY sell-off trigger

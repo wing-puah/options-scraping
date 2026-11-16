@@ -333,8 +333,8 @@ only non-primary cells. Nothing ships.
 
 _Report: `backtests/study_output/selloff_put_diagonal-latest.txt` · record:
 [`selloff_put_diagonal.md`](study-results/f1_selection/regime/selloff_put_diagonal.md) · era v4,
-in-sample window before the seal · code 52842b4 · run 2026-11-16 19:27 · not yet graded by
-`study_review`._
+in-sample window before the seal · code 52842b4 · run 2026-11-16 19:27 ·
+graded by `study_review` 2026-11-16, verdict agrees._
 
 **In production.** Nothing changes. The forward read stays `STILL-OPEN`.
 
@@ -353,8 +353,8 @@ in-sample window before the seal · code 52842b4 · run 2026-11-16 19:27 · not 
 **The fetch.** Seven rounds took 184 contracts. Each round exposed the next nearest strike, and
 many of those are unlisted on Barchart. The cache was pushed once at the end.
 
-**Next.** `study_review` grading of this run. Then the `daily_vol_structure` fetch (§2.24), which
-waits on the operator because it runs for days.
+**Next.** The `daily_vol_structure` fetch (§2.24), which waits on the operator because it runs
+for days.
 
 ---
 
