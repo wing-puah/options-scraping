@@ -38,3 +38,11 @@ VERDICT
   In-sample only. The list was chosen after trading these names, so only the forward read can confirm it. Nothing ships.
 ```
 
+
+## Graded by `study_review` — 2026-11-16
+
+Two analysts and a validator graded the v4 in-sample report (sha abab7a3, tree dirty). They agree on every row. The review ran with `--skip-run`, so the one-shot forward read was not touched.
+
+- **Verdict:** `FOCUS-BEATS-CARD` stands, in-sample only. GF0 to GF5 and criteria 1 to 6 are all met. The forward read is not evaluable and stays `STILL-OPEN`.
+- **Fault in the report:** the second load prints `227 kept (include_pending)` and `1911 rows`, while the registration says pending rows are dropped at the loader. The report does not say which load built the arms. The arm totals match the registration's census.
+- **Unmet expectation:** the registration expected `NULL` on v4.

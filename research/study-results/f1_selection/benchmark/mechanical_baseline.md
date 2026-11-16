@@ -19,3 +19,12 @@ VERDICT: NO-REPLACEMENT
   BOOK-BETTER takes precedence. Nothing ships from the retrospective.
 ```
 
+
+## Graded by `study_review` — 2026-11-16
+
+Two analysts and a validator graded the 2026-11-11 report (v4, sha 5ac1a8e) against the registration. They agree on every row, and the validator found no transcription errors.
+
+- **Verdict:** `NO-REPLACEMENT` stands. `ARM X` fails C1 only. `ARM H` and `ARM BK` v3 meet their criteria. `ARM BK` v4 fails C1.
+- **Not graded:** `ARM RND`, the C5 overfitting check and the forward read. Each prints no figure to grade.
+- **Fault in the report:** the study token reads `NO-REPLACEMENT` while a line says `BOOK-BETTER takes precedence`. The registration ties `BOOK-BETTER` to `ARM BK` printing `TRAILS-BOOK`, and v4 prints `NULL`. Both analysts declined to grade the token. The wording needs a ruling.
+- **Count mismatch:** the v3 census drops 1 date and the graded block drops 2, and the v4 graded block prints `no_spot=1` where the census does not.

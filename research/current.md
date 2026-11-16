@@ -334,7 +334,7 @@ behind the holdout seal is the test.
 _Report: `backtests/study_output/focus_list-latest.txt` and `focus_list-v3-20261115.txt` · record:
 [`focus_list.md`](study-results/f1_selection/benchmark/focus_list.md) · era v4, bare exports of
 2026-10-26, signal dates before 2026-09-23 · code abab7a3, working tree dirty · run 2026-11-15 ·
-not yet graded by `study_review`._
+graded by `study_review` 2026-11-16, verdict agrees._
 
 **In production.** Nothing changes. The card, its tiers and its caps stand.
 
@@ -372,7 +372,7 @@ not yet graded by `study_review`._
   before any outcome. It asked for an era guard, a pinned forward-read file and a count of
   displaced pending picks. Each is tagged `Resolved at build` in the registration.
 
-**Next.** [`next-steps.md`](next-steps.md) §2.30 stays open: `study_review` grading is owed, and
+**Next.** [`next-steps.md`](next-steps.md) §2.30 stays open: grading is done (2026-11-16), and
 the forward read waits for the seal. A new entry in
 [`deployment-evidence.md`](deployment-evidence.md#a-fixed-watchlist-to-be-tested-forward).
 
@@ -744,8 +744,8 @@ Nothing ships.
 
 _Report: `backtests/study_output/selloff_put_diagonal-latest.txt` · record:
 [`selloff_put_diagonal.md`](study-results/f1_selection/regime/selloff_put_diagonal.md) · era v4,
-in-sample window before the seal · code 102d6fb · run 2026-11-13 14:40 · not yet graded by
-`study_review`._
+in-sample window before the seal · code 102d6fb · run 2026-11-13 14:40 ·
+graded by `study_review` 2026-11-16, verdict agrees._
 
 **In production.** Nothing changes. The forward read prints `STILL-OPEN`. It has no forward
 trigger yet and needs three closed ones.
@@ -793,8 +793,8 @@ v4 book. Nothing ships, and the analysis is not retired on this evidence.
 
 _Report: `backtests/study_output/mechanical_baseline-latest.txt` · record:
 [`mechanical_baseline.md`](study-results/f1_selection/benchmark/mechanical_baseline.md) · era v4,
-bare exports of 2026-10-26 · code 5ac1a8e · run 2026-11-11 14:36 · not yet graded by
-`study_review`._
+bare exports of 2026-10-26 · code 5ac1a8e · run 2026-11-11 14:36 ·
+graded by `study_review` 2026-11-16, verdict agrees._
 
 **In production.** Nothing changes. The study is not a
 [`programme_gate`](pre-registrations/f4_deployment/programme_gate.md) input, and the gate still

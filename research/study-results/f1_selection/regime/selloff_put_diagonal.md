@@ -24,3 +24,11 @@ VERDICT
   trades -> backtests/study_output/selloff_put_diagonal-trades.csv
 ```
 
+
+## Graded by `study_review` — 2026-11-16
+
+Two analysts and a validator graded the 2026-11-13 report (v4, sha 102d6fb). They agree on every row. The validator found no transcription errors and no favourable rounding.
+
+- **Verdict:** `NO-EDGE (PROVISIONAL)` stands. `ARM K` vs zero is met. `ARM K` vs `ARM C` (+0.119 [−0.004, +0.232]) and the put contribution are not met.
+- **C4 (PBO) is not evaluable.** The registration asks for ten cells and the report built four. The PBO of 0.060 rests on those four.
+- **Faults in the report:** secondary tokens such as `PAYS (SECONDARY)` print without the C2 and C3 inputs the registration requires. The registration says "eight non-primary cells" and lists nine.

@@ -1380,7 +1380,7 @@ What to do: let a study declare its own inputs for the fingerprint, and let the 
 
 ### 2.18 `mechanical_baseline` — RUN 2026-11-11, `NO-REPLACEMENT`; forward read `STILL-OPEN`
 
-**Run 2026-11-11** ([entry](current.md#2026-11-11--mechanical_baseline-the-weekly-spy-call-spread-does-not-replace-the-picks)). Steps 1–5 are done. `study_review` grading and the forward read remain. `ARM RND` and C5 stay `NOT BUILT`.
+**Run 2026-11-11** ([entry](current.md#2026-11-11--mechanical_baseline-the-weekly-spy-call-spread-does-not-replace-the-picks)). Steps 1–5 are done. Graded by `study_review` on 2026-11-16, and the verdict agrees. The forward read remains. `ARM RND` and C5 stay `NOT BUILT`.
 
 The [registration](pre-registrations/f1_selection/benchmark/mechanical_baseline.md) is accepted
 and the module is built (`dc9defa`). Its first run prints `NOT BUILT — AWAITING SCRAPE`: 31
@@ -1470,7 +1470,7 @@ test and a re-run recorded in `current.md`.
 
 ### 2.23 `selloff_put_diagonal` — RUN 2026-11-13, `NO-EDGE (PROVISIONAL)`; forward read `STILL-OPEN`
 
-**Run 2026-11-13** ([entry](current.md#2026-11-13--selloff_put_diagonal-a-sell-off-entry-pays-but-no-more-than-calm-weeks)). The primary fetch is done. Six cells wait on 157 every-cell contracts, and `study_review` grading is still to do.
+**Run 2026-11-13** ([entry](current.md#2026-11-13--selloff_put_diagonal-a-sell-off-entry-pays-but-no-more-than-calm-weeks)). The primary fetch is done. Six cells wait on 157 every-cell contracts. Graded by `study_review` on 2026-11-16, and the verdict agrees.
 
 The study is built and its first run stops at `NOT BUILT — AWAITING SCRAPE`, as designed.
 It tests a near put plus a long-dated call diagonal opened on a SPY sell-off trigger
