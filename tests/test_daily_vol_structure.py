@@ -27,7 +27,7 @@ from scripts.backtest_study.f3_structure import daily_vol_structure as V
 from scripts.backtest_study.f4_deployment import narrow_to_fit as NTF
 from scripts.backtest_study.lib import era, forward_drawdown as FD
 from scripts.backtest_study.lib.underlying import Bar
-from scripts.collector.study_legs import fetch_daily_vol_structure_legs as F
+from scripts.collector.study_legs.f3_structure import fetch_daily_vol_structure_legs as F
 
 D = date(2024, 6, 3)
 FILL = date(2024, 6, 4)

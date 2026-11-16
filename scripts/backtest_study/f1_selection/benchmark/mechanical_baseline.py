@@ -35,7 +35,7 @@ and stops. Nothing is priced before that check: `RuleBook.price` refuses until
 number can be computed, let alone printed, while one does.
 
 No code here fetches. The fetch plan is `fetch_targets()`, imported by
-`scripts/collector/study_legs/fetch_mechanical_baseline_legs.py`.
+`scripts/collector/study_legs/f1_selection/fetch_mechanical_baseline_legs.py`.
 
 Usage:
   python3 -m scripts.backtest_study run mechanical_baseline
@@ -119,7 +119,7 @@ NULL = "NULL"
 
 SESSION_TABLES = (ROOT / "backtests" / "mech_regime" / "spy_base_rate_daily.csv",
                   ROOT / "backtests" / "mech_regime" / "spy_vix_daily_full.csv")
-FETCH_CMD = "python3 scripts/collector/study_legs/fetch_mechanical_baseline_legs.py"
+FETCH_CMD = "python3 scripts/collector/study_legs/f1_selection/fetch_mechanical_baseline_legs.py"
 
 log = logging.getLogger("mechanical_baseline")
 hdr = MB.hdr

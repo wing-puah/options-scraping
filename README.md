@@ -235,7 +235,7 @@ opposite leg. Both are resumable and write under `backtests/`.
 ```bash
 python3 scripts/collector/history/fetch_underlying_ohlc.py        # stock OHLC per book ticker
 python3 scripts/collector/history/fetch_counterpart_history.py    # opposite-leg option history (--limit N)
-python3 scripts/collector/study_legs/fetch_sweep_legs.py             # the legs hedge_structure --arm S needs
+python3 scripts/collector/study_legs/f5_hedging/fetch_sweep_legs.py             # the legs hedge_structure --arm S needs
 ```
 
 `backtests/option_history_cache/` is ~337MB of scraped option history with no git history to

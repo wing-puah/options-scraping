@@ -5,7 +5,7 @@ import statistics
 from datetime import date, timedelta
 
 from scripts.backtest.legs import Leg
-from scripts.collector.study_legs import fetch_structure_sweep_legs as fs
+from scripts.collector.study_legs.f3_structure import fetch_structure_sweep_legs as fs
 
 DAY = date(2026, 9, 10)
 EXP = date(2026, 10, 16)

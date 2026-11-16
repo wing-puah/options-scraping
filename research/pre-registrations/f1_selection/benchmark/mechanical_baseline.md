@@ -443,7 +443,7 @@ imported: alpha 0.0125 and t* 150. It enters the running intersection at the
 ## Dependencies and the fetch
 
 **No study code fetches.** A missing leg is fetched by an operator-run collector,
-`scripts/collector/study_legs/fetch_mechanical_baseline_legs.py`, built like
+`scripts/collector/study_legs/f1_selection/fetch_mechanical_baseline_legs.py`, built like
 `fetch_mechanical_legs.py`: it imports this study's fetch plan and goes through the backtest's
 loop. The option cache is pushed to Drive after it.
 

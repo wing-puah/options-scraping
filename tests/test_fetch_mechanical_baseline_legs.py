@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts.backtest.shared import history
-from scripts.collector.study_legs import fetch_mechanical_baseline_legs as F
+from scripts.collector.study_legs.f1_selection import fetch_mechanical_baseline_legs as F
 
 PLAN = [dict(ticker="SPY", expiration=date(2026, 3, 20), strike=600.0,
              opt_type="Call", category="SPY:weekly:65:A")]
@@ -61,7 +61,7 @@ def test_other_writers_excludes_self_and_parents():
 def test_writer_patterns_match_the_running_loops():
     import re
     pats = [re.compile(p.replace("[s]", "s").replace("[f]", "f")) for p in F.WRITER_PATTERNS]
-    for cmd in ("python3 scripts/collector/study_legs/fetch_mechanical_legs.py --limit 400",
+    for cmd in ("python3 scripts/collector/study_legs/f1_selection/fetch_mechanical_legs.py --limit 400",
                 "python3 -m scripts.backtest --config config/backtest.yml",
                 "python3 -m scripts.backtest.proxy --config config/backtest.yml",
                 "python3 -m scripts.journal"):

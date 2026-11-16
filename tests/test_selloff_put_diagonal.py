@@ -16,7 +16,7 @@ from scripts.backtest.shared import history
 from scripts.backtest_study.f1_selection.benchmark import mechanical_benchmark as MB
 from scripts.backtest_study.f1_selection.regime import selloff_put_diagonal as S
 from scripts.backtest_study.f4_deployment import narrow_to_fit as NTF
-from scripts.collector.study_legs import fetch_selloff_put_diagonal_legs as F
+from scripts.collector.study_legs.f1_selection import fetch_selloff_put_diagonal_legs as F
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────

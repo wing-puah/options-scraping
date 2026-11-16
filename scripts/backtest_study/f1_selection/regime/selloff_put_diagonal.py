@@ -48,7 +48,7 @@ a fetch, the run prints its census and `NOT BUILT — AWAITING SCRAPE` and stops
 await, so no outcome number can be computed early.
 
 No code here fetches. The fetch plan is `plan()`, imported by
-`scripts/collector/study_legs/fetch_selloff_put_diagonal_legs.py`.
+`scripts/collector/study_legs/f1_selection/fetch_selloff_put_diagonal_legs.py`.
 
 Usage:
   python3 -m scripts.backtest_study run selloff_put_diagonal
@@ -137,7 +137,7 @@ PROVISIONAL = " (PROVISIONAL)"
 
 OUT_DIR = ROOT / "backtests" / "study_output"
 TRADES_CSV = OUT_DIR / "selloff_put_diagonal-trades.csv"
-FETCH_CMD = "python3 scripts/collector/study_legs/fetch_selloff_put_diagonal_legs.py"
+FETCH_CMD = "python3 scripts/collector/study_legs/f1_selection/fetch_selloff_put_diagonal_legs.py"
 
 log = logging.getLogger("selloff_put_diagonal")
 hdr = MB.hdr

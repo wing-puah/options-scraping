@@ -39,8 +39,8 @@ Needs BARCHART_EMAIL/BARCHART_PASSWORD for a real fetch. Research tier, run by
 hand. Run `python3 scripts/backup_research_caches.py push` after it.
 
 Usage:
-  python3 scripts/collector/study_legs/fetch_daily_vol_structure_legs.py --dry-run
-  python3 scripts/collector/study_legs/fetch_daily_vol_structure_legs.py --limit 50
+  python3 scripts/collector/study_legs/f3_structure/fetch_daily_vol_structure_legs.py --dry-run
+  python3 scripts/collector/study_legs/f3_structure/fetch_daily_vol_structure_legs.py --limit 50
 """
 from __future__ import annotations
 
@@ -54,16 +54,16 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
 from lib.logger import setup_logging  # noqa: E402
 from scripts.backtest_study.f3_structure import daily_vol_structure as DVS  # noqa: E402
-from scripts.collector.study_legs.fetch_mechanical_baseline_legs import (  # noqa: E402
+from scripts.collector.study_legs.f1_selection.fetch_mechanical_baseline_legs import (  # noqa: E402
     EXIT_OTHER_WRITER, other_writers,
 )
-from scripts.collector.study_legs.fetch_mechanical_legs import (  # noqa: E402
+from scripts.collector.study_legs.f1_selection.fetch_mechanical_legs import (  # noqa: E402
     BACKUP_REMINDER, to_contracts,
 )
 

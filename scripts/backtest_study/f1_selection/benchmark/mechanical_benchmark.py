@@ -54,7 +54,7 @@ verdict. Same-ticker arms read while ARM U is not built print
 study-level token, since each of those also claims something about ARM U.
 
 The fetch plan is `fetch_targets()`, imported by
-`scripts/collector/study_legs/fetch_mechanical_legs.py`. No code here fetches.
+`scripts/collector/study_legs/f1_selection/fetch_mechanical_legs.py`. No code here fetches.
 
 Usage:
   python3 -m scripts.backtest_study run mechanical_benchmark
@@ -931,7 +931,7 @@ def tier_gap(f2: dict) -> float | None:
 
 def fetch_targets(builds: list[EraBuild], arms=("M1", "M2", "M2L", "U")) -> list[dict]:
     """Unique uncached call contracts the awaiting pairs name, with the arm
-    that first named each. `scripts/collector/study_legs/fetch_mechanical_legs.py`
+    that first named each. `scripts/collector/study_legs/f1_selection/fetch_mechanical_legs.py`
     fetches these; a re-run after a fetch re-targets from the new cache."""
     seen: dict = {}
     for b in builds:
@@ -1338,7 +1338,7 @@ def write_pairs(rows_by_arm: dict) -> None:
                 w.writerow(dict(r, arm=arm))
 
 
-FETCH_CMD = "python3 scripts/collector/study_legs/fetch_mechanical_legs.py"
+FETCH_CMD = "python3 scripts/collector/study_legs/f1_selection/fetch_mechanical_legs.py"
 
 
 def main(argv=None) -> int:

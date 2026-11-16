@@ -85,10 +85,10 @@ mtime is its fetch time and `structure_sweep`'s S1 reads only files at or
 before the split instant: a fetch after it can never move an S1 strike.
 
 Usage:
-  python3 scripts/collector/study_legs/fetch_structure_sweep_legs.py            # dry-run
-  python3 scripts/collector/study_legs/fetch_structure_sweep_legs.py --list
-  python3 scripts/collector/study_legs/fetch_structure_sweep_legs.py --live --limit 200
-  python3 scripts/collector/study_legs/fetch_structure_sweep_legs.py --groups BD_atm,B_wing
+  python3 scripts/collector/study_legs/f3_structure/fetch_structure_sweep_legs.py            # dry-run
+  python3 scripts/collector/study_legs/f3_structure/fetch_structure_sweep_legs.py --list
+  python3 scripts/collector/study_legs/f3_structure/fetch_structure_sweep_legs.py --live --limit 200
+  python3 scripts/collector/study_legs/f3_structure/fetch_structure_sweep_legs.py --groups BD_atm,B_wing
 """
 from __future__ import annotations
 
@@ -108,7 +108,7 @@ from typing import Iterable
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 

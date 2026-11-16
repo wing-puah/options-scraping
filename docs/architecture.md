@@ -153,21 +153,21 @@ scripts/                    ← entry points, each maps to a workflow step
                               filename convention, so the existing pricing path reads them with
                               no code change (makes VOL structures priceable). Resumable
                               (--limit N)
-  collector/study_legs/fetch_substitute_legs.py
+  collector/study_legs/f4_deployment/fetch_substitute_legs.py
                             — narrow_to_fit's F3 substitute strikes. Targets come from
                               narrow_to_fit.substitute_targets; fetches go through
                               backtest/shared/history.fetch_option_histories. The cache is
                               the resume state. --dry-run, --limit N, --scope
-  collector/study_legs/fetch_structure_sweep_legs.py
+  collector/study_legs/f3_structure/fetch_structure_sweep_legs.py
                             — structure_sweep's S2 legs (C/B/D/G/S/K/T strikes + wings), found by a
                               probe walk, not a guessed grid. DRY-RUN by default; --live, --limit N
-  collector/study_legs/fetch_mechanical_baseline_legs.py
+  collector/study_legs/f1_selection/fetch_mechanical_baseline_legs.py
                             — mechanical_baseline's rule legs. Targets come from
                               mechanical_baseline.plan; fetches go through
                               backtest/shared/history.fetch_option_histories. --dry-run (offline),
                               --limit N, --scope primary|all. A real fetch exits 3 while another
                               cache writer runs
-  collector/study_legs/fetch_selloff_put_diagonal_legs.py
+  collector/study_legs/f1_selection/fetch_selloff_put_diagonal_legs.py
                             — selloff_put_diagonal's package legs, calls and puts. Targets
                               come from selloff_put_diagonal.plan; the writer check and the
                               fetch loop are fetch_mechanical_baseline_legs'. --dry-run
@@ -891,7 +891,7 @@ leg off that day's closing quote through the imported `entry_day_fill`
   It is never stepped over.
 - `seeded_from_log` skip-list entries are not evidence.
 
-**The scrape.** `scripts/collector/study_legs/fetch_substitute_legs.py` imports
+**The scrape.** `scripts/collector/study_legs/f4_deployment/fetch_substitute_legs.py` imports
 `substitute_targets`. That census picks targets with a Black-Scholes estimate
 and never prices with it.
 
@@ -1852,10 +1852,10 @@ python3 scripts/collector/history/fetch_underlying_ohlc.py     # every book tick
 scripts/collector/daily/refresh_etf_prices.sh                  # launchd each morning: the six BaselineDaily ETFs, merged
 python3 scripts/collector/history/fetch_counterpart_history.py --dry-run
 python3 scripts/collector/history/fetch_counterpart_history.py --limit 200   # resumable
-python3 scripts/collector/study_legs/fetch_substitute_legs.py --dry-run   # narrow_to_fit F3; --limit N, --scope between
-python3 scripts/collector/study_legs/fetch_structure_sweep_legs.py        # structure_sweep S2: dry-run; --live --limit N fetches
-python3 scripts/collector/study_legs/fetch_mechanical_baseline_legs.py --dry-run   # mechanical_baseline; --limit N, --scope all
-python3 scripts/collector/study_legs/fetch_selloff_put_diagonal_legs.py --dry-run  # selloff_put_diagonal; --limit N, --scope all
+python3 scripts/collector/study_legs/f4_deployment/fetch_substitute_legs.py --dry-run   # narrow_to_fit F3; --limit N, --scope between
+python3 scripts/collector/study_legs/f3_structure/fetch_structure_sweep_legs.py        # structure_sweep S2: dry-run; --live --limit N fetches
+python3 scripts/collector/study_legs/f1_selection/fetch_mechanical_baseline_legs.py --dry-run   # mechanical_baseline; --limit N, --scope all
+python3 scripts/collector/study_legs/f1_selection/fetch_selloff_put_diagonal_legs.py --dry-run  # selloff_put_diagonal; --limit N, --scope all
 
 # Studies (see §Research tier for the account_sim arms)
 python3 -m scripts.backtest_study list
