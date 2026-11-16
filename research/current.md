@@ -325,6 +325,39 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-11-16 — selloff_put_diagonal: every cell built, the verdict holds
+
+**`selloff_put_diagonal` still prints `NO-EDGE (PROVISIONAL)`.** All six cells that waited on
+the every-cell fetch are now built. The primary objects did not move, because the fetch touched
+only non-primary cells. Nothing ships.
+
+_Report: `backtests/study_output/selloff_put_diagonal-latest.txt` · record:
+[`selloff_put_diagonal.md`](study-results/f1_selection/regime/selloff_put_diagonal.md) · era v4,
+in-sample window before the seal · code 52842b4 · run 2026-11-16 19:27 · not yet graded by
+`study_review`._
+
+**In production.** Nothing changes. The forward read stays `STILL-OPEN`.
+
+- **The primary objects are unchanged.** `ARM K` vs zero is `PAYS` at +0.188R. Its gain over
+  calm weeks is +0.119R [−0.004, +0.232], so it stays `NULL`.
+- **Overfitting can now be read as registered.** PBO across all ten cells is 0.053, below 0.5.
+  The 2026-11-13 run had only four cells, and the review flagged that.
+- **The put diagonal adds nothing.** It is `NULL` against zero, against its calm weeks and as a
+  put contribution.
+- **Horizon 6 cycles stays the one `CANDIDATE` (SECONDARY).** Its sell-off entry beats its own
+  calm weeks at adjusted p 0.008. A secondary can never promote a cell. That needs a forward
+  read and a new registration.
+- **One new secondary token.** With the day-D close fill, the put costs money (`PUT-COSTS`,
+  adjusted p 0.024).
+
+**The fetch.** Seven rounds took 184 contracts. Each round exposed the next nearest strike, and
+many of those are unlisted on Barchart. The cache was pushed once at the end.
+
+**Next.** `study_review` grading of this run. Then the `daily_vol_structure` fetch (§2.24), which
+waits on the operator because it runs for days.
+
+---
+
 ## 2026-11-15 — focus_list first run: beats the card on v4, not on v3
 
 **`focus_list` prints `FOCUS-BEATS-CARD` on the v4 book, and the v3 replication prints `NULL` with
