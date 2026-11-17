@@ -830,7 +830,15 @@ class BarchartSession:
         log.info("Navigating to '%s'", url)
         await self._page.goto(url, wait_until="domcontentloaded", timeout=30000)
         await asyncio.sleep(3)
-        await self._page.wait_for_load_state("networkidle", timeout=20000)
+        # networkidle is a best-effort settle, not a gate. From 2026-11-16 15:00 ET
+        # the stocks options-flow page stopped going idle (a long-lived request
+        # keeps the network busy) and this wait timed out on every scrape, losing
+        # the page while etfs loaded fine. The button check below already returns
+        # None when the page truly failed to render.
+        try:
+            await self._page.wait_for_load_state("networkidle", timeout=20000)
+        except PlaywrightTimeoutError:
+            log.warning("'%s' never reached networkidle in 20s — trying the download anyway", url)
         await self._dismiss_modal()
 
         for attempt in range(max_retries + 1):

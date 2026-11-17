@@ -324,3 +324,91 @@ def test_auth_exit_code_is_exported_and_matches_journals_copy():
 
     assert via_package == via_module == 5
     assert journal_main.EXIT_BARCHART_AUTH == via_module
+
+
+# ── download_csv — networkidle is best-effort ───────────────────────────────
+
+class FakeDownload:
+    def __init__(self, text):
+        self._text = text
+
+    async def save_as(self, path):
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(self._text)
+
+
+class _ExpectDownload:
+    def __init__(self, dl):
+        async def _value():
+            return dl
+        self.value = _value()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class FakeButton:
+    def __init__(self, visible=True):
+        self._visible = visible
+        self.clicks = 0
+
+    async def is_visible(self):
+        return self._visible
+
+    async def click(self):
+        self.clicks += 1
+
+
+class FlowPage:
+    """A flow page whose network never goes idle (2026-11-16 stocks-flow)."""
+
+    def __init__(self, idle_times_out, button):
+        self._idle_times_out = idle_times_out
+        self._button = button
+        self.keyboard = self
+
+    async def goto(self, url, **kw):
+        pass
+
+    async def wait_for_load_state(self, state, **kw):
+        from playwright.async_api import TimeoutError as PWTimeout
+        if self._idle_times_out:
+            raise PWTimeout("Page.wait_for_load_state: Timeout 20000ms exceeded.")
+
+    async def query_selector_all(self, selector):
+        return [self._button] if self._button else []
+
+    async def query_selector(self, selector):
+        return None
+
+    async def press(self, key):
+        pass
+
+    def expect_download(self, **kw):
+        return _ExpectDownload(FakeDownload("Symbol,Price\nAAPL,1\n"))
+
+
+def _flow_session(tmp_path, page, monkeypatch):
+    async def no_sleep(*a, **kw):
+        return None
+    monkeypatch.setattr("lib.barchart.session.asyncio.sleep", no_sleep)
+    s = BarchartSession("a@b.c", "pw", tmp_path / "cookies.json", headless=True)
+    s._page = page
+    return s
+
+
+def test_download_proceeds_when_page_never_goes_idle(tmp_path, monkeypatch):
+    page = FlowPage(idle_times_out=True, button=FakeButton())
+    s = _flow_session(tmp_path, page, monkeypatch)
+    out = asyncio.run(s.download_csv("https://www.barchart.com/options/options-flow/stocks"))
+    assert out == "Symbol,Price\nAAPL,1\n"
+    assert page._button.clicks == 1
+
+
+def test_idle_timeout_with_no_button_still_returns_none(tmp_path, monkeypatch):
+    page = FlowPage(idle_times_out=True, button=None)
+    s = _flow_session(tmp_path, page, monkeypatch)
+    assert asyncio.run(s.download_csv("https://www.barchart.com/options/options-flow/stocks")) is None
