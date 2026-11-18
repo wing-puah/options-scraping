@@ -46,3 +46,14 @@ VERDICT
   trades -> backtests/study_output/daily_vol_structure-trades.csv
 ```
 
+
+## Graded by `study_review` — 2026-11-18
+
+Two analysts and a validator graded the 2026-11-18 report (v4, sha 847d0ef). They agree on every verdict row.
+
+- **Verdict:** nothing passes. All 144 cells are `NULL`, discovery ranks no cell (smallest q 0.953), and 19 of 20 unconditional sides are `NULL`.
+- **The one `CONTRARY`:** the back leg of the QQQ 30-day put ratio, −0.065% a day [−0.105%, −0.024%]. It says the long leg loses, not that selling it pays.
+- **Not evaluable from the report:** the OHLC-end and `Price~` coverage sub-gates, arm-level exit drops, PBO (no ranked cell) and the forward grade (no `CANDIDATE`).
+- **One open framing point:** analyst A graded the LIVE power floor as a gate (not met); analyst B graded only the LIVE read (not evaluable). The 36 LIVE cells are `UNDERPOWERED` either way.
+- **A label, not a rule breach:** 25 QQQ 30-day trades drop as `no_listed_strike`. The monthly is walked as the registration says; the label means the walk found no listed strike in its window, not that the expiry was skipped.
+- **Hand reconciliation (2026-11-18):** 9 sampled trades, 3 per structure across both tickers and tenors, match the trades file to 1e-9. Six were credit entries and four exited on the junk-quote `Latest` rule.

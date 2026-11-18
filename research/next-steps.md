@@ -1506,7 +1506,13 @@ Operator answers of 2026-11-01, folded into the registration before any outcome:
 
 No choice is left open.
 
-### 2.24 `daily_vol_structure` — built, awaiting its leg fetch — OPEN, filed 2026-11-06
+### 2.24 `daily_vol_structure` — RUN 2026-11-18, all `NULL` — DONE
+
+**Done 2026-11-18.** The fetch took ten rounds over 2026-11-16 to 11-18, and every trade built or
+dropped. All 144 cells are `NULL`, and 19 of 20 unconditional sides are `NULL`. The QQQ 30-day put
+ratio's long leg is `CONTRARY`. Nine trades reconciled by hand, and `study_review` agrees
+([entry](current.md#2026-11-18--daily_vol_structure-no-daily-straddle-or-ratio-pays-on-qqq-or-smh)).
+Nothing ships. The text below is the plan as filed.
 
 The study is built and its first run stops at `NOT BUILT — AWAITING SCRAPE`, as designed. It enters
 a straddle and 1x2 ratios on QQQ and SMH every session, then scans for links to price, volume and

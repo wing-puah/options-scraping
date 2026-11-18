@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-18: `daily_vol_structure` finds nothing that pays; all 144 cells and 19 of 20 daily QQQ and SMH straddle and ratio sides are `NULL`**
+([entry](#2026-11-18--daily_vol_structure-no-daily-straddle-or-ratio-pays-on-qqq-or-smh)).
+
 **2026-11-15: `tail_rebound_etf` prints `NO-EDGE` on all four QQQ and SMH co-primaries; tech ETFs did not detectably rebound after tail falls either, nor beat SPY's rebound on the same dates**
 ([entry](#2026-11-15--tail_rebound_etf-no-rebound-edge-on-qqq-or-smh-either)).
 
@@ -325,6 +328,40 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-11-18 — daily_vol_structure: no daily straddle or ratio pays on QQQ or SMH
+
+**`daily_vol_structure` finds nothing that pays.** All 144 graded cells are `NULL`, and 19 of
+the 20 unconditional sides are `NULL`. Nothing ships, and there is no forward read to run.
+
+_Report: `backtests/study_output/daily_vol_structure-latest.txt` · record:
+[`daily_vol_structure.md`](study-results/f3_structure/daily_vol_structure.md) · era v4,
+in-sample window before the seal · code 847d0ef · run 2026-11-18 10:37 ·
+graded by `study_review` 2026-11-18, verdict agrees._
+
+**In production.** Nothing changes.
+
+- **No structure pays on every day.** The long straddle and both 1x2 ratios were entered on
+  each of 632 sessions, at 30 and 7 days to expiry. That gives 591–628 trades per series.
+- **No price or volume reading moves the result.** Discovery ranks no cell; the smallest q is
+  0.953. With no ranked cell, PBO is not computed.
+- **One `CONTRARY`.** The long leg of the QQQ 30-day put ratio loses −0.065% a day
+  [−0.105%, −0.024%]. That does not make selling it pay; the short leg reads +0.050%, `NULL`.
+- **The LIVE analysis cells are all `UNDERPOWERED`.** They hold 16–28 LIVE dates against a
+  floor of 60, as the registration expected.
+- **Coverage is complete.** 2,498 of 2,528 trades built; 30 QQQ trades drop because no strike
+  near spot was listed. No trade awaits a contract.
+- **Nine trades reconcile by hand.** Three per structure match the trades file exactly,
+  including six credit entries and four junk-quote exits.
+
+**The fetch.** It took ten rounds and about 5,600 contracts over 2026-11-16 to 11-18. A Wi-Fi
+drop at 03:05 on 11-17 stopped round 1 cleanly, and a restart picked up the rest. The cache
+was pushed after round 1 and at the end.
+
+**Next.** Nothing is queued behind this study. `exit_mark_clock` stays `UNDERPOWERED` until the
+seal lifts.
+
+---
+
 ## 2026-11-16 — selloff_put_diagonal: every cell built, the verdict holds
 
 **`selloff_put_diagonal` still prints `NO-EDGE (PROVISIONAL)`.** All six cells that waited on
@@ -353,8 +390,7 @@ graded by `study_review` 2026-11-16, verdict agrees._
 **The fetch.** Seven rounds took 184 contracts. Each round exposed the next nearest strike, and
 many of those are unlisted on Barchart. The cache was pushed once at the end.
 
-**Next.** The `daily_vol_structure` fetch (§2.24), which waits on the operator because it runs
-for days.
+**Next.** The `daily_vol_structure` fetch (§2.24). It ran 2026-11-16 to 11-18; see the entry above.
 
 ---
 
