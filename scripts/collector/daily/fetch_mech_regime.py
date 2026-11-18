@@ -106,6 +106,36 @@ def _previous_table(download_from_drive: bool) -> dict:
     return prev
 
 
+# ^VIX settles at 16:15 ET; SPY's official close prints at 16:00. A bar for the
+# current session fetched before this time is a LIVE quote, not a close.
+SETTLE_ET = (16, 30)
+
+
+def _drop_unsettled(out, now=None):
+    """Drop the current session's row when it has not settled yet.
+
+    yfinance serves a live, in-progress bar for today with BOTH closes filled,
+    so the "no SPY close" guard in lib/mech_regime never fires on it. A
+    mid-session refresh on 2026-11-13 (17:02 UTC) uploaded SPY 749.79 /
+    ^VIX 20.35; the settled closes were 754.37 / 19.30. The analysis stamped
+    BEAR_HE off the live VIX, the real cell is LVOL, and backfill-mech-cell
+    failed on DRIFT from then on. A row for a session that has not closed is
+    left out, never written; the next refresh after the close adds it.
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    now = now or datetime.now(ZoneInfo("America/New_York"))
+    today = now.date().isoformat()
+    settled = (now.hour, now.minute) >= SETTLE_ET
+    drop = out["date"] > today if settled else out["date"] >= today
+    if drop.any():
+        log.warning("dropped %d unsettled row(s) (%s) — fetched at %s ET, before "
+                    "the %02d:%02d settle", int(drop.sum()),
+                    ", ".join(out.loc[drop, "date"]), now.strftime("%Y-%m-%d %H:%M"),
+                    *SETTLE_ET)
+    return out.loc[~drop].reset_index(drop=True)
+
+
 def _heal_blanks(out, previous: dict):
     """Fill closes yfinance left blank from the copy this run replaces.
 
@@ -176,6 +206,7 @@ def fetch(start: str, end: str, upload: bool) -> int:
         on="date", how="outer",
     ).sort_values("date").reset_index(drop=True)
 
+    out = _drop_unsettled(out)
     out = _heal_blanks(out, _previous_table(download_from_drive=upload))
 
     LOCAL_PATH.parent.mkdir(parents=True, exist_ok=True)
