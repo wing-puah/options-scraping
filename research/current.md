@@ -511,6 +511,83 @@ verdict contradicted by a printed figure, and no misquoted number.
 - The forward read needs 10 closed episodes after 2026-11-20, so it will take years. The
   current sell-off is excluded from it.
 
+### Addendum 2026-11-21 (later): report gaps closed, and a post-hoc TURN-ON table
+
+**The post-hoc table below was added after the first report had been read, at the operator's
+go-ahead; it is descriptive only, has no verdict, no Holm family and no PBO grid, and the
+registered TURN-ON table above stays printed as it was.** The registered verdict banner is
+byte-identical after the re-run (apart from the git sha and timestamp header). The re-run is
+filed as `state_map-v4-20261121b.txt`. The code changed in printing only, and no statistic moved.
+
+**Gap 1: the coincident p-values are now printed.** They are the numbers behind the
+`COINCIDENT` words. C5 to C7 are outside the family and print the raw p.
+
+```
+C1  coincident Holm p 0.0008 (raw 0.0004, n 10)
+C2  coincident Holm p 0.0000 (raw 0.0000, n 10)
+C3  coincident Holm p 0.0000 (raw 0.0000, n 10)
+C4  coincident Holm p 0.0000 (raw 0.0000, n 10)
+C5  coincident raw p 0.0000 (outside the family, n 10)
+C6  coincident raw p 0.0326 (outside the family, n 10)
+C7  coincident raw p 0.0000 (outside the family, n 10)
+C8  coincident Holm p 0.0000 (raw 0.0000, n 10)
+C9  coincident Holm p 0.2664 (raw 0.2664, n 10)
+```
+
+C8 has a tiny p because its coincident lift is negative (-4.51), so it prints
+`NO-FORECAST`, not `COINCIDENT`. C9 has a positive lift and a wide CI, so its p does not clear
+0.05.
+
+**Gap 2: the 19 to 16 count reconciles, and it is a registered rule, not a bug.** The
+registration says an episode with fewer than 20 control sessions leaves the cell and is
+counted. Three of the 19 discovery episodes leave every candidate's cell for that reason. C2
+loses one more because its 252-session window is not full. C4 and C9 lose 11 more because
+VIX3M starts in 2006 and HYG in 2007.
+
+```
+discovery C1  19 -> n 16   missing  0   few_controls  3
+discovery C2  19 -> n 15   missing  1   few_controls  3
+discovery C4  19 -> n  6   missing 11   few_controls  2
+```
+
+The test window loses none: 10 to 10 for every candidate. The printed gap line now starts on
+2026-09-23, as the registration says. That was a label only.
+
+**The post-hoc table: a turn-on that precedes a trigger is almost always a fall already under
+way, not a warning.** It counts every off-to-on turn-on over all sessions, with no zone
+filter, and asks whether an `E-DD8` trigger session follows within 21 sessions. It then splits
+the followed turn-ons by whether the turn-on came before the peak or between the peak and the
+trigger. Test window, 21 sessions, quoted verbatim from the report:
+
+```
+H 21  all sessions: 2674 sessions  followed 213 0.080 [0.070, 0.091]  before peak  69 0.026 [0.020, 0.033]  peak-to-trigger 144 0.054 [0.046, 0.063]
+C1        H 21  turn-ons   92  followed  16 0.174 [0.110, 0.264]  before peak   1 0.011 [0.002, 0.059]  peak-to-trigger  15 0.163 [0.101, 0.252]  (VIX >= 20)
+C2        H 21  turn-ons   73  followed  13 0.178 [0.107, 0.281]  before peak   2 0.027 [0.008, 0.095]  peak-to-trigger  11 0.151 [0.086, 0.250]  (VIX 252-session percentile >= 0.80)
+C3        H 21  turn-ons   92  followed  15 0.163 [0.101, 0.252]  before peak   1 0.011 [0.002, 0.059]  peak-to-trigger  14 0.152 [0.093, 0.239]  (VIX up >= 25% in 5 sessions)
+C4        H 21  turn-ons   63  followed  13 0.206 [0.125, 0.322]  before peak   1 0.016 [0.003, 0.085]  peak-to-trigger  12 0.190 [0.112, 0.304]  (VIX > VIX3M)
+S-BEAR    H 21  turn-ons   35  followed   8 0.229 [0.121, 0.390]  before peak   0 0.000 [0.000, 0.099]  peak-to-trigger   8 0.229 [0.121, 0.390]  (mech BEAR onset)
+S-EVOL    H 21  turn-ons   64  followed  10 0.156 [0.087, 0.264]  before peak   0 0.000 [0.000, 0.057]  peak-to-trigger  10 0.156 [0.087, 0.264]  (E-VOL onset)
+S-BEAR200 H 21  turn-ons   15  followed   4 0.267 [0.109, 0.520]  before peak   0 0.000 [0.000, 0.204]  peak-to-trigger   4 0.267 [0.109, 0.520]  (SMA-200 BEAR onset)
+```
+
+- **Turn-ons are followed about twice as often as an average session.** C1 to C4 and the
+  mechanical BEAR onset all sit well above the 0.080 base, as the lines above show.
+- **The excess is the fall already under way.** Of C1's 16 followed turn-ons, 1 came before
+  the peak and 15 between the peak and the trigger. The before-peak share of all turn-ons
+  (0.011 for C1, C3 and C4) is at or below the all-sessions 0.026. No candidate shows a
+  before-peak share above the base.
+- **The signals show the same split.** All 8 followed mechanical BEAR turn-ons, all 10 E-VOL
+  turn-ons and all 4 SMA-200 turn-ons came after the peak. With a 10-session horizon the
+  mechanical BEAR onset is followed 7 times in 35 (0.200), again all after the peak.
+- **C8 and C9 sit below the base.** Their followed shares are 0.048 and 0.046.
+
+Caveat: turn-ons cluster, so the shares are not independent and the Wilson intervals are too
+narrow. The table was specified after the first report was read. The test-window `E-DD8`
+count is small (10 closed episodes), so the interval widths understate the doubt.
+
+**In production.** Nothing changes. A bear or E-VOL turn-on is a sign of a fall in progress,
+and the table gives no entry or hedge trigger.
+
 ---
 
 ## 2026-11-21 — bear strategies in 2026: peek, ungraded, sealed dates

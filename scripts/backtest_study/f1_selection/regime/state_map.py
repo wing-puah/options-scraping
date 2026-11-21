@@ -56,6 +56,7 @@ from scripts.backtest_study.f1_selection.regime import tail_breach as TB  # noqa
 from scripts.backtest_study.f5_hedging import index_bear_hedge as IBH  # noqa: E402
 from scripts.backtest_study.lib import era as era_mod  # noqa: E402
 from scripts.backtest_study.lib import pbo as PBO  # noqa: E402
+from scripts.backtest_study.lib.ruin_walk import wilson  # noqa: E402
 
 REGISTRATION = "research/pre-registrations/f1_selection/regime/state_map.md"
 # The registration commit's stamp. The file's own date line is still blank.
@@ -67,6 +68,7 @@ DISCOVERY_END = "2015-12-31"
 TEST_START = "2016-01-01"
 FORWARD_START = "2026-11-21"
 FORWARD_ANCHOR_DATE = "2026-11-20"   # the last session before the forward window
+GAP_START = "2026-09-23"             # the registration's gap line: first day after the in-sample cut
 HEADLINE_DEF, SECONDARY_DEF = "E-DD8", "E-DD5"
 LEAD_W = 10
 LEAD_WS = (5, 10, 21)
@@ -1344,7 +1346,7 @@ def print_header(era: str) -> None:
     print(f"era: {era}" + (" (Q1-Q4 inputs are unversioned market closes; Q5 reads the book)"
                            if era == era_mod.CURRENT else " (Q5 only; Q1-Q4 were not re-run)"))
     print(f"windows: discovery first session -> {DISCOVERY_END}; test {TEST_START} -> {IN_SAMPLE_END}; "
-          f"gap {IN_SAMPLE_END} -> {FORWARD_ANCHOR_DATE} (in no population); forward from {FORWARD_START}")
+          f"gap {GAP_START} -> {FORWARD_ANCHOR_DATE} (in no population); forward from {FORWARD_START}")
     if era_mod.SEAL_LIFTED:
         print(f"SEAL: lifted {era_mod.SEAL_LIFTED}; Q5 withholds nothing")
     else:
@@ -1416,7 +1418,27 @@ def bucket_counts(vix_vals: list[float]) -> dict:
     return out
 
 
-def report_q2(cal: Cal, ctx: Ctx, draws: Draws, pbo: float | None) -> dict:
+def report_census(ctx: Ctx, zone: np.ndarray, closed: list[Ep], kept: list[Ep],
+                  test: list[Ep]) -> None:
+    """Reconciles the episode census with the lift n of each candidate (printing only).
+
+    An episode leaves a lead cell for one of two registered reasons: the candidate has no
+    value on every session of its lead window ('missing': VIX3M starts in 2006, HYG in
+    2007, C2 needs 252 sessions), or fewer than MIN_CONTROLS control sessions meet every
+    calm-day rule ('few_controls')."""
+    fo = len(closed) - len(kept)
+    print(f"  Discovery census: {len(closed)} closed episodes, {fo} follow-on(s) out -> {len(kept)}; "
+          f"an episode then leaves a candidate's cell for 'missing' (no value on the whole "
+          f"10-session lead window) or 'few_controls' (under {MIN_CONTROLS} control sessions meet "
+          "every calm-day rule, the joint value rule included):")
+    for label, eps in (("discovery", kept), ("test", test)):
+        for k in CANDS:
+            xs, _, dr = cell_xs(ctx, zone, eps, k, LEAD_W, "lead")
+            print(f"    {label:<9} {k}  {len(eps)} -> n {len(xs):>2}   missing {dr['missing']:>2}   "
+                  f"few_controls {dr['few_controls']:>2}")
+
+
+def report_q2(cal: Cal, ctx: Ctx, draws: Draws, pbo: float | None, flags: dict | None = None) -> dict:
     """Prints the Q2 section and returns what the banner needs."""
     section("Q2 — early warning: state variables before E-DD8 onsets (headline W = 10)")
     trunc: Counter = Counter()
@@ -1436,6 +1458,7 @@ def report_q2(cal: Cal, ctx: Ctx, draws: Draws, pbo: float | None) -> dict:
           "calm days'. Controls are shared by nearby episodes, so lifts are not fully independent;")
     print("  the episode bootstrap does not remove that.")
     cands = grade_q2(ctx, z8, graded, disc, draws, pbo)
+    report_census(ctx, z8, split_eps(head, 0, True), disc, graded)
     print(f"\n  {'':<4}{'candidate':<38}{'n':>3} {'lead lift L_k [CI]':<34}{'Holm p':>7} "
           f"{'coincident [CI]':<48}{'word'}")
     for k, c in cands.items():
@@ -1448,6 +1471,14 @@ def report_q2(cal: Cal, ctx: Ctx, draws: Draws, pbo: float | None) -> dict:
           + pbo_text(pbo))
     print("  Coincident rows: the Holm family is C1-C4, C8, C9 (m = 6); C5-C7 are true by "
           "construction and the READ ignores them.")
+    print("  Coincident p-values behind the COINCIDENT words (Holm family m = 6: C1-C4, C8, C9; "
+          "C5-C7 are outside the family, raw p only):")
+    for k, c in cands.items():
+        raw = f"{c.coin.p:.4f}" if c.coin is not None else "—"
+        if k in COIN_FAMILY:
+            print(f"    {k}  coincident Holm p {c.adj_coin:.4f} (raw {raw}, n {c.n_coin})")
+        else:
+            print(f"    {k}  coincident raw p {raw} (outside the family, n {c.n_coin})")
 
     print("\n  PRINTED ONLY — discovery window lift (waived under 10 episodes)")
     for k, c in cands.items():
@@ -1504,12 +1535,78 @@ def report_q2(cal: Cal, ctx: Ctx, draws: Draws, pbo: float | None) -> dict:
         print(f"    {cal.dates[e.p]}  {cal.dates[e.g]}  {cal.dates[e.trough]}  {n_ctl:>3}  " + "  ".join(shares))
 
     print("\n  PRINTED ONLY — the other side (no verdict, no Holm family, no PBO grid)")
-    report_other_side(cal, ctx, head, z8, graded, disc, draws)
+    report_other_side(cal, ctx, head, z8, graded, disc, draws, flags)
     return {"cands": cands, "read": q2_read({k: c.word for k, c in cands.items()})}
 
 
+POSTHOC_HORIZONS = (21, 10)
+
+
+def posthoc_split(ons: list[int], trig_p: list[tuple[int, int]], n: int, h: int) -> dict:
+    """Post-hoc, descriptive. Turn-ons at sessions `ons` against E-DD8 trigger sessions.
+
+    `trig_p` is `[(g, p)]` sorted by g. A turn-on at t is *followed* when some trigger g
+    satisfies t < g <= t + h. Its position is `before` the peak when t < p of that
+    episode, and `mid` (between p and g, the fall already under way) when p <= t < g.
+    Turn-ons with t + h > n - 1 are left out: the calendar `n` is the in-sample cut, so
+    no close after it is read. Returns `{n, followed, before, mid}`."""
+    gs = [g for g, _ in trig_p]
+    out = {"n": 0, "followed": 0, "before": 0, "mid": 0}
+    for t in ons:
+        if t + h > n - 1:
+            continue
+        out["n"] += 1
+        j = bisect.bisect_right(gs, t)
+        if j < len(gs) and gs[j] <= t + h:
+            out["followed"] += 1
+            out["before" if t < trig_p[j][1] else "mid"] += 1
+    return out
+
+
+def _ph_cell(k: int, n: int) -> str:
+    lo, hi = wilson(k, n)
+    return f"{k:>3} {k / n:.3f} [{lo:.3f}, {hi:.3f}]" if n else f"{k:>3}   —"
+
+
+def report_posthoc_turn_on(cal: Cal, ctx: Ctx, head: list[Ep], flags: dict | None) -> None:
+    """POST-HOC descriptive table: turn-ons over all sessions, no zone filter."""
+    trig_p = sorted((e.g, e.p) for e in head)
+    print()
+    print("    POST-HOC (added 2026-11-21 after the first run; not registered; descriptive only) — "
+          "TURN-ON, all sessions")
+    print("    Every off-to-on turn-on counts, in or out of an exclusion zone. 'followed' = an E-DD8 "
+          "trigger session within H sessions after the turn-on. 'before peak' = the turn-on is before "
+          "that episode's peak p (a warning); 'peak-to-trigger' = p <= turn-on < g (the fall is already "
+          "under way). Shares are of all turn-ons, Wilson 95% [lo, hi]. 'all sessions' is the same "
+          "share over every session in the window. No verdict, no Holm family, no PBO grid.")
+    sig_names = (("S-BEAR", "mech BEAR onset"), ("S-EVOL", "E-VOL onset"),
+                 ("S-BEAR200", "SMA-200 BEAR onset"))
+    rows = [(k, CAND_NAME[k], [t for t in range(1, cal.n)
+                               if ctx.val[k][t] == 1.0 and ctx.val[k][t - 1] == 0.0]) for k in CANDS]
+    if flags is not None:
+        for sig, label in sig_names:
+            holds, has = flags[sig]
+            rows.append((sig, label, onsets(holds, has)))
+    for wname, (i0, i1) in (("test", (idx_from(cal, TEST_START), cal.n - 1)),
+                            ("discovery", (0, idx_on_or_before(cal, DISCOVERY_END)))):
+        print(f"    window {wname}")
+        for h in POSTHOC_HORIZONS:
+            base = posthoc_split(list(range(i0, i1 + 1)), trig_p, cal.n, h)
+            print(f"      H {h:>2}  all sessions: {base['n']} sessions  followed "
+                  f"{_ph_cell(base['followed'], base['n'])}  before peak {_ph_cell(base['before'], base['n'])}  "
+                  f"peak-to-trigger {_ph_cell(base['mid'], base['n'])}")
+            for k, label, ons in rows:
+                r = posthoc_split([t for t in ons if i0 <= t <= i1], trig_p, cal.n, h)
+                print(f"      {k:<9} H {h:>2}  turn-ons {r['n']:>4}  followed {_ph_cell(r['followed'], r['n'])}"
+                      f"  before peak {_ph_cell(r['before'], r['n'])}  "
+                      f"peak-to-trigger {_ph_cell(r['mid'], r['n'])}  ({label})")
+    print("    Hindsight caveat: turn-ons cluster, so these shares are not independent draws and the "
+          "Wilson intervals are too narrow; and this table was specified after the first report had "
+          "been read.")
+
+
 def report_other_side(cal: Cal, ctx: Ctx, head: list[Ep], z8: np.ndarray, graded: list[Ep],
-                      disc: list[Ep], draws: Draws) -> None:
+                      disc: list[Ep], draws: Draws, flags: dict | None = None) -> None:
     trig = sorted(e.g for e in head)
     nxt = TURN_ON_FOLLOW
 
@@ -1532,6 +1629,7 @@ def report_other_side(cal: Cal, ctx: Ctx, head: list[Ep], z8: np.ndarray, graded
             share = float(np.mean([followed(t) for t in out])) if out else float("nan")
             print(f"      {k}  turn-ons {len(out):>4} (+{len(inz)} in an exclusion zone)  "
                   f"followed {share:.3f}")
+    report_posthoc_turn_on(cal, ctx, head, flags)
     print("    G-LEAD, test: lift on the trigger-anchored lead window g - W to g - 1, same controls")
     for w in LEAD_WS:
         for k in CANDS:
@@ -1792,7 +1890,7 @@ def analyse(full: Cal, boot_n: int = BOOT_N, q5=None, q4_environment=None, q5_re
     draws = Draws(boot_n, SEED, *sizes)
 
     report_q1(cal, {"headline (SMA 50)": lab50, "BEAR200 (SMA 200)": lab200})
-    q2 = report_q2(cal, ctx, draws, pbo2)
+    q2 = report_q2(cal, ctx, draws, pbo2, flags)
     q3 = report_q3(cal, flags, draws, pbo3, {HEADLINE_DEF: eps8, SECONDARY_DEF: eps5})
     q4 = report_q4(cal, flags, q4_environment)
     if q5 is not None:

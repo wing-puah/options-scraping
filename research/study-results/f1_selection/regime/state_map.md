@@ -26,3 +26,7 @@ VERDICT
   Nothing ships from this study (state_map.md).
 ```
 
+## Note 2026-11-21 (later) · re-run `state_map-v4-20261121b.txt`
+
+The verdict banner above is unchanged after a printing-only re-run. The report now prints the coincident Holm p (m = 6) and the raw p for C5 to C7, a discovery census that reconciles 19 episodes to the lift n, and a labelled post-hoc all-sessions TURN-ON table (not registered, descriptive only). Reading: [current.md](../../../current.md#2026-11-21--state_map-no-market-state-warned-before-a-top).
+

@@ -1135,3 +1135,52 @@ def test_a_merged_pre_anchor_peak_is_not_a_forward_episode(capsys):
     eps = S.build_episodes(cal, "E-DD8")
     assert len(eps) == 1 and eps[0].p == a - 30                 # one merged episode, earliest peak
     assert _fwd(cal, _fwd_flags(cal, [], a))["n_fwd_eps"] == 0
+
+
+# --- post-hoc TURN-ON split (added 2026-11-21, descriptive only) -------------
+
+class TestPosthocSplit:
+    # One episode: peak p = 50, trigger g = 60. Calendar of 200 sessions.
+    TRIG = [(60, 50)]
+
+    def test_turn_on_before_peak(self):
+        r = S.posthoc_split([45], self.TRIG, 200, 21)
+        assert r == {"n": 1, "followed": 1, "before": 1, "mid": 0}
+
+    def test_turn_on_between_peak_and_trigger(self):
+        r = S.posthoc_split([55], self.TRIG, 200, 21)
+        assert r == {"n": 1, "followed": 1, "before": 0, "mid": 1}
+
+    def test_turn_on_at_the_peak_is_already_falling(self):
+        assert S.posthoc_split([50], self.TRIG, 200, 21)["mid"] == 1
+
+    def test_turn_on_with_no_trigger(self):
+        r = S.posthoc_split([100, 20], self.TRIG, 200, 21)
+        assert r == {"n": 2, "followed": 0, "before": 0, "mid": 0}
+
+    def test_turn_on_at_the_trigger_is_not_followed(self):
+        assert S.posthoc_split([60], self.TRIG, 200, 21)["followed"] == 0
+
+    def test_horizon_boundary(self):
+        # t + h == g is followed; t + h == g - 1 is not.
+        assert S.posthoc_split([39], self.TRIG, 200, 21)["followed"] == 1
+        assert S.posthoc_split([38], self.TRIG, 200, 21)["followed"] == 0
+        assert S.posthoc_split([50], self.TRIG, 200, 10)["followed"] == 1
+        assert S.posthoc_split([49], self.TRIG, 200, 10)["followed"] == 0
+
+    def test_no_read_past_the_cut(self):
+        # n = 70: t = 50 with h = 21 would need session 71, past the cut; it is left out.
+        r = S.posthoc_split([50, 60], self.TRIG, 70, 21)
+        assert r["n"] == 0
+        r = S.posthoc_split([40, 48, 49], self.TRIG, 70, 21)
+        assert r["n"] == 2 and r["followed"] == 2
+
+    def test_split_adds_up(self):
+        r = S.posthoc_split([40, 45, 55, 58, 150], self.TRIG, 200, 21)
+        assert r["followed"] == r["before"] + r["mid"] == 4
+        assert r["n"] == 5
+
+    def test_nearest_trigger_decides_the_position(self):
+        trig = [(60, 50), (120, 100)]
+        r = S.posthoc_split([95, 110], trig, 300, 30)
+        assert r == {"n": 2, "followed": 2, "before": 1, "mid": 1}
