@@ -31,6 +31,9 @@ THE CUT. The in-sample run reads the SPY / VIX / VIX3M series cut at 2026-09-22 
 option cache through `CutChain`, which drops every quote after 2026-09-22. Only the
 forward section reads later closes and quotes.
 
+EXIT CODES. 3 (GE input missing, wrong era) is a designed refusal. 4 (GS) and 5 (GH) are
+real failures and read as FAILED in the runner by design.
+
 THE AWAIT GATE. While any headline entry (K-BEAR, K-EVOL or CALM) awaits a fetch, the run
 prints its census and `NOT BUILT — AWAITING SCRAPE` and stops. `Book.price` refuses until
 `Book.open_outcomes` has seen no headline entry await. No code here fetches; the fetch
@@ -110,7 +113,8 @@ FETCH_CMD = "python3 scripts/collector/study_legs/f1_selection/fetch_signal_call
 CACHE_DIR = ROOT / "backtests" / "option_history_cache"
 SERIES = ("SPY", "VIX", "VIX3M")
 
-# Exit 3: an input is missing (GE) or the era is wrong. Exit 4: GS failed. Exit 5: GH failed.
+# Exit 3: an input is missing (GE) or the era is wrong, a designed refusal. Exits 4 (GS) and
+# 5 (GH) are deliberately NOT declared: a code or definitions mismatch must read as FAILED.
 EXIT_INPUT, EXIT_GS, EXIT_GH = 3, 4, 5
 DESIGNED_REFUSAL_EXIT_CODES = {3}
 
@@ -498,10 +502,12 @@ def load_inputs() -> tuple[SM.Cal, dict]:
 
 
 def gate_gs(chain, evidence, cal: SM.Cal, pop: Pop) -> dict:
-    """GS: `{signal: (study set, q4 set)}` of onset dates D >= the window start."""
+    """GS: `{signal: (study set, q4 set)}` of onset dates D >= the window start. The study
+    side takes the filter `q4_trades` applies (D + 1 inside the calendar), so an onset on
+    the last session cannot raise a false GS failure; truncation drops it anyway."""
     flags = flags_of(cal)
     q4 = SM.q4_trades(chain, evidence, cal, flags, start=IN_SAMPLE_START)
-    return {s: ({cal.dates[d] for d in pop.onsets[s]}, {cal.dates[t.D] for t in q4 if t.signal == s})
+    return {s: ({cal.dates[d] for d in pop.onsets[s] if d + 1 < cal.n}, {cal.dates[t.D] for t in q4 if t.signal == s})
             for s in SIGNALS}
 
 
@@ -693,10 +699,10 @@ def verdict(g: Grade, k_arm: int, k_calm: int, pbo: float | None, sens: Grade | 
     """`(word, notes)`, first match. In-sample: UNDERPOWERED below the floor in the arm or
     CALM; PBO not computed or above 0.50 turns every word into NULL; a CALENDAR-PAYS or
     PAYS-NOT-SIGNAL whose own conditions fail with every exit_unmarked entry at R = -1 is
-    NULL. Forward: STILL-OPEN below the arm's floor, and no PBO clause."""
+    NULL. Forward: STILL-OPEN below the floor in the arm or CALM, and no PBO clause."""
     notes: list[str] = []
     if forward:
-        if k_arm < FLOOR:
+        if k_arm < FLOOR or k_calm < FLOOR:
             return STILL_OPEN, notes
     elif k_arm < FLOOR or k_calm < FLOOR:
         return UNDERPOWERED, notes
@@ -990,8 +996,9 @@ def printed_only(cells: dict) -> None:
     for a, c in groups:
         up = [p.R for p in c.ps if p.hold > 0]
         dn = [p.R for p in c.ps if p.hold <= 0]
+        na = [p.R for p in c.ps if not math.isfinite(p.hold)]
         print(f"    {a:<7} SPY up n {len(up):>4} mean R {f3(_mean(up))}   SPY flat or down n {len(dn):>4} "
-              f"mean R {f3(_mean(dn))}")
+              f"mean R {f3(_mean(dn))}   missing n {len(na):>4} mean R {f3(_mean(na))}")
     print("  R by VIX above or below VIX3M at the entry session's close")
     for a, c in groups:
         parts = []

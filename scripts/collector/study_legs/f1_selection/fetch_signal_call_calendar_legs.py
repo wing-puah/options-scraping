@@ -65,8 +65,6 @@ from scripts.collector.study_legs.f1_selection.fetch_mechanical_legs import (  #
 
 log = logging.getLogger("fetch_signal_call_calendar_legs")
 
-MAX_ROUNDS = 10
-
 
 def plan() -> list[dict]:
     """The study's fetch list on the cache as it stands. Selection only: nothing is

@@ -547,3 +547,94 @@ drafter's open points:
 12. **Calm days disjoint from the signals.** Accepted.
 13. **Unmarked exits.** Changed: the exit-drop sensitivity line above is added.
 14. **Seed 20261121.** Accepted.
+
+## Resolved at build (2026-11-21)
+
+These are clarifications made before the first run. None changes a registered number, window,
+floor or verdict word. Each sits under the section it amends.
+### Calm days
+
+_Resolved at build (2026-11-21):_ the calm-day rule reads the same SPY unadjusted closes as the
+signals, from `state_map`'s calendar (`backtests/state_map/SPY.csv`). It does not read
+`mechanical_baseline.load_closes`.
+
+_Resolved at build (2026-11-21):_ a calm day on which mech BEAR or E-VOL holds is dropped first.
+The truncation rule runs after that. Both counts print.
+
+### The calendar, fixed here
+
+_Resolved at build (2026-11-21):_ the long expiry is chosen among monthlies from the day after the
+short's expiry to 400 days after it. That bound only limits the search and never binds at 60 or
+90 DTE.
+
+_Resolved at build (2026-11-21):_ when the short strike awaits a fetch, the fetch list also names
+the long contract at that strike. This saves a fetch round. If the short strike then proves
+unlisted, that one long contract was fetched for nothing.
+
+_Resolved at build (2026-11-21):_ the registered $0.65 commission is a constant in the module.
+`config/backtest.yml` is not read.
+
+### Refusals and drops
+
+_Resolved at build (2026-11-21):_ a short-expiry exit with no closing quote and no SPY close on
+the expiry day cannot take intrinsic value. That entry drops as `exit_unmarked`.
+
+_Resolved at build (2026-11-21):_ an exit mark that production carries from an earlier day is
+used, not dropped. Each one is counted as a stale mark.
+
+_Resolved at build (2026-11-21):_ if the monotonicity check ever fired, the entry would be
+refused as `non_monotonic_entry_quote` and counted. It cannot fire on a calendar.
+
+### Gates
+
+_Resolved at build (2026-11-21):_ gate GS compares onsets on the in-sample calendar with
+`q4_trades` on the same calendar. Both sides keep an onset only when its entry session exists. An
+onset on the last in-sample session would be truncated anyway, so it cannot fail the gate.
+
+_Resolved at build (2026-11-21):_ a failed GE, or a run on another era, exits 3 as a designed
+refusal. A failed GS exits 4 and a failed GH exits 5. The runner reports both as FAILED on
+purpose, because each means the code or the definitions moved.
+
+### Multiple comparisons
+
+_Resolved at build (2026-11-21):_ each Holm family keeps m = 2 when an arm has no p-value. The
+missing p enters as 1.0, so it can never loosen the other arm's adjustment.
+
+### Verdicts, worded now
+
+_Resolved at build (2026-11-21):_ the exit-drop line is a full re-grade. It re-runs the bootstrap
+for both arms with every `exit_unmarked` entry at R = −1, then re-runs Holm on those p-values. It
+then checks the printed word's own conditions again.
+
+_Resolved at build (2026-11-21):_ because the check uses the word's own conditions,
+`PAYS-NOT-SIGNAL` also fails if the gain turns significant under the substitution. That arm then
+prints `NULL` with "exit-drop sensitive". Setting entries to −1 lowers the arm's mean, so this
+case should not arise in practice.
+
+_Resolved at build (2026-11-21):_ an arm below the floor prints `UNDERPOWERED` even under the PBO
+veto or "PBO not computed", because that row matches first. "Selection fragile" goes beside every
+other in-sample word.
+
+### Forward
+
+_Resolved at build (2026-11-21):_ a forward arm stays `STILL-OPEN` while it or forward `CALM`
+holds fewer than 10 month clusters. This mirrors the in-sample `UNDERPOWERED` row, which fires on
+either.
+
+_Resolved at build (2026-11-21):_ the exit-drop line applies to forward words too. Only the PBO
+clauses are dropped forward.
+
+_Resolved at build (2026-11-21):_ the forward read prices the headline cell only. Forward onsets
+inside the current episode's zone print their count, the number priced and their mean R.
+
+### Printed only, no verdict
+
+_Resolved at build (2026-11-21):_ MFE and MAE use the R formula on each session's mark from the
+session after entry through the exit. The exit value is floored at 0 and all four leg-sides of
+commission are charged. A session with no mark is skipped.
+
+_Resolved at build (2026-11-21):_ the hold-return split has three groups: SPY up, SPY flat or
+down, and missing when the exit is not a session. The VIX split likewise has a missing group.
+
+_Resolved at build (2026-11-21):_ parameter cells print the gain as a point only. The per-entry
+table lists the two signal arms, not `CALM`.

@@ -11,6 +11,7 @@ import ast
 import contextlib
 import io
 import math
+import re
 from datetime import date, timedelta
 
 import numpy as np
@@ -373,6 +374,9 @@ def test_the_in_sample_report_ignores_every_close_and_quote_after_the_cut(full):
     different one when an earlier quote changes (the check can fail)."""
     base_txt, base = run_in_sample(full, FakeChain(full))
     assert "IN-SAMPLE WORDS" in base_txt and "await" not in base
+    for arm in S.ARMS:
+        m = re.search(rf"^  {arm}\s+headline\s+priced\s+(\d+)", base_txt, re.M)
+        assert m and int(m.group(1)) > 0
     cut = date.fromisoformat(S.IN_SAMPLE_END)
     later_txt, _ = run_in_sample(mutate_after(full, S.IN_SAMPLE_END), FakeChain(full, bump=(cut, 3.1)))
     assert later_txt == base_txt
@@ -433,8 +437,10 @@ def test_verdict_exit_drop_sensitive():
 
 def test_forward_verdict_has_no_pbo_clause_and_stays_open_below_the_floor():
     assert S.verdict(grade(), 9, 50, None, grade(), forward=True)[0] == S.STILL_OPEN
-    assert S.verdict(grade(), 10, 0, None, grade(), forward=True) == (S.CP, [])
-    assert S.verdict(grade(lo=-0.4, hi=-0.1), 10, 0, None, None, forward=True)[0] == S.CONTRARY
+    assert S.verdict(grade(), 10, 9, None, grade(), forward=True)[0] == S.STILL_OPEN    # CALM floor too
+    assert S.verdict(grade(), 10, 10, None, grade(), forward=True) == (S.CP, [])
+    assert S.verdict(grade(), 10, 10, 0.9, grade(), forward=True) == (S.CP, [])         # no PBO veto
+    assert S.verdict(grade(lo=-0.4, hi=-0.1), 10, 10, None, None, forward=True)[0] == S.CONTRARY
 
 
 def test_holm_is_m2_per_family():
@@ -531,3 +537,96 @@ def test_banner_prints_the_registered_lines(capsys):
     assert (">>> signal_call_calendar FORWARD (onsets from 2026-11-21, current sell-off out): "
             "K-BEAR STILL-OPEN K-EVOL STILL-OPEN <<<") in out
     assert out.count("second structure on one signal set; geometry set after Q4") == 4
+
+
+# ── review additions ────────────────────────────────────────────────────────
+
+def test_gs_ignores_an_onset_on_the_last_session(full):
+    """`q4_trades` needs D + 1 inside the calendar; the study side applies the same filter,
+    so an onset on the cut's last session cannot fail GS."""
+    cal = SM.cut_cal(full, S.IN_SAMPLE_END)
+    D = next(d for s in S.SIGNALS for d in S.in_sample_pop(cal).onsets[s])
+    short = SM.cut_cal(full, cal.dates[D])
+    pop = S.in_sample_pop(short)
+    assert any(d == short.n - 1 for s in S.SIGNALS for d in pop.onsets[s])
+    gs = S.gate_gs(FakeChain(short), set(), short, pop)
+    assert all(a == b for a, b in gs.values())
+
+
+def test_a_short_expiry_exit_closes_both_legs_on_the_expiry():
+    entry = date(2024, 1, 11)
+    se = S.short_expiry(entry)                                    # 2024-02-16, 25 sessions on
+    days = weekdays(entry, entry + timedelta(days=50))
+    lq = {d: (2.95, 3.05) for d in days}
+    sq = {d: (0.95, 1.05) for d in days}
+    sq[se] = (0.15, 0.25)
+    book, e = _book_for(entry, entry + timedelta(days=45), lq, sq, h=30)
+    p = book.price(e)
+    assert p.exit_reason == "short_expiry" and p.exit_day == se
+    assert p.value == pytest.approx(3.0 - 0.2)
+    assert p.R == pytest.approx(S.r_of(2.8, 2.0))
+
+
+def test_mfe_and_mae_follow_the_daily_mark_path():
+    entry = date(2024, 1, 11)
+    days = weekdays(entry, entry + timedelta(days=40))
+    lq = {d: (2.95, 3.05) for d in days}
+    sq = {d: (0.95, 1.05) for d in days}
+    for d, mid in zip(days[1:6], (3.5, 4.0, 2.5, 3.0, 3.2)):
+        lq[d] = (mid - 0.05, mid + 0.05)
+    book, e = _book_for(entry, days[10], lq, sq, h=5)
+    p = book.price(e)
+    assert p.R == pytest.approx(S.r_of(2.2, 2.0))
+    assert p.mfe == pytest.approx(S.r_of(3.0, 2.0))
+    assert p.mae == pytest.approx(S.r_of(1.5, 2.0))
+
+
+def test_exit_drop_sensitivity_reaches_the_verdict(full, monkeypatch):
+    cal = SM.cut_cal(full, S.IN_SAMPLE_END)
+    chosen = set(S.in_sample_pop(cal).signals["S-BEAR"][:3])
+    orig_price, orig_verdict = S.Book._price, S.verdict
+    seen = {}
+
+    def price(self, e):
+        if e.arm == "K-BEAR" and e.geom == S.HEAD and e.D in chosen:
+            return "exit_unmarked"
+        return orig_price(self, e)
+
+    def verdict(g, k_arm, k_calm, pbo, sens, forward=False):
+        if not forward:
+            seen.setdefault("calls", []).append((g, sens))
+        return orig_verdict(g, k_arm, k_calm, pbo, sens, forward)
+    monkeypatch.setattr(S.Book, "_price", price)
+    monkeypatch.setattr(S, "verdict", verdict)
+    txt, _ = run_in_sample(full, FakeChain(full))
+    assert "K-BEAR: exit_unmarked 3" in txt
+    (g_bear, s_bear), (g_evol, s_evol) = seen["calls"]
+    assert s_bear.st.n == g_bear.st.n + 3 and s_bear.st.mean < g_bear.st.mean
+    assert s_evol.st.n == g_evol.st.n and s_evol.st.mean == pytest.approx(g_evol.st.mean)
+
+
+def _tail_cal() -> SM.Cal:
+    """The synthetic walk, then a fresh high, a 15% fall into the anchor, a partial
+    recovery and a second leg down after the forward window opens."""
+    base = synth_cal(hi=date(2026, 7, 31))
+    extra = weekdays(date(2026, 8, 3), date(2027, 3, 31))
+    c = [float(base.close[-1])]
+    for d in extra:
+        r = (0.004 if d <= date(2026, 9, 30) else -0.007 if d <= date(2026, 11, 20)
+             else 0.003 if d <= date(2026, 12, 31) else -0.03 if d <= date(2027, 1, 8) else 0.0)
+        c.append(c[-1] * math.exp(r))
+    close = np.concatenate([base.close, np.array(c[1:])])
+    vix = 13 + 150 * (1 - close / np.maximum.accumulate(close))
+    return SM.Cal(base.dates + [d.isoformat() for d in extra], close, close.copy(), vix,
+                  vix * 0.95 + 1.5, np.full(len(close), np.nan))
+
+
+def test_forward_pop_splits_out_onsets_in_the_current_episode_zone():
+    full = _tail_cal()
+    anchor = SM.idx_on_or_before(full, S.FORWARD_ANCHOR)
+    zone = S.current_zone(full, anchor)
+    assert zone is not None and zone[0] <= anchor <= zone[1]
+    pop = S.forward_pop(full)
+    inz = [d for s in S.SIGNALS for d in pop.in_zone[s]]
+    assert inz and all(zone[0] <= d <= zone[1] and d >= anchor + SM.REARM + 1 for d in inz)
+    assert not any(zone[0] <= d <= zone[1] for s in S.SIGNALS for d in pop.onsets[s])
