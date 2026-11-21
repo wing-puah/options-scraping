@@ -567,13 +567,19 @@ STUDIES: dict[str, Study] = {
                 "onsets after 2026-11-20): Q2 STILL-OPEN Q3 STILL-OPEN <<<`. Nothing ships.",
     ),
     "signal_call_calendar": Study(
-        family="selection", state="open",
+        family="selection", state="null",
         question="After a mech BEAR or E-VOL onset (state_map's Q3 signals, 2022-02-01 to 2026-09-22), "
                  "does a SPY call calendar (short the monthly nearest 30 DTE, long the same strike "
                  "nearest 60 DTE, strike nearest spot x 1.03, out after 21 sessions) pay net of "
                  "commission, and does it beat the same calendar opened on a calm day?",
-        verdict="Accepted by default 2026-11-21; module built the same day, not yet run. No "
-                "calendar was priced and no outcome was computed. Nothing ships from this study.",
+        verdict="Accepted by default and first run 2026-11-21 (era v4, bare exports; in-sample "
+                "signal dates 2022-02-01 to 2026-09-22): `>>> signal_call_calendar K-BEAR (call "
+                "calendar after S-BEAR, 1.03 strike, 30/60 DTE, 21 sessions or short expiry, "
+                "2022-02-01 to 2026-09-22): NULL <<<` and the same for K-EVOL, both `selection "
+                "fragile`; `>>> signal_call_calendar PBO: 0.334 <<<`; `>>> signal_call_calendar "
+                "FORWARD (onsets from 2026-11-21, current sell-off out): K-BEAR STILL-OPEN K-EVOL "
+                "STILL-OPEN <<<`. Headline mean R `+0.004` (K-BEAR), `+0.118` (K-EVOL), CALM "
+                "`+0.175`; the gain over calm days is negative for both. Nothing ships.",
     ),
     "tail_breach_intraday": Study(
         family="selection", state="open",

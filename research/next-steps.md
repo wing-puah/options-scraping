@@ -1726,7 +1726,16 @@ How to resume:
 4. Forward: expect `STILL-OPEN` for years. The first forward run that prints another word is the
    verdict of record.
 
-### 2.32 `signal_call_calendar` — PLAN 2026-11-21, not registered, nothing built
+### 2.32 `signal_call_calendar` — DONE 2026-11-21: `NULL` on both arms (era v4), forward `STILL-OPEN`
+
+The study was registered, built and run on 2026-11-21. K-BEAR and K-EVOL both print `NULL`
+(selection fragile, PBO 0.334), and neither beat the same calendar opened on a calm day. With the
+put spread in `state_map` Q4, this signal set has had two structures and neither pays; no third
+without a new pre-registered reason. See the
+[entry in current.md](current.md#2026-11-21--signal_call_calendar-no-edge-after-a-bear-or-extreme-vol-signal)
+and the [record](study-results/f1_selection/regime/signal_call_calendar.md). The plan text below
+is kept as written.
+
 
 The operator asked on 2026-11-21 whether an out-of-the-money call calendar pays after a bear
 signal. Nothing has tested it. This item is the plan for a new session to execute. The name is a

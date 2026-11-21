@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-21: `signal_call_calendar` prints `NULL` on both arms; the SPY call calendar after a bear or extreme-vol signal did not beat a calm-day calendar, and with the put spread this signal set has now had two structures and neither pays**
+([entry](#2026-11-21--signal_call_calendar-no-edge-after-a-bear-or-extreme-vol-signal)).
+
 **2026-11-21: `state_map` prints Q2 `COINCIDENT` and Q3 `NULL`; no market state warned before an 8% SPY fall, and the bear state does not time an entry**
 ([entry](#2026-11-21--state_map-no-market-state-warned-before-a-top)).
 
@@ -333,6 +336,71 @@ blocks any work; each has its full entry in an archive volume.
   stayed blocked at R2.
 
 ---
+
+## 2026-11-21 — signal_call_calendar: no edge after a bear or extreme-vol signal
+
+**A SPY call calendar opened after a mechanical BEAR or E-VOL signal did not pay in 2022-02-01 to 2026-09-22.** Both arms print `NULL`, and neither beat the same calendar opened on a calm day. The put spread (`state_map` Q4) and this calendar are two structures on one signal set, and neither pays. **No third structure should go on these signals without a new pre-registered reason. Nothing ships.**
+
+_Report: `backtests/study_output/signal_call_calendar-latest.txt` · record:
+[`signal_call_calendar.md`](study-results/f1_selection/regime/signal_call_calendar.md) · code e5e0e3c
+(working tree clean) · run 2026-11-21 20:24._
+
+_Era: current (v4 bare exports). Inputs: unversioned market closes and option quotes, in-sample
+signal dates 2022-02-01 to 2026-09-22, forward from 2026-11-21._
+
+_Graded by two analysts and a validator: both arms `NULL`, no disagreement._
+
+**In production.** Nothing changes. The study opens a forward watch only: the first forward run
+that prints a word other than `STILL-OPEN` is the verdict of record.
+
+### What was asked
+
+After a mechanical BEAR or E-VOL onset, does a SPY call calendar pay net of commission, and does
+it pay more than the same calendar opened on a calm day? The calendar sells a near monthly call
+and buys the same strike a month further out, near spot, and
+exits at the earlier of 21 sessions and the short expiry. The settings are in the registration.
+
+### Result
+
+**Verdict.**
+`>>> signal_call_calendar K-BEAR (call calendar after S-BEAR, 1.03 strike, 30/60 DTE, 21 sessions or short expiry, 2022-02-01 to 2026-09-22): NULL <<<`
+and the same line for `K-EVOL`, each tagged `selection fragile`.
+`>>> signal_call_calendar PBO: 0.334 <<<`.
+
+| Arm | Calendars priced | Mean R [CI] | Gain over calm days [CI] | Holm p (mean, gain) |
+|---|---|---|---|---|
+| K-BEAR | 13 | +0.004 [-0.347, +0.358] | -0.171 [-0.576, +0.240] | 0.9834, 0.8468 |
+| K-EVOL | 22 | +0.118 [-0.165, +0.403] | -0.057 [-0.398, +0.294] | 0.8204, 0.8468 |
+| CALM | 122 | +0.175 [-0.023, +0.374] | n/a | n/a |
+
+- **Both gains are negative.** The calm-day calendar earned more than either signal arm, and no
+  Holm p is below 0.8.
+- **The intervals are wide.** The half-widths are 0.353 and 0.284, so this is a null on thin
+  samples, not proof of no effect.
+- **Forward.** Both arms print `STILL-OPEN` with 0 clusters, against a floor of 10.
+
+### What the printed-only tables show
+
+No verdict reads these.
+
+- **The calendar is a direction bet here.** In every arm, including CALM, R is positive when SPY
+  rose over the hold (about +0.5) and negative when it was flat or down (about -0.55). The
+  calendar did not harvest a vol crush after the signal.
+- **VIX above VIX3M is too rare to read.** Only 1 K-BEAR and 4 K-EVOL entries had it.
+- **The short leg often expired first.** It did so in 30 to 50% of exits, in every arm.
+
+### Data notes
+
+- `long_strike_unlisted` dropped calm entries, mostly in 2024 to 2026, and a few K-EVOL entries.
+  The counts are in the report.
+- The fetch took seven rounds, because the nearest-listed walk moved after
+  each round. The caches were pushed to Drive once (`research-caches-20261121-2013`).
+
+### What this means
+
+The signal set has now had two structures, a put spread and a call calendar, and neither shows an
+edge. Further structures on the same onsets would be a third look at one sample. Any new one needs
+its own pre-registered reason, and the forward read is the only clean test left.
 
 ## 2026-11-21 — state_map: no market state warned before a top
 
