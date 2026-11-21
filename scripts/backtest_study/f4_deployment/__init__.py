@@ -33,6 +33,10 @@ built is runnable in a real account, not whether it is right.
                         first? A stationary block bootstrap of the account
                         walk (lib/ruin_walk.py) at $500 (headline) and
                         $1,000 (declared secondary). A reading only.
+    trend_overlay.py    open — accepted by default 2026-11-21. Does a slow
+                        trend rule (10-month SMA, month-end) cut the drawdown
+                        of a long index position at an acceptable cost, and
+                        does a matching net-cap switch cut the book's?
     concurrency_correlation.py
                         open · NOISE — nothing caps the STOCK of open positions,
                         so does the size or internal similarity of the open book

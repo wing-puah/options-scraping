@@ -1280,6 +1280,16 @@ STUDIES: dict[str, Study] = {
                 "are unchanged. "
                 "Owed: a forward grade.",
     ),
+    "trend_overlay": Study(
+        family="deployment", state="open",
+        question="Does a slow trend rule (^GSPC below its 10-month SMA at month-end, Faber 2007) "
+                 "used as an exposure overlay cut the maximum drawdown of a 1x long S&P 500 "
+                 "position, at what cost in return (discovery SPY 1993-2026, holdout ^GSPC "
+                 "1950-1992), and does cutting the account_sim net cap from 2.50 to 1.00 while "
+                 "below trend cut the book's drawdown?",
+        verdict="Accepted by default 2026-11-21; module built the same day, not yet run. No "
+                "return or drawdown was computed. Nothing ships from this study.",
+    ),
     "ruin_bound": Study(
         family="deployment", state="open",
         question="The operator will accept a deeper drawdown for more return if a guardrail "
