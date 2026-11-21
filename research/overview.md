@@ -1,6 +1,7 @@
 # Research overview
 
-Lost the thread? Start here. Terms are defined in [`glossary.md`](glossary.md),
+Lost the thread? Start here. The newest whole-programme snapshot is
+[`status-2026-11-21.md`](status-2026-11-21.md); it is newer than this page. Terms are defined in [`glossary.md`](glossary.md),
 study-local labels such as `ARM P` or `B2` in [`arm-index.md`](arm-index.md),
 and the house style for writing any of this down in
 [`writing-guide.md`](writing-guide.md).
