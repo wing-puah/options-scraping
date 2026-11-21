@@ -553,6 +553,13 @@ STUDIES: dict[str, Study] = {
                 "(floor 10) — FAIL`. S1-S4 and N1 `UNDERPOWERED`; `>>> tail_breach FORWARD "
                 "(forecast origins after the registration date): STILL-OPEN <<<`. Nothing ships.",
     ),
+    "state_map": Study(
+        family="selection", state="open",
+        question="Which market states (VIX level and shape, price trend, realised vol, credit) come "
+                 "before SPY falls of 8% or more since 1993, and once the mechanical BEAR or E-VOL "
+                 "state prints, does SPY keep falling or is the move already over?",
+        verdict="Registered and accepted by default 2026-11-21; built, not yet run. Nothing ships.",
+    ),
     "tail_breach_intraday": Study(
         family="selection", state="open",
         question="Does SPY's intraday low breach twice its VIX-implied move, or fall 5% below a close "
