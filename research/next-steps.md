@@ -1725,6 +1725,101 @@ How to resume:
 4. Forward: expect `STILL-OPEN` for years. The first forward run that prints another word is the
    verdict of record.
 
+### 2.32 `signal_call_calendar` — PLAN 2026-11-21, not registered, nothing built
+
+The operator asked on 2026-11-21 whether an out-of-the-money call calendar pays after a bear
+signal. Nothing has tested it. This item is the plan for a new session to execute. The name is a
+placeholder until the registration is written.
+
+**Question.** After a mechanical BEAR or extreme-vol signal, does a SPY call calendar make money,
+and does it make more than the same calendar opened on a calm day?
+
+**Why it is worth one study.** Near-dated options are rich after the signal, and a calendar sells
+them. Its loss is capped at the debit. The put spread on the same signals showed no edge
+(`state_map` Q4). Against it: `tail_rebound` found no rebound edge, and the earnings calendar's
+edge was the bid-ask spread.
+
+**What the operator has already seen.** List all of these in the registration's plan-time section.
+
+- `state_map` Q2, Q3, Q4 and the post-hoc turn-on table, all on these same signals.
+- `selloff_put_diagonal`: the package paid on 9 triggers and did not beat calm weeks.
+- `tail_rebound` and `tail_rebound_etf`: no rebound edge.
+- The 2026-11-21 peek at the current sell-off.
+- The idea came after the put-spread result, so it is a second structure tried on one signal set.
+
+| Design choice | Default |
+|---|---|
+| Family | `f1_selection/regime`, beside `state_map` |
+| Signals | `state_map` Q3 onsets, imported: `S-BEAR` and `S-EVOL`, 10-session re-arm |
+| Entry | The close one session after the signal, every leg at the closing mid |
+| Window | Signals from 2022-02-01 to 2026-09-22; no close after 2026-09-22 is read |
+| Short leg | Listed call nearest 30 DTE, at least 21 |
+| Long leg | Same strike, listed expiry nearest 60 DTE; 90 DTE printed as a parameter |
+| Strike | Listed strike nearest spot × 1.03; 1.05 and 1.00 printed as parameters |
+| Exit | Closing mid after 21 sessions; 5 and 10 printed |
+| Cost | $0.65 per contract per leg-side, slippage 0 |
+| Control | The same calendar on calm days, `selloff_put_diagonal.calm_days` |
+| Statistic | Mean R on signal entries, and that mean minus the calm-day mean |
+| Unit | Calendar-month clusters; floor 10 per cell, else `UNDERPOWERED` |
+| Family size | Holm m = 2: `S-EVOL` and `S-BEAR` at the headline cell |
+| Overfitting | PBO over every printed cell; veto above 0.50 |
+| Forward | Opens 2026-11-21, one shot; the current sell-off is excluded |
+
+**Verdict words to fix before any outcome.** The first row that matches is the verdict.
+
+| Word | Condition |
+|---|---|
+| `UNDERPOWERED` | Fewer than 10 month clusters |
+| `CALENDAR-PAYS` | Mean R interval above 0, gain over calm days above 0, Holm p under 0.05, PBO at most 0.50 |
+| `PAYS-NOT-SIGNAL` | Mean R interval above 0, gain over calm days not above 0 |
+| `CONTRARY` | Mean R interval below 0 |
+| `NULL` | Anything else |
+
+**Printed only, no verdict.**
+
+- MFE, MAE and exit capture on the daily mark path.
+- R split by the sign of SPY's return over the hold. This shows whether the trade needs a rebound.
+- R split by VIX above or below VIX3M at entry.
+
+**Out of scope.** The operator's view that puts pay intraday cannot be tested here. Every price is
+a daily close.
+
+**Reuse.**
+
+- `state_map.py`: `onsets`, `q4_select`, `q4_trades`, `q4_fetch_list` and `q4_price` are the
+  pattern for the trade list, the fetch list and the pricing.
+- The backtest's shared `entry_day_fill`, `junk_day_mark` and `_defined_risk_bounds`. Never
+  re-derive a price rule. A debit priced to a credit is refused.
+- `fetch_state_map_legs.py` is the collector to copy.
+- `lib/pbo.py`, `holm` from `ticker_class.py`, `lib/ruin_walk.py::wilson`.
+
+**Fetch size.** The estimate is about 700 contracts. Count it from the code before starting.
+Unlisted strikes will move it.
+
+| Entries | Count | Contracts each | Contracts |
+|---|---|---|---|
+| Signals | 39 | 2 strikes × 3 expiries | about 234 |
+| Calm weeks | about 150 | 3 expiries at the headline strike | about 450 |
+
+How to resume:
+
+1. Draft the registration from this item on the fixed template. Compute no outcome.
+2. Give it to a fresh second reader before the first outcome and before the commit.
+3. Build the study and its tests on synthetic data only. Have the build reviewed for lookahead.
+4. Fold build-time readings into the registration as `Resolved at build (date)` before the run.
+5. Write the collector and fetch under `caffeinate -i`. Check for another writer first.
+6. Push the caches once with `backup_research_caches.py push`.
+7. Run, grade with `python3 -m scripts.study_review <name>`, and write the entry in `current.md`.
+8. Add the catalog entry, the study-map row and the README row.
+
+Three traps from 2026-11-21:
+
+- A permission check denied a subagent's shell edit to a frozen registration. The operator had to
+  approve it. Ask before editing one.
+- The collector's other-writer guard matches its own launch line when the shell command names the
+  script. Launch it from a Python heredoc.
+- The price cache for SPY reaches 2026-11-20. Calm weeks need closes through the exit date.
+
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open
 
