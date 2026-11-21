@@ -1145,6 +1145,24 @@ spread until it fits beats refusing it. Every cell runs under `account_sim`
   `below_net_floor` is a reason inside `narrow_no_fit`, on the floored line
   only.
 
+#### `trend_overlay`
+
+_Registered in [`pre-registrations/f4_deployment/trend_overlay.md`](pre-registrations/f4_deployment/trend_overlay.md)_
+
+Accepted by default 2026-11-21. A slow trend rule used as an exposure switch,
+scored on drawdown rather than on forecast.
+
+- `LONG` (control) — the 1× long index position, never switched.
+- `T-10M` (arm) — headline. Cash while the `^GSPC` month-end close is below its
+  10-month SMA (Faber 2007). Graded in discovery and in holdout.
+- `T-200D` (arm) — the 200-day SMA, daily. Printed, not graded.
+- `T-12M` (arm) — the 12-month momentum sign, month-end. Printed, not graded.
+- `B-CONTROL` (control) — the `account_sim` book at its net cap of 2.50.
+- `B-SWITCH` (arm) — the same book, net cap 1.00 on entries while `T-10M` is
+  OUT. Secondary, in-sample.
+- `FORWARD` (population scope) — `T-10M` against `LONG` from 2026-11-21,
+  sunset 2029-11-21.
+
 #### `ruin_bound`
 
 _Registered in [`pre-registrations/f4_deployment/ruin_bound.md`](pre-registrations/f4_deployment/ruin_bound.md)_

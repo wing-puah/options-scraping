@@ -1,7 +1,7 @@
 ## trend_overlay — does a slow trend rule cut drawdown, and at what cost?
 
 <!-- outcome:start -->
-> Latest outcome: not yet run.
+> Latest outcome: `>>> trend_overlay A DISCOVERY (T-10M vs long SPY, 1993-02-01 to 2026-09-22, 10 bp, cash 0%): NO-DRAWDOWN-BENEFIT <<<` on `dMDD +0.273 [-0.009, +0.457]`; `>>> trend_overlay A HOLDOUT (T-10M vs long ^GSPC price-only, 1950-01-03 to 1992-12-31, 10 bp, cash 0%): NO-DRAWDOWN-BENEFIT <<<` on `dMDD +0.150 [-0.042, +0.335]`; `AGREES`; B `UNDERPOWERED` (15 switched dates, floor 20); forward `STILL-OPEN` — era current for A (closes to 2026-09-22), v4 book for B, run 2026-11-21 · [record](../../study-results/f4_deployment/trend_overlay.md)
 <!-- outcome:end -->
 
 _Registered 2026-11-21 (accepted by default; immutable in substance)._

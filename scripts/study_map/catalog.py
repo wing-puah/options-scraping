@@ -1287,8 +1287,16 @@ STUDIES: dict[str, Study] = {
                  "position, at what cost in return (discovery SPY 1993-2026, holdout ^GSPC "
                  "1950-1992), and does cutting the account_sim net cap from 2.50 to 1.00 while "
                  "below trend cut the book's drawdown?",
-        verdict="Accepted by default 2026-11-21; module built the same day, not yet run. No "
-                "return or drawdown was computed. Nothing ships from this study.",
+        verdict="Accepted by default and first run 2026-11-21 (era current for A, unversioned "
+                "closes to 2026-09-22; v4 book for B): `>>> trend_overlay A DISCOVERY (T-10M vs "
+                "long SPY, 1993-02-01 to 2026-09-22, 10 bp, cash 0%): NO-DRAWDOWN-BENEFIT <<<` on "
+                "`dMDD +0.273 [-0.009, +0.457]  dCAGR -0.0153`; `>>> trend_overlay A HOLDOUT "
+                "(T-10M vs long ^GSPC price-only, 1950-01-03 to 1992-12-31, 10 bp, cash 0%): "
+                "NO-DRAWDOWN-BENEFIT <<<` on `dMDD +0.150 [-0.042, +0.335]  dCAGR -0.0138`; "
+                "`AGREES`; `>>> trend_overlay PBO: discovery 0.828 holdout 0.261 <<<`; B "
+                "`UNDERPOWERED` (15 switched dates, floor 20); FORWARD `STILL-OPEN`. The point "
+                "estimates halve the drawdown, but the lower CI bound sits just below zero in "
+                "both windows. Nothing ships.",
     ),
     "ruin_bound": Study(
         family="deployment", state="open",

@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-21: `trend_overlay` prints `NO-DRAWDOWN-BENEFIT` in discovery and holdout; Faber's 10-month rule roughly halved the S&P 500's worst drawdown for about 1.5 points of CAGR a year, but the bootstrap lower bound sits just below zero, and the book's net-cap switch is underpowered**
+([entry](#2026-11-21--trend_overlay-a-slow-trend-rule-roughly-halves-drawdown-but-not-clear-of-noise)).
+
 **2026-11-21: `signal_call_calendar` prints `NULL` on both arms; the SPY call calendar after a bear or extreme-vol signal did not beat a calm-day calendar, and with the put spread this signal set has now had two structures and neither pays**
 ([entry](#2026-11-21--signal_call_calendar-no-edge-after-a-bear-or-extreme-vol-signal)).
 
@@ -334,6 +337,108 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-11-21 — trend_overlay: a slow trend rule roughly halves drawdown, but not clear of noise
+
+**Faber's 10-month trend rule cut the S&P 500's worst drawdown by about half in both windows, but the bootstrap cannot rule out zero, so it prints `NO-DRAWDOWN-BENEFIT`.** Discovery and holdout agree. The cost was about 1.5 points of CAGR a year, mostly whipsaw. **Nothing ships, and the live net cap stays at 2.50.**
+
+_Report: `backtests/study_output/trend_overlay-latest.txt` · record:
+[`trend_overlay.md`](study-results/f4_deployment/trend_overlay.md) · code aee4477 (working tree
+clean) · run 2026-11-21 23:17._
+
+_Era: Population A reads unversioned market closes (`^GSPC` from 1948, SPY, `^IRX`), cut at
+2026-09-22. Population B reads the v4 book, 279 pre-seal signal dates, with 170 sealed rows
+withheld. Forward opens 2026-11-21._
+
+_Graded by two analysts and a validator: every verdict and gate agrees. They split only on
+whether PBO is a graded line; the registration says it is not._
+
+**In production.** Nothing changes. `caps.net` stays 2.50 in `config/account-sim.yml` and in the
+journal's risk step.
+
+### What was asked
+
+Every earlier trend test asked whether a trend break forecasts returns, and all were null. This
+[pre-registration](pre-registrations/f4_deployment/trend_overlay.md) asks the published question
+instead: does a slow trend rule, used as a switch to cash, lower the maximum drawdown at about the
+same return? The sources are Faber (2007), Moskowitz, Ooi and Pedersen (2012), and Hurst, Ooi and
+Pedersen (2017).
+
+The headline rule is [`trend_overlay T-10M`](arm-index.md#trend_overlay): hold the index while the
+`^GSPC` month-end close is above its 10-month SMA, else cash at 0%. It trades one session after
+the signal and pays 10 bp per switch. A pass needs the 2.5th percentile of the bootstrapped
+drawdown cut above zero.
+
+### Result
+
+| Object | Window | MDD long → overlay | ΔMDD [CI] | ΔCAGR | Word |
+|---|---|---|---|---|---|
+| `T-10M` | discovery 1993–2026, SPY total return | 55.2% → 27.9% | +0.273 [−0.009, +0.457] | −1.53 pts | `NO-DRAWDOWN-BENEFIT` |
+| `T-10M` | holdout 1950–1992, `^GSPC` price | 48.2% → 33.2% | +0.150 [−0.042, +0.335] | −1.38 pts | `NO-DRAWDOWN-BENEFIT` |
+| `T-200D` | discovery | 55.2% → 25.6% | +0.296 [−0.030, +0.443] | −2.78 pts | not graded |
+| `T-200D` | holdout | 48.2% → 19.0% | +0.292 [+0.026, +0.390] | −0.73 pts | not graded |
+| `T-12M` | discovery | 55.2% → 33.7% | +0.215 [−0.042, +0.410] | −1.26 pts | not graded |
+
+- **The shape is the published one.** Calmar (CAGR over maximum drawdown) rose in both windows:
+  0.197 to 0.336 in discovery. In holdout it rose from 0.164 to 0.196. The rule held cash about a
+  quarter to a third of the time.
+- **The interval is the problem.** Both lower bounds sit just below zero. One drawdown figure is a
+  noisy order statistic, and four or seven bear markets do not pin it down.
+- **Two printed-only lines would have passed.** Discovery with T-bill cash and discovery with a
+  504-session block both clear zero. Neither re-grades the headline.
+- **PBO is 0.828 in discovery and 0.261 in holdout.** The three rules swap places between
+  halves, so no "best rule" claim is allowed. With three rules the noise baseline is about 0.67.
+
+### Where the savings and the cost come from
+
+| Episode (long falls 20%+) | Long depth | `T-10M` drawdown | Saved, peak to trough | Saved, peak to recovery |
+|---|---|---|---|---|
+| 2000-03 → 2002-10 | 47.5% | 12.4% | +0.533 | +0.332 |
+| 2007-10 → 2009-03 | 55.2% | 17.8% | +0.744 | +0.205 |
+| 2020-02 → 2020-03 | 33.7% | 12.4% | +0.320 | +0.004 |
+| 2022-01 → 2022-10 | 24.5% | 27.9% | +0.084 | −0.213 |
+| 1987-08 → 1987-12 (holdout) | 33.5% | 33.2% | +0.132 | −0.063 |
+
+Savings are in log points against the long position.
+
+- **Long bears paid.** The slow, grinding bear markets are where the rule earns its keep: the
+  dot-com bust, the financial crisis, and 1973–74 in the holdout.
+- **Fast crashes did not.** The rule was still in for October 1987 and late for the 2022 low.
+- **Whipsaw is the price.** Short OUT spells that re-entered within a quarter cost about 3.1
+  points a year in discovery. In holdout they cost 2.3 points a year.
+
+| Window | Whipsaw spells | Whipsaw cost, log points a year | Given up outside every episode, log points |
+|---|---|---|---|
+| Discovery | 16 | −0.031 | −0.794 |
+| Holdout | 19 | −0.023 | −0.702 |
+
+### Population B, the book's net cap
+
+`B-SWITCH` cuts the net cap to 1.00 on entries while `T-10M` is OUT. Too few signal dates fell
+under it: 15, against a floor of 20. They sit in two spells, April–May 2025 and March–April 2026.
+So it prints `UNDERPOWERED` and concludes nothing.
+
+The census points the other way from Population A. The switch took 10 fewer positions, made
+$14,120 less and deepened the realised drawdown by $4,572. The refused entries were dip entries
+that later paid, which matches the [`dip_buy`](study-results/f1_selection/regime/dip_buy.md) lead.
+`account_sim`'s artifacts were byte-identical after the run (gate GA), and gate GW showed the
+wrapper is neutral.
+
+### What this means
+
+For an index holder, the rule behaved as published: shallower worst drawdown, a modest return
+cost, paid for in whipsaw. The study cannot call that cut clear of noise at the registered bar.
+
+For the live book, nothing supports a trend-keyed net cap. The only in-sample read is too thin and
+leans against it, because the book's below-trend entries were dips that recovered.
+
+**Caveats.** `^IRX` has no close on 28 discovery sessions; those earn 0% in the T-bill line, and
+the report's note blames pre-1960 dates. Holdout returns are price-only.
+
+**Next.** No new item in [`next-steps.md`](next-steps.md). The forward read waits for a forward
+20% bear market or the 2029-11-21 sunset.
 
 ---
 
