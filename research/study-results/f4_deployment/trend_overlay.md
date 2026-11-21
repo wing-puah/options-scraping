@@ -38,3 +38,9 @@ unversioned market closes, so its era is `current (inputs are unversioned market
 `study_review` graded this report: both analysts and the validator agree on every verdict and
 gate. The one split is whether PBO is a graded criterion; the registration says it never changes
 the headline word. Reading: [current.md](../../current.md#2026-11-21--trend_overlay-a-slow-trend-rule-roughly-halves-drawdown-but-not-clear-of-noise).
+
+## Note 2026-11-21 · smoke run disclosed
+
+One smoke run at 50 bootstrap draws ran after the registration commit (4e3ca8d) and before the
+graded run. It was there to check Population B and the gates. Nothing in the registration, code
+or config changed after it. The graded run is the one recorded above.
