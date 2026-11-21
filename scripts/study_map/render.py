@@ -39,6 +39,30 @@ def site_name(study: str) -> str:
     return study.replace("_", "-") + "-digest.html"
 
 
+PREREG_DIR = ROOT / "research" / "pre-registrations"
+
+
+def prereg_pages(root: Path = PREREG_DIR) -> dict[Path, str]:
+    """Every registration file under root -> its site/ page name, `prereg-<stem>.html`.
+
+    The stem alone names the page. When two files share a stem, each of them is
+    named from its path under root (`prereg-<family>-<group>-<stem>.html`) so no
+    page overwrites another.
+    """
+    files = sorted(root.rglob("*.md")) if root.is_dir() else []
+    stems = [f.stem for f in files]
+    out: dict[Path, str] = {}
+    for f in files:
+        key = f.stem if stems.count(f.stem) == 1 else "-".join(f.relative_to(root).with_suffix("").parts)
+        out[f] = f"prereg-{key}.html"
+    return out
+
+
+def prereg_by_study(root: Path = PREREG_DIR) -> dict[str, str]:
+    """Study name -> the page of the registration called `<name>.md` (none when there is no such file)."""
+    return {f.stem: page for f, page in prereg_pages(root).items() if f.stem in catalog.STUDIES}
+
+
 _KIND_NOTE = {
     "verdict": "quoted from the report's own VERDICT block",
     "refusal": "BY DESIGN — the study declared this exit code as a pre-registered "
@@ -171,28 +195,34 @@ def _run_block(run: summary.RunSummary) -> str:
       </details>"""
 
 
-def _study(name: str, study: catalog.Study, run: summary.RunSummary) -> str:
+def _study(name: str, study: catalog.Study, run: summary.RunSummary,
+           prereg: dict[str, str] | None = None) -> str:
     state = study.state
     row_cls = f"study is-{state}" + (" is-retired" if study.retired else "")
     retired_pill = ('<span class="pill is-retired">retired</span>'
                     if study.retired else "")
     retired_note = (f'      <p class="caveat is-warning">{_rich(study.retired)}</p>'
                     if study.retired else "")
+    reg = (f'      <p class="caveat">Registration: <a href="{_e(prereg[name])}">'
+           f'{_e(name)}.md</a> (the pre-registered design, rendered).</p>'
+           if prereg and name in prereg else "")
     return f"""  <li class="{row_cls}" data-study="{_e(name)}"><details>
     <summary><span class="pill {STATE_CLS[state]}">{_e(catalog.STATES[state])}</span>{retired_pill}\
 <span class="sname">{_e(name)}</span>{_run_state(run)}<span class="sq">{_rich(study.question)}</span></summary>
     <div class="sbody">
       <p><strong>Verdict.</strong> {_rich(study.verdict)}</p>
 {retired_note}
+{reg}
 {_run_block(run)}
     </div>
   </details></li>"""
 
 
 def _family(key: str, studies: list[tuple[str, catalog.Study]],
-            runs: dict[str, summary.RunSummary]) -> str:
+            runs: dict[str, summary.RunSummary],
+            prereg: dict[str, str] | None = None) -> str:
     fam = catalog.FAMILIES[key]
-    rows = "\n".join(_study(n, s, runs[n]) for n, s in studies)
+    rows = "\n".join(_study(n, s, runs[n], prereg) for n, s in studies)
     return f"""<div class="fam" id="studies-{_e(key)}">
 <h3>{_e(fam['index'])} {_e(fam['title'])} <span class="sub">— {_e(fam['question'])} \
 · {len(studies)} studies</span></h3>
@@ -323,7 +353,8 @@ def _about() -> str:
 # ── section ───────────────────────────────────────────────────────────────────
 def build(runs: dict[str, summary.RunSummary],
           log_entries: list[tuning.LogEntry],
-          log_mtime: str) -> str:
+          log_mtime: str,
+          prereg: dict[str, str] | None = None) -> str:
     """The studies section body, below the dashboard's own heading and tally."""
     families = catalog.by_family()
     jump = " · ".join(
@@ -331,7 +362,7 @@ def build(runs: dict[str, summary.RunSummary],
         + [f'<a href="#studies-{_e(k)}">{_e(catalog.FAMILIES[k]["index"])} '
            f'{_e(catalog.FAMILIES[k]["title"])}</a>' for k, v in families.items() if v]
         + ['<a href="#studies-about">How to read a report</a>'])
-    sections = "\n".join(_family(k, v, runs) for k, v in families.items() if v)
+    sections = "\n".join(_family(k, v, runs, prereg) for k, v in families.items() if v)
     on_disk = sum(1 for r in runs.values() if r.ran)
     return f"""<p class="thesis"><strong>The whole programme in one sentence:</strong>
 selection is not tunable from the columns we have; the money is in the exit rules and in

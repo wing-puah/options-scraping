@@ -57,9 +57,40 @@ _BOLD = re.compile(r"\*\*([^*]+?)\*\*")
 _ITALIC = re.compile(r"\*([^*]+?)\*")
 
 
-def _inline(text: str) -> str:
-    """Escape, then honour `code`, **bold**, *italic* — in that order."""
+_LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")
+_SLUG_DROP = re.compile(r"[^\w\- ]")
+
+
+def _slug(text: str) -> str:
+    """GitHub-style heading anchor, so `[x](#the-q2-statistic)` lands."""
+    return _SLUG_DROP.sub("", text.lower().replace("`", "")).strip().replace(" ", "-")
+
+
+def _inline(text: str, resolve=None) -> str:
+    """Escape, then honour `code`, **bold**, *italic* — in that order.
+
+    With `resolve` (href -> URL or None), `[text](href)` becomes a link, or the
+    text in <code> when resolve returns None. Without it links stay literal,
+    which is what the digest pages have always done.
+    """
     out = html.escape(text, quote=False)
+    if resolve is not None:
+        stash: list[str] = []
+
+        def keep(m):
+            stash.append(m.group(0))
+            return f"\x00{len(stash) - 1}\x00"
+
+        out = _INLINE_CODE.sub(keep, out)
+
+        def link(m):
+            url = resolve(html.unescape(m.group(2)))
+            label = m.group(1)
+            return (f'<a href="{html.escape(url)}">{label}</a>' if url
+                    else f"<code>{label}</code>")
+
+        out = _LINK.sub(link, out)
+        out = re.sub("\x00(\\d+)\x00", lambda m: stash[int(m.group(1))], out)
     out = _INLINE_CODE.sub(r"<code>\1</code>", out)
     out = _BOLD.sub(r"<strong>\1</strong>", out)
     out = _ITALIC.sub(r"<em>\1</em>", out)
@@ -85,7 +116,49 @@ def _split_row(line: str) -> list[str]:
     return [c.strip() for c in cells.split("|")]
 
 
-def _md_to_html(text: str) -> str:
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def _list(lines: list[str], i: int, resolve) -> tuple[str, int]:
+    """One (possibly nested) list starting at lines[i]; returns (html, next index).
+
+    Items may continue on following indented lines and hold a deeper list.
+    """
+    n = len(lines)
+    base = _indent(lines[i])
+    first = lines[i].strip()
+    tag = "ol" if _OL.match(first) else "ul"
+    items: list[str] = []
+    while i < n:
+        line = lines[i]
+        m = _UL.match(line.strip()) or _OL.match(line.strip())
+        if not line.strip() or _indent(line) != base or not m:
+            break
+        parts = [m.group(2)]
+        i += 1
+        nested = ""
+        while i < n and lines[i].strip():
+            nxt = lines[i]
+            marker = _UL.match(nxt.strip()) or _OL.match(nxt.strip())
+            if marker and _indent(nxt) > base:
+                nested, i = _list(lines, i, resolve)
+            elif marker or _indent(nxt) <= base or nested:
+                break
+            else:
+                parts.append(nxt.strip())
+                i += 1
+        items.append(f"<li>{_inline(' '.join(parts), resolve)}{nested}</li>")
+        j = i
+        while j < n and not lines[j].strip():
+            j += 1   # a blank line between items keeps one list
+        if j < n and j > i and _indent(lines[j]) == base and (
+                _UL.match(lines[j].strip()) or _OL.match(lines[j].strip())):
+            i = j
+    return f"<{tag}>" + "".join(items) + f"</{tag}>", i
+
+
+def _md_to_html(text: str, resolve=None) -> str:
     lines = text.split("\n")
     out: list[str] = []
     i, n = 0, len(lines)
@@ -93,7 +166,7 @@ def _md_to_html(text: str) -> str:
 
     def flush_para() -> None:
         if para:
-            out.append(f"<p>{_inline(' '.join(para))}</p>")
+            out.append(f"<p>{_inline(' '.join(para), resolve)}</p>")
             para.clear()
 
     while i < n:
@@ -121,7 +194,9 @@ def _md_to_html(text: str) -> str:
         if m:
             flush_para()
             level = len(m.group(1))
-            out.append(f"<h{level}>{_inline(m.group(2).strip())}</h{level}>")
+            head = m.group(2).strip()
+            anchor = f' id="{_slug(head)}"' if resolve is not None else ""
+            out.append(f"<h{level}{anchor}>{_inline(head, resolve)}</h{level}>")
             i += 1
             continue
 
@@ -140,9 +215,9 @@ def _md_to_html(text: str) -> str:
             while i < n and _TABLE_ROW.match(lines[i]):
                 body_rows.append(_split_row(lines[i]))
                 i += 1
-            thead = "".join(f"<th>{_inline(c)}</th>" for c in header)
+            thead = "".join(f"<th>{_inline(c, resolve)}</th>" for c in header)
             tbody = "".join(
-                "<tr>" + "".join(f"<td>{_inline(c)}</td>" for c in row) + "</tr>"
+                "<tr>" + "".join(f"<td>{_inline(c, resolve)}</td>" for c in row) + "</tr>"
                 for row in body_rows)
             out.append(f"<table><thead><tr>{thead}</tr></thead><tbody>{tbody}</tbody></table>")
             continue
@@ -153,25 +228,13 @@ def _md_to_html(text: str) -> str:
             while i < n and _QUOTE.match(lines[i].strip()):
                 quote_lines.append(_QUOTE.match(lines[i].strip()).group(1))
                 i += 1
-            out.append(f"<blockquote><p>{_inline(' '.join(quote_lines))}</p></blockquote>")
+            out.append(f"<blockquote><p>{_inline(' '.join(quote_lines), resolve)}</p></blockquote>")
             continue
 
-        if _UL.match(stripped):
+        if _UL.match(stripped) or _OL.match(stripped):
             flush_para()
-            items = []
-            while i < n and _UL.match(lines[i].strip()):
-                items.append(_UL.match(lines[i].strip()).group(2))
-                i += 1
-            out.append("<ul>" + "".join(f"<li>{_inline(it)}</li>" for it in items) + "</ul>")
-            continue
-
-        if _OL.match(stripped):
-            flush_para()
-            items = []
-            while i < n and _OL.match(lines[i].strip()):
-                items.append(_OL.match(lines[i].strip()).group(2))
-                i += 1
-            out.append("<ol>" + "".join(f"<li>{_inline(it)}</li>" for it in items) + "</ol>")
+            block, i = _list(lines, i, resolve)
+            out.append(block)
             continue
 
         para.append(stripped)
@@ -219,6 +282,57 @@ def write_all(out_dir: Path = summary.OUT_DIR, site_dir: Path | None = None) -> 
         site_dir.mkdir(parents=True, exist_ok=True)
         dest = site_dir / render.site_name(name)
         dest.write_text(render.wrap_standalone(page(name, md_path)))
+        written.append(dest)
+    return written
+
+
+def prereg_page(src: Path, root: Path, pages: dict[Path, str]) -> str:
+    """One registration as a standalone page: title, source path, way back, rendered body.
+
+    A relative link to another registration that has a page points at that page;
+    any other repo link shows as code (the file is not part of the site).
+    """
+    def resolve(href: str) -> str | None:
+        if href.startswith(("http://", "https://")) or href.startswith("#"):
+            return href
+        target, _, frag = href.partition("#")
+        if target.endswith(".md"):
+            dest = pages.get((src.parent / target).resolve())
+            if dest:
+                return dest + (f"#{frag}" if frag else "")
+        return None
+
+    raw = _unwrap_stray_fence(src.read_text(errors="replace"))
+    first = next((ln[2:].strip() for ln in raw.split("\n") if ln.startswith("# ")), src.stem)
+    try:
+        shown = src.relative_to(render.ROOT).as_posix()
+    except ValueError:
+        shown = src.as_posix()
+    css = (render.ASSETS / "page.css").read_text()
+    e = html.escape
+    return f"""<title>{e(first, quote=False)} — registration</title>
+<style>
+{css}
+.digest-page table{{display:block;overflow-x:auto}}
+</style>
+
+<div class="wrap digest-page">
+  <p class="digest-back"><a href="dashboard.html#studies">← studies on the dashboard</a></p>
+  <p class="digest-src">Pre-registration, rendered from <code>{e(shown, quote=False)}</code>.</p>
+{_md_to_html(raw, resolve)}
+</div>
+"""
+
+
+def write_prereg(site_dir: Path, root: Path = render.PREREG_DIR) -> list[Path]:
+    """Render every registration under root to site_dir. Returns the paths written."""
+    names = render.prereg_pages(root)
+    resolved = {f.resolve(): n for f, n in names.items()}
+    written: list[Path] = []
+    for src, name in names.items():
+        site_dir.mkdir(parents=True, exist_ok=True)
+        dest = site_dir / name
+        dest.write_text(render.wrap_standalone(prereg_page(src, root, resolved)))
         written.append(dest)
     return written
 

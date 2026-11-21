@@ -1163,6 +1163,9 @@ dashboard. The section shows three things:
 - the newest `current.md` sections (`tuning.py`).
 
 `render.py` emits markup only; `scripts/dashboard.py` supplies the page and the stylesheet.
+Every file under `research/pre-registrations/` is also rendered to `site/prereg-<name>.html`
+(`digest.write_prereg`, run by `scripts/dashboard.py`). A study whose registration is
+`<study>.md` links to its page from its map entry; a study with no such file shows no link.
 The dashboard is rebuilt after every study run and review (`build.refresh_quietly`).
 `make dashboard` forces a rebuild and opens it. `python3 -m scripts.study_map --check` (or
 `make study-check`) prints per-study last-run status, no HTML.

@@ -521,7 +521,7 @@ help:
 	@echo "  make study-review ARGS=\"--skip-run --dry-run\"  reuse existing report, no LLM calls"
 	@echo "  make study-review ARGS=\"bear_arm\"  grade another study (see: make studies)"
 	@echo ""
-	@echo "  make dashboard      DASHBOARD: rebuild site/dashboard.html (incl. every study + its last run) and open it"
+	@echo "  make dashboard      DASHBOARD: rebuild site/dashboard.html (incl. every study + its last run, and a prereg-<name>.html page per registration) and open it"
 	@echo "  make study-check    per-study last-run status, no HTML"
 	@echo ""
 	@echo "  make study-chart    CHART: render account_sim's result → study_output fragment + site/account-sim-charts.html"

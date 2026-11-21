@@ -18,15 +18,22 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def build_fragment(out_dir: Path = summary.OUT_DIR,
-                   log_path: Path = tuning.CURRENT_MD) -> str:
+                   log_path: Path = tuning.CURRENT_MD,
+                   prereg_dir: Path = render.PREREG_DIR) -> str:
     """The studies section body, as an HTML fragment styled by the dashboard."""
     runs = summary.summarize_all(list(catalog.STUDIES), out_dir)
-    return render.build(runs, tuning.read_log(log_path), tuning.log_mtime(log_path))
+    return render.build(runs, tuning.read_log(log_path), tuning.log_mtime(log_path),
+                        render.prereg_by_study(prereg_dir))
 
 
 def write_digests(site_dir: Path, out_dir: Path = summary.OUT_DIR) -> list[Path]:
     """Render each study's digest page into site_dir, beside the dashboard that links it."""
     return digest.write_all(out_dir, site_dir)
+
+
+def write_prereg_pages(site_dir: Path, prereg_dir: Path = render.PREREG_DIR) -> list[Path]:
+    """Render every registration into site_dir as `prereg-<name>.html`."""
+    return digest.write_prereg(site_dir, prereg_dir)
 
 
 def rebuild_dashboard(dest: Path | None = None, quiet: bool = True) -> Path:

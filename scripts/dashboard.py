@@ -12,7 +12,8 @@ site/flow-edge-ledger.html.
 
 The studies section IS the study map: every study's question, verdict and last
 run, built by scripts/study_map (folded in 2026-10-29; there is no separate
-study-map page any more). Each study's digest page is written beside this one.
+study-map page any more). Each study's digest page, and a `prereg-<name>.html` page for
+every pre-registration, are written beside this one.
 
 Every page carries one sticky navigation bar, built from NAV. A page another
 script generates (a study chart) is copied into a frame on a wrapper page under
@@ -1011,11 +1012,17 @@ def main(argv=None) -> int:
         digests, digest_err = [], type(ex).__name__
     else:
         digest_err = ""
+    try:
+        from scripts.study_map.build import write_prereg_pages
+        pregs = write_prereg_pages(out.parent, PREREG)
+    except Exception:  # noqa: BLE001  a registration page must never stop the dashboard
+        pregs = []
     if not a.quiet:
         print(f"dashboard -> {out} ({len(page):,} bytes), as of {a.today}")
         print(f"ledger    -> {ledger or f'not written: {LEDGER_SRC} is missing'}")
         print(f"put/call  -> {put_call or f'not written ({put_call_err})'}")
         print(f"embedded  -> {', '.join(x.name for x in embeds) or 'none (no study chart pages in site/ yet)'}")
+        print(f"prereg    -> {len(pregs)} page(s)")
         print(f"digests   -> {len(digests)} page(s)" + (f", failed ({digest_err})" if digest_err else ""))
         for i in d["flow"]["items"]:
             print(f"  {i['label']:<22} {i['date'] or 'none':<11} {i['state']}  {i.get('note', '')}")
