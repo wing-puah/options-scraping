@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Refresh the BaselineDaily export and the six ETFs' price files, then rebuild the
+# Refresh the BaselineDaily export and the six ETFs' and SMH's price files, then rebuild the
 # dashboard pages. The export reads Sheets only, so it does not wait for Barchart.
 #
 # launchd runs this each morning (com.wing.options-etf-prices.plist in this folder).
@@ -25,7 +25,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT" || exit 1
 
-TICKERS="SPY,QQQ,IWM,HYG,TLT,GLD"
+TICKERS="SPY,QQQ,IWM,HYG,TLT,GLD,SMH"   # SMH feeds the dashboard's regime-watch section
 MAX_WAIT="${ETF_PRICE_MAX_WAIT:-28800}"
 MAX_WAKE_WAIT="${ETF_PRICE_MAX_WAKE_WAIT:-72000}"   # wall-clock; ends before the next 07:17
 MAX_TRIES=3

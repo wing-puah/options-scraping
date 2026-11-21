@@ -82,10 +82,10 @@ def test_scrape_with_merge_writes_the_union(tmp_path, monkeypatch):
     assert (tmp_path / "SPY.csv").read_text() == _csv(("2026-01-06", 11), ("2026-01-05", 10))
 
 
-def test_the_scheduled_job_fetches_exactly_the_baseline_etfs_with_merge():
+def test_the_scheduled_job_fetches_the_baseline_etfs_and_smh_with_merge():
     script = (DAILY / "refresh_etf_prices.sh").read_text()
     line = next(ln for ln in script.splitlines() if ln.startswith("TICKERS="))
-    assert set(line.split('"')[1].split(",")) == set(KEY_TICKERS)
+    assert set(line.split('"')[1].split(",")) == set(KEY_TICKERS) | {"SMH"}  # SMH: regime-watch section
     assert "--force --merge" in script
 
 

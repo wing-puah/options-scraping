@@ -106,3 +106,10 @@ def test_section_in_built_html(tmp_path, monkeypatch):
     assert "have no status row" in html or "has a status row" in html
     page, _ = d.build("2026-01-30")
     assert 'id="regime-watch"' in page
+
+
+def test_note_counts_backfilled_rows():
+    r = rows([(DAYS[0], "WATCH"), (DAYS[1], "WATCH")])
+    n = rp.data_note(r, prices(), [{"date": DAYS[1], "backfilled_on": "2026-11-21"},
+                                   {"date": "2020-01-01", "backfilled_on": "2026-11-21"}])
+    assert n["n_backfilled"] == 1 and n["backfilled_on"] == ["2026-11-21"]

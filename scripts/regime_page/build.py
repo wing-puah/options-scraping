@@ -131,13 +131,24 @@ def onsets(rows: list[dict], prices: dict) -> list[dict]:
     return out
 
 
-def data_note(rows: list[dict], prices: dict) -> dict:
+def load_backfilled(path: Path) -> list[dict]:
+    """The sidecar of rows computed after the fact (date, backfilled_on). Missing file gives []."""
+    try:
+        with open(path, newline="", encoding="utf-8") as f:
+            return [r for r in csv.DictReader(f) if (r.get("date") or "").strip()]
+    except (OSError, UnicodeDecodeError, csv.Error):
+        return []
+
+
+def data_note(rows: list[dict], prices: dict, backfilled: list[dict] | None = None) -> dict:
     """Price-calendar sessions since the first history date that have no status row, and each price file's last date."""
     cal = calendar(prices)
     have = {r["date"] for r in rows}
     first = rows[0]["date"]
     missing = [d for d in cal if d >= first and d not in have]
+    bf = [r for r in (backfilled or []) if r["date"] in have]
     return {"first": first, "n_missing": len(missing), "last_missing": missing[-1] if missing else None,
+            "n_backfilled": len(bf), "backfilled_on": sorted({r.get("backfilled_on", "") for r in bf} - {""}),
             "ends": {sym: (max(prices[sym]) if prices.get(sym) else None) for sym in ETFS}}
 
 
@@ -148,11 +159,12 @@ def gather(path: Path = WATCH_CSV, loader=default_loader) -> dict:
     prices = {sym: loader(sym) for sym in ETFS}
     if not calendar(prices):
         return {"ok": False, "why": "no price files for SPY, QQQ or SMH"}
+    bf = load_backfilled(Path(path).with_name("backfilled.csv"))
     runs = build_runs(rows, prices)
     last, cur = rows[-1], runs[0]
     cal = calendar(prices)
     return {"ok": True, "last": last, "held": sessions_between(cal, cur["start"], last["date"]) or cur["rows"],
-            "runs": runs, "onsets": onsets(rows, prices), "note": data_note(rows, prices)}
+            "runs": runs, "onsets": onsets(rows, prices), "note": data_note(rows, prices, bf)}
 
 
 # ── render ────────────────────────────────────────────────────────────────────
@@ -239,6 +251,10 @@ def render(g: dict, prereg_href: str | None = None) -> str:
     n = g["note"]
     gap = (f"{n['n_missing']} session(s) since {n['first']} have no status row; the most recent is "
            f"{n['last_missing']}." if n["n_missing"] else f"Every session since {n['first']} has a status row.")
+    if n.get("n_backfilled"):
+        when = " and ".join(n["backfilled_on"]) or "a later date"
+        gap += (f" {n['n_backfilled']} rows were backfilled on {when} from data as of each date, "
+                "not logged on the day.")
     ends = ", ".join(f"{k} to {v or DASH}" for k, v in n["ends"].items())
     s.append(f'<p class="sub">{e(gap)} Session counts use the price calendar, not the history rows. '
              f'Price files reach: {e(ends)}. A change over a run uses the close on the exact start and end '

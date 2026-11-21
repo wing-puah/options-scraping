@@ -3,6 +3,7 @@
     python3 scripts/regime_watch.py                    # latest finished session
     python3 scripts/regime_watch.py --as-of 2025-04-08 # causal replay
     python3 scripts/regime_watch.py --json             # same content as JSON
+    python3 scripts/regime_watch.py --fill-missing     # add sessions with no row, never touch existing rows
     python3 scripts/regime_watch.py --backfill 250     # replay the last 250 sessions into history
     make regime-watch ARGS="--as-of 2025-04-08"
 
@@ -96,6 +97,35 @@ def backfill(frames: dict, table: list[dict], sessions: int, history: str) -> in
     return len(days)
 
 
+def fill_missing(frames: dict, table: list[dict], history: str, sidecar: str,
+                 today: str | None = None) -> list[str]:
+    """Compute, in date order, every SPY session after the first history row that has no row.
+
+    Each date goes through the same evaluate() as a daily run (every series cut to that
+    date, no lookahead). Existing rows are never rewritten. The dates filled are appended
+    to `sidecar` (date, backfilled_on) so the dashboard can say they were not logged on the day."""
+    import csv
+    hp = Path(history)
+    have = {r["date"] for r in csv.DictReader(open(hp, newline=""))} if hp.exists() else set()
+    if not have:
+        return []
+    spy = regime_watch.drop_partial(frames["SPY"])
+    days = [d.strftime("%Y-%m-%d") for d in spy.index]
+    todo = [d for d in days if d > min(have) and d not in have]
+    for d in todo:
+        regime_watch.upsert_history(history, regime_watch.evaluate(frames, table, as_of=d))
+    if todo:
+        sp = Path(sidecar)
+        new = not sp.exists()
+        with open(sp, "a", newline="") as fh:
+            w = csv.writer(fh)
+            if new:
+                w.writerow(["date", "backfilled_on"])
+            for d in todo:
+                w.writerow([d, today or date.today().isoformat()])
+    return todo
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -105,6 +135,9 @@ def main() -> int:
     ap.add_argument("--history", default=str(HISTORY))
     ap.add_argument("--backfill", type=int, metavar="N",
                     help="replay the last N sessions into the history CSV, then exit")
+    ap.add_argument("--fill-missing", action="store_true",
+                    help="compute every session since the first history row that has no row, "
+                         "in date order, leaving existing rows alone; log them in backfilled.csv")
     ap.add_argument("--mech-csv", default=str(MECH_CSV))
     args = ap.parse_args()
 
@@ -113,8 +146,13 @@ def main() -> int:
               file=sys.stderr)
         return 1
     try:
-        frames = fetch(args.as_of, extra_days=int((args.backfill or 0) * 1.5))
+        frames = fetch(args.as_of, extra_days=int((args.backfill or 0) * 1.5) + (60 if args.fill_missing else 0))
         table = mech_regime.compute_mech_table(args.mech_csv)
+        if args.fill_missing:
+            done = fill_missing(frames, table, args.history,
+                                str(Path(args.history).with_name("backfilled.csv")))
+            print(f"regime_watch: {len(done)} missing sessions filled: {', '.join(done) or 'none'}")
+            return 0
         if args.backfill:
             n = backfill(frames, table, args.backfill, args.history)
             print(f"regime_watch: {n} sessions replayed into {args.history}")

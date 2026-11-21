@@ -187,3 +187,43 @@ def test_backfill_replays_each_session_causally(tmp_path):
     rows = list(csv.DictReader(open(p)))
     assert [r["c5_vix_ge_20"] for r in rows] == ["False", "False", "True", "True"]
     assert rows[0]["date"] == rw.evaluate(fr, tab, as_of=rows[0]["date"])["date"]
+
+
+def _hist(tmp_path, fr, tab, days):
+    from scripts import regime_watch as script
+    p = tmp_path / "h.csv"
+    for d in days:
+        rw.upsert_history(str(p), rw.evaluate(fr, tab, as_of=d, now=AFTER_CLOSE))
+    return script, p
+
+
+def test_fill_missing_in_order_untouched_and_idempotent(tmp_path):
+    fr = frames(vix=flat(255, 15.0) + [25.0] * 5)
+    tab = table(["BULL"] * 255 + ["BEAR"] * 5)
+    days = [d.strftime("%Y-%m-%d") for d in fr["SPY"].index[-6:]]
+    script, p = _hist(tmp_path, fr, tab, [days[0], days[3]])
+    before = {r["date"]: r for r in csv.DictReader(open(p))}
+    side = tmp_path / "b.csv"
+    done = script.fill_missing(fr, tab, str(p), str(side), today="2026-11-21")
+    assert done == [days[1], days[2], days[4], days[5]]
+    rows = list(csv.DictReader(open(p)))
+    assert [r["date"] for r in rows] == days
+    for d, r in before.items():
+        assert next(x for x in rows if x["date"] == d) == r
+    # each filled row equals a lone causal run on its date, so the streak counts up in order
+    assert [r["bear_streak"] for r in rows] == ["0", "1", "2", "3", "4", "5"]
+    assert [r["date"] for r in csv.DictReader(open(side))] == done
+    assert script.fill_missing(fr, tab, str(p), str(side), today="2026-11-22") == []
+    assert len(list(csv.DictReader(open(p)))) == 6
+    assert len(list(csv.DictReader(open(side)))) == 4
+
+
+def test_fill_missing_has_no_lookahead(tmp_path):
+    vix = flat(259, 15.0) + [40.0]                 # the spike is on the last day only
+    fr = frames(vix=vix)
+    tab = table(["BULL"] * 260)
+    days = [d.strftime("%Y-%m-%d") for d in fr["SPY"].index[-3:]]
+    script, p = _hist(tmp_path, fr, tab, [days[0]])
+    script.fill_missing(fr, tab, str(p), str(tmp_path / "b.csv"))
+    rows = {r["date"]: r for r in csv.DictReader(open(p))}
+    assert rows[days[1]]["c5_vix_ge_20"] == "False" and rows[days[2]]["c5_vix_ge_20"] == "True"
