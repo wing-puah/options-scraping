@@ -4,13 +4,12 @@
 > Latest outcome: not run — draft of 2026-11-21.
 <!-- outcome:end -->
 
-_Registered ____-__-__ (DRAFT — not registered; becomes immutable in substance when the operator accepts it)._
+_Registered 2026-11-21 (accepted by default; immutable in substance)._
 
-**STATUS: DRAFT, ACCEPTED BY DEFAULT on the drafter's recommended parameters (the operator's
-standing rule of 2026-10-09), pending the second reader.** Drafted 2026-11-21. No forward return,
-hit rate, lift, episode count or episode outcome was computed before this file was written. The
-registration date is stamped when the second reader's fixes are folded in and the file is
-committed. Contested choices are parameters printed both ways, with one named as the headline.
+**STATUS: REGISTERED · ACCEPTED BY DEFAULT, NOT YET RUN**, on the drafter's recommended parameters
+(the operator's standing rule of 2026-10-09). No forward return, hit rate, lift, episode count or
+episode outcome was computed before this file was written. Contested choices are parameters printed
+both ways, with one named as the headline.
 
 A fresh second reader checked the draft on 2026-11-21, before any outcome existed. Its read was
 FREEZE AFTER MINOR EDITS. Its three blocking findings and every minor one are folded in below.
@@ -838,6 +837,28 @@ The report's section titled VERDICT prints:
 
 Q4 prints `DESCRIPTIVE` without THIN only when every cell holds 10 priced trades. Q1 and Q5 print
 no banner line.
+
+## Resolved at build (2026-11-21)
+
+These are clarifications made before the first run. No gate, bar, arm or verdict meaning changed.
+
+- **Unclosed episode zone.** An unclosed episode keeps its exclusion zone, from `p − 21` to the data end.
+- **Shared draws.** Each unit type has one matrix of uniform draws, and a cell of `n` units reads the first `n` columns.
+- **"Had a state".** A session has a state when its label's `ok` is true, so a session with no VIX close still has a direction.
+- **Joint control rule.** A control window must have every candidate value the episode's own window has.
+- **Coincident controls.** The lead window that must be zone-free has length 10, whatever `W` is printed.
+- **G-LEAD controls.** The control windows are the unshifted `d − W` to `d − 1`.
+- **`r_h^0`.** It is `ln(A[D+h] / A[D])`, the same horizon from the signal close.
+- **E-DD5 words.** They use the PBO of the `E-DD8` grid.
+- **Coincident floor.** A candidate with fewer than 10 coincident episodes cannot print `COINCIDENT`.
+- **Forward banner.** The Q2 word is the Q2 READ rule over the forward cells, and the Q3 word is `B10`.
+- **`done`.** An onset is inside an episode from `p` to the episode's end, the session before the recovery or 42 after the last trigger.
+- **Q5 gate.** It runs first and silently. A refusal prints `Q5 REFUSED (reason)` where Q5 would be, Q1–Q4 and the banner print in full, and the exit code is 2 (thin) or 3 (era).
+- **GL dates.** Only dates the other source can label are compared, since `spy_vix_daily_full.csv` has no label in its first 50 sessions.
+- **PBO `z`.** The standard deviation uses `ddof = 1`.
+- **C5–C7 graded word.** It is `NO-FORECAST` unless the candidate is `LEADS`; the mechanical line prints beside it.
+- **Forward other days.** Every onset of the signal is kept out of the other days, including onsets inside the current zone.
+- **Truncated windows.** Q3 onsets with no outcome, Q4 onsets past the data and episodes with no trigger session are counted as `n_truncated`.
 
 ## Anti-tuning
 
