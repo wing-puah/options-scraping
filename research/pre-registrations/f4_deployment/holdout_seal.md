@@ -63,6 +63,16 @@ Runs that printed outcomes on 2026-08-11 → 2026-09-22:
 
 The run list comes from `refuse_floor_forward`'s census and the report headers in `backtests/study_output/`. No priced row on 2026-09-23 or later has existed in any export, so no run can have read one.
 
+### Disclosed reads of sealed dates
+
+Reads that printed outcomes on sealed dates after this file was accepted. Each one
+has been disclosed. None is the seal's own read, and none lifts the seal.
+
+| Date | Read | Rows read | What it spends |
+|---|---|---|---|
+| 2026-10-22 | descriptive pass on the bare export ([entry](../../current.md)) | 83 rows on 17 dates | the drafter has seen these rows; `structure_sweep` discloses it |
+| 2026-11-21 | bear strategies in 2026, a peek the operator asked for ([entry](../../current.md#2026-11-21--bear-strategies-in-2026-peek-ungraded-sealed-dates)) | 285 rows on 39 dates | forward reads of `index_bear_hedge`, `bear_arm` B2 and `hedge_timing`; this seal's read on pooled dollars |
+
 ### What "sealed" forbids
 
 No study, chart, review, digest or write-up may compute or print an OUTCOME statistic on a sealed date. An outcome statistic is any figure derived from a position's realised or marked P&L: [R](../../glossary.md#r), [E](../../glossary.md#e), [meanR](../../glossary.md#meanr), [PF](../../glossary.md#pf), [win%](../../glossary.md#win-rate), [maxDD](../../glossary.md#maxdd), [MFE/MAE](../../glossary.md#mfe), a dollar total, or any CI, band or fold computed from one.

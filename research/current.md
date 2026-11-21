@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-21 (peek, ungraded, sealed dates): every 2026 bear set was losing until the seal, and the current sell-off alone turns it positive; the index hedge cut the book's sell-off drawdown by about two fifths, but the hedged book still lost money in 2026**
+([entry](#2026-11-21--bear-strategies-in-2026-peek-ungraded-sealed-dates)).
+
 **2026-11-18: `daily_vol_structure` finds nothing that pays; all 144 cells and 19 of 20 daily QQQ and SMH straddle and ratio sides are `NULL`**
 ([entry](#2026-11-18--daily_vol_structure-no-daily-straddle-or-ratio-pays-on-qqq-or-smh)).
 
@@ -325,6 +328,114 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-11-21 — bear strategies in 2026: peek, ungraded, sealed dates
+
+**In 2026 the bear strategies only made money because of the current sell-off.**
+All three bear sets were losing from January to 2026-09-22. The fall since 2026-10-06 (SPY
+779.09 to 689.81, −11.5%) turned the index hedge and the bear plays positive for the year.
+The §4 sleeve stand-in ends flat. **Nothing ships.** This read is not a verdict.
+
+_Report: `backtests/study_output/peek-bear-2026-20261121-1306.txt` · era v4 · exports of
+2026-11-21 13:06, marks to 2026-11-20 · code 61ec15d (clean) · scratch script sha256
+`fef19fa5…` · requested by the operator, who chose a disclosed peek and kept the seal._
+
+**This read used sealed dates.** The script swapped out `era.drop_sealed` in its own
+process, so that function counted the sealed rows and kept them. No repo file changed,
+`SEAL_LIFTED` is still `None`, and no reader name was added.
+
+| Sealed rows read (signal ≥ 2026-09-23) | Count |
+|---|---|
+| rows | 285 on 39 signal dates |
+| by source | 207 real, 78 tweak (bs excluded) |
+
+**In production.** Nothing changes. The §4 sleeve stays operator policy, and
+`index_bear_hedge` stays a forward-only read.
+
+### What was tested
+
+| Set | What it is | Weight |
+|---|---|---|
+| Book | `index_bear_hedge`'s deployed book: top 3 a day, tier A or B, index bears removed | recorded size |
+| A, index hedge | `index_bear_hedge`'s sleeve: SPY/QQQ/IWM bear put spreads | 1/n per signal date |
+| B, §4 stand-in | every bear debit row, gap-up days skipped (`hedge_timing.t_gap`, 0.3%), stored production exit | 0.5/n per signal date |
+| C, bear plays | every `direction == bear` row in the v4 book; 829 of 839 are bear put spreads | recorded size |
+
+B has no pick rule because none is supported on v4. It also leaves out §4's
+"no cheap far-OTM put" clause.
+
+### Result, calendar mark-to-market
+
+Each figure is the change in curve level across the window.
+
+| Window | Book | A | Book + A | B | Book + B | C |
+|---|---|---|---|---|---|---|
+| 2026-01-01 → 09-22 | +$1,434 | −$30,071 | −$28,637 | −$9,430 | −$7,996 | −$76,819 |
+| 2026-09-23 → 11-20 (sealed) | −$102,102 | +$42,198 | −$59,903 | +$9,273 | −$92,829 | +$90,375 |
+| **2026 to date** | **−$100,668** | **+$12,127** | **−$88,540** | **−$157** | **−$100,825** | **+$13,556** |
+| sell-off, 10-06 → 11-20 | −$98,406 | +$41,712 | −$56,694 | +$8,355 | −$90,052 | +$81,104 |
+
+| Max drawdown inside the window | Book | Book + A | Book + B | C |
+|---|---|---|---|---|
+| 2026-01-01 → 09-22 | −$39,685 | −$60,209 | −$44,869 | −$96,148 |
+| sell-off, 10-06 → 11-20 | −$100,035 | −$60,234 | −$91,193 | −$25,470 |
+
+By signal date the picture is the same. Open rows are marked at 2026-11-20.
+
+| Window | A | B | C |
+|---|---|---|---|
+| 2026-01-01 → 09-22 | −$12,494 (1 open) | −$4,016 (20 open) | −$42,009 (30 open) |
+| sealed | +$29,392 (3 open) | +$5,876 (38 open) | +$61,867 (49 open, marked +$19,125) |
+
+### What it means
+
+- **The index hedge (A) did its job in the sell-off.** It cut the book's drawdown from
+  −$100.0k to −$60.2k. That fits the in-sample read, where it cut every sell-off loss.
+- **It paid for that between sell-offs.** Before 2026-09-22 it bled $32,100 on sessions
+  outside any sell-off. For 2026 it is +$12.1k only because the fall came before year end.
+  The whole-era net on the last official run is still −$49,254.
+- **The §4 stand-in (B) is too small to matter.** At half size it made +$8.4k in the
+  sell-off while the book lost $98.4k. For the year it is flat.
+- **The bear plays (C) lost $76.8k before the seal.** Their sealed-window gain more than
+  covers it, so 2026 ends positive (table above).
+- **Part of that gain is not banked.** $19.1k of it is marks on 49 positions that are
+  still open.
+- **The deployed book is a bullish bet.** It lost $102k in two months. A hedge sized
+  like A recovers about 40% of that. No hedge tested here turns 2026 positive for the book.
+
+### Limits
+
+- **This is one sell-off, still open.** The window was picked because the market had
+  just fallen, which is the best moment to look at bears. A rebound would shrink every
+  open mark.
+- **The sell-off is not forward evidence for `index_bear_hedge`.** Its peak (2026-10-06)
+  is before the 2026-10-09 forward cutoff.
+- **The book and C overlap the seal's own read.** Sealed figures for them are printed as
+  pooled dollars and drawdown only: no tier split, no mean R, no profit factor.
+- **A is a subset of C.** The 225 index-bear rows in A are also in C, at a different
+  weight.
+
+**This peek spends these reads.** The forward reads of `index_bear_hedge`, `bear_arm`
+B2 and `hedge_timing` are no longer blind on 2026-09-23 → 11-20. Nor is the seal's read
+on pooled dollars. The disclosure is logged in
+[`holdout_seal.md`](pre-registrations/f4_deployment/holdout_seal.md#disclosed-reads-of-sealed-dates).
+
+**Checks.**
+
+- With the seal on, the script matches the official `index_bear_hedge` run to the dollar.
+  That holds on the 2026-01-27 sell-off and on every pre-seal figure.
+- G-MTM passes on all four curve sets at the shipped tolerance.
+- The official run reproduced −$49,254 before the refresh.
+
+**Data note.** The refresh ran `make daily-loop START=2026-09-01`. The backtest and proxy
+re-priced through 2026-11-20. The journal step then failed on Flex error 1003 ("Statement
+is not available", a Saturday), so the deploy card was not rebuilt. The cache push was run
+by hand.
+
+**Queue.** Nothing new. Any rule change from this needs a registration whose window starts
+after 2026-11-20.
 
 ---
 

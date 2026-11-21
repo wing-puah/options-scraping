@@ -537,6 +537,10 @@ on dates, not on design. Do not register a fourth trigger study.
   **Tier C (299) or VETO (71)**; none is Tier A or B, so the shipped ladder never
   deploys one. The sleeve only bites on bear positions the operator takes
   *deliberately*.
+- **A peek at 2026 (to be tested, not evidence).** A mechanical stand-in for the
+  sleeve ended 2026 flat (−$157). It made +$8.4k in the 2026-10-06 sell-off while the
+  book lost $98.4k. This was an ungraded peek at sealed dates
+  ([entry](current.md#2026-11-21--bear-strategies-in-2026-peek-ungraded-sealed-dates)).
 
 ---
 
