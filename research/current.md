@@ -533,6 +533,12 @@ verdict contradicted by a printed figure, and no misquoted number.
   could not reconcile them from the report.
 - **The tree was dirty at the run.** The header reads `744433f (main, working tree dirty)`.
 
+Re-graded 2026-11-21 on the report with Q4 and the post-hoc table (`state_map-v4-20261121c.txt`).
+The graders agree with every printed verdict, and the `COINCIDENT` words now grade `MET`.
+They graded Q4 `DESCRIPTIVE` `MET` and did not grade the post-hoc table. Both said the
+registered `TURN-ON` table prints `followed 0.000` throughout, and that the registered Q4
+per-trade table is not printed. The first-run files are kept with a `-first-run-20261121` suffix.
+
 ### Next
 
 - A new item, [`next-steps.md`](next-steps.md) §2.31: Q4 needs the 11 contracts fetched, and

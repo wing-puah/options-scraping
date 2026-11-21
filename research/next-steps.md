@@ -1706,7 +1706,8 @@ the bear or extreme-vol state printed. Nothing ships
 ([entry](current.md#2026-11-21--state_map-no-market-state-warned-before-a-top),
 [pre-registration](pre-registrations/f1_selection/regime/state_map.md),
 [record](study-results/f1_selection/regime/state_map.md)). `study_review` graded it on
-2026-11-21 with no disagreement on a printed verdict. Q4 printed `DESCRIPTIVE` after the fetch
+2026-11-21 with no disagreement on a printed verdict, and re-graded the report with Q4 and
+the post-hoc table the same day with the same result. Q4 printed `DESCRIPTIVE` after the fetch
 of 2026-11-21 and decides nothing. The forward read is `STILL-OPEN`.
 
 | Open item | State |

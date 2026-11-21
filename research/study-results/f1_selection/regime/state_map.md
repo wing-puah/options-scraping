@@ -39,3 +39,15 @@ Q4 priced after the fetch. Every other verdict line is unchanged from `-b`; only
 ```
 
 Reading: [current.md](../../../current.md#2026-11-21--state_map-no-market-state-warned-before-a-top).
+
+## Note 2026-11-21 (later) · re-graded on `state_map-v4-20261121c.txt`
+
+`study_review` re-graded the report that carries Q4 and the post-hoc table. Both analysts and the validator agree with every printed verdict. The `COINCIDENT` words and the Q4 `DESCRIPTIVE` line grade MET. The post-hoc table was not graded.
+
+Still open after the re-grade:
+
+- The graders split on three gate rows (GB, GX, GC) and on the label of the Q3 READ row.
+- The registered per-trade Q4 table is not printed.
+- "selection fragile" prints on the PBO line only, not in the banner.
+
+The run's own record block was appended and then lost to a concurrent revert the same day. This note stands in for it. The first-run review files are kept in `backtests/study_output/` with a `-first-run-20261121` suffix.
