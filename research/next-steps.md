@@ -511,6 +511,14 @@ Decisions owed. None of these is a study.
     (`scripts/journal/s02_reconcile.py:469-475`), which is a different fix. A
     live 1x2 would otherwise read as a 1-lot vertical.
 
+19. **OPEN 2026-11-21 — the `state_map` `TURN-ON` table is vacuous; decide whether to build the
+    in-zone version.** The table reads `followed 0.000` for every candidate in both windows,
+    against a base rate of 0.080 and 0.079. It counts only turn-ons outside the exclusion
+    zones, and a trigger within 21 sessions can only come from inside a zone. Evidence:
+    [`current.md`](current.md#2026-11-21--state_map-no-market-state-warned-before-a-top).
+    Default: do nothing. No verdict reads the table. If accepted: a disclosed post-hoc
+    descriptive table that counts the in-zone turn-ons, printed only, with no verdict.
+
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14
 
@@ -1691,6 +1699,32 @@ How to resume:
 
 `operator_read` ([§2.5](#s2-5)) is still undrafted. The journal now holds 59 mapped closes,
 above its 30 to 50 gate.
+
+### 2.31 `state_map` — RUN 2026-11-21, Q2 `COINCIDENT`, Q3 `NULL`; forward read `STILL-OPEN`
+
+No market state warned before an 8% SPY fall in 2016–2026, and SPY did not keep falling once
+the bear or extreme-vol state printed. Nothing ships
+([entry](current.md#2026-11-21--state_map-no-market-state-warned-before-a-top),
+[pre-registration](pre-registrations/f1_selection/regime/state_map.md),
+[record](study-results/f1_selection/regime/state_map.md)). `study_review` graded it on
+2026-11-21 with no disagreement on a printed verdict. Q4 is `AWAITING SCRAPE` and the forward
+read is `STILL-OPEN`.
+
+| Open item | State |
+|---|---|
+| Q4 fetch | 11 contracts, for 10 of 39 onsets; no collector script exists |
+| `TURN-ON` table | vacuous by construction; the operator decides (item 19, *Waiting on the operator*) |
+| Forward read | 0 closed episodes against a floor of 10; the current sell-off is excluded |
+
+How to resume:
+
+1. Run, record and grade: done 2026-11-21.
+2. Q4: write a collector script for the 11 contracts, then re-run `state_map`. The fetch needs
+   no other cache writer running.
+3. `TURN-ON`: the operator decides whether to build the in-zone table. It would be a disclosed
+   post-hoc descriptive table, printed only.
+4. Forward: expect `STILL-OPEN` for years. The first forward run that prints another word is the
+   verdict of record.
 
 <a id="s3"></a>
 ## 3. Standing rules — settled, do not re-open

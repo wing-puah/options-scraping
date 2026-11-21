@@ -1,7 +1,7 @@
 ## state_map — which market states come before SPY sell-offs, and is the confirmed bear state too late?
 
 <!-- outcome:start -->
-> Latest outcome: not run — draft of 2026-11-21.
+> Latest outcome: `>>> state_map Q2 READ (state variables before E-DD8 onsets, 10-session lead, test 2016-01-01 to 2026-09-22): COINCIDENT <<<` (10 test episodes, floor 10); `>>> state_map Q3 READ (B10: SPY 10 sessions after a mech BEAR onset vs other days, test 2016-01-01 to 2026-09-22): NULL <<<` (PBO veto); Q4 `AWAITING SCRAPE`; forward `STILL-OPEN` — market closes to 2026-11-20, v4 book for Q5, run 2026-11-21 · [record](../../../study-results/f1_selection/regime/state_map.md)
 <!-- outcome:end -->
 
 _Registered 2026-11-21 (accepted by default; immutable in substance)._

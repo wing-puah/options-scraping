@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-21: `state_map` prints Q2 `COINCIDENT` and Q3 `NULL`; no market state warned before an 8% SPY fall, and the bear state does not time an entry**
+([entry](#2026-11-21--state_map-no-market-state-warned-before-a-top)).
+
 **2026-11-21 (peek, ungraded, sealed dates): every 2026 bear set was losing until the seal, and the current sell-off alone turns it positive; the index hedge cut the book's sell-off drawdown by about two fifths, but the hedged book still lost money in 2026**
 ([entry](#2026-11-21--bear-strategies-in-2026-peek-ungraded-sealed-dates)).
 
@@ -328,6 +331,185 @@ blocks any work; each has its full entry in an archive volume.
   the sleeve-sizing fold onto `lib/hedge_criteria.sleeve_pick`. Last is the
   far-call fetch that restored 178 lost cache files while `hedge_structure`
   stayed blocked at R2.
+
+---
+
+## 2026-11-21 — state_map: no market state warned before a top
+
+**No state variable warned before an 8% SPY sell-off in 2016–2026.** The VIX and trend flags
+turn on while the fall is under way, not before the top. Once the mechanical BEAR or E-VOL
+state prints, SPY did not keep falling on average. So the labels describe a fall in progress;
+they do not time an entry or an exit. **Nothing ships.**
+
+_Report: `backtests/study_output/state_map-latest.txt` (v4) and
+`state_map-v3-20261121.txt` (Q5 only) · record:
+[`state_map.md`](study-results/f1_selection/regime/state_map.md) · code 744433f (working
+tree dirty) · run 2026-11-21 16:11._
+
+_Inputs: Q1–Q4 read unversioned market closes to 2026-11-20. Q5 read the v4 exports of
+2026-11-21 13:06._
+
+_Windows: discovery to 2015-12-31, test 2016-01-01 to 2026-09-22, forward from 2026-11-21._
+
+_Graded by `study_review` 2026-11-21: no grader disagrees with a printed verdict
+([Grading](#state_map-grading))._
+
+**In production.** Nothing changes. The deployed rules stay as they are, and no entry, exit or
+hedge trigger comes out of these flags.
+
+### What was asked
+
+The operator asked whether the bear and extreme-vol states could have been caught early.
+
+- **Q2.** Does any of nine state variables turn on more often in the 10 sessions before the
+  top of an 8% fall than on matched calm days?
+- **Q3.** After the mechanical BEAR or E-VOL state first prints, does SPY keep falling?
+
+### Q2: the variables confirm the fall, they do not precede the top
+
+**Verdict.** `>>> state_map Q2 READ (state variables before E-DD8 onsets, 10-session lead,
+test 2016-01-01 to 2026-09-22): COINCIDENT <<<`. The test window holds 10 closed `E-DD8`
+episodes, exactly the floor of 10.
+
+| Candidate | Lead lift [CI] | Coincident lift [CI] | Word |
+|---|---|---|---|
+| C1 VIX >= 20 | -0.90 [-15.55, +15.85] | +25.72 [+10.44, +39.52] | `COINCIDENT` |
+| C2 VIX 252-day percentile >= 0.80 | -3.44 [-8.87, +2.61] | +36.39 [+18.17, +54.54] | `COINCIDENT` |
+| C3 VIX up >= 25% in 5 sessions | -4.05 [-5.57, -1.95] | +20.21 [+8.70, +34.27] | `COINCIDENT` |
+| C4 VIX > VIX3M | -1.62 [-2.53, -0.79] | +19.81 [+7.74, +33.08] | `COINCIDENT` |
+| C5 SPY < 50-day SMA | -10.14 [-14.74, -5.64] | +35.57 [+21.46, +48.04] | `NO-FORECAST` |
+| C6 SPY < 200-day SMA | +3.85 [-7.11, +22.14] | +13.31 [+0.64, +31.55] | `NO-FORECAST` |
+| C7 SPY < its close 20 sessions ago | -15.11 [-22.32, -5.71] | +37.17 [+24.86, +48.79] | `NO-FORECAST` |
+| C8 21-session realised vol > VIX | +0.40 [-7.46, +11.37] | -4.51 [-6.67, -2.67] | `NO-FORECAST` |
+| C9 HYG/IEF down > 1% in 20 sessions | -2.23 [-13.63, +15.16] | +13.26 [-8.32, +37.33] | `NO-FORECAST` |
+
+Lifts are percentage points of sessions. C5 to C7 print `COINCIDENT (mechanical)` beside the
+word, because a price-trend flag is true after a fall by construction.
+
+- **No candidate leads.** No lead-lift CI sits above 0.
+- **Four lead less than calm days.** C3, C4, C5 and C7 have lead lifts significantly below 0.
+  The tops came from calmer-than-average VIX: the lead windows held no `Extreme` sessions.
+- **Selection is fragile.** `Q2 PBO (27 configs, T = 32 years, S = 16): 0.395  -> selection
+  fragile`.
+- **The other side.** The printed-only G-LEAD table anchors the window on the trigger session
+  instead of the top. It is strongly positive for C1 to C5 and C7. The variables are on in the
+  sessions before the -8% trigger, which is during the fall.
+
+| G-LEAD, W = 5 | Lift [CI] |
+|---|---|
+| C5 SPY < 50-day SMA | +59.69 [+39.03, +78.83] |
+| C7 SPY < its close 20 sessions ago | +59.07 [+44.93, +73.22] |
+| C1 VIX >= 20 | +47.87 [+31.46, +64.38] |
+
+### Q3: after the state prints, SPY did not keep falling
+
+**Verdict.** `>>> state_map Q3 READ (B10: SPY 10 sessions after a mech BEAR onset vs other
+days, test 2016-01-01 to 2026-09-22): NULL <<<`. All six cells print `NULL (PBO veto)`, and
+`Q3 PBO (6 configs, T = 32, S = 16): 0.603  -> PBO veto`.
+
+| Cell | Onsets | Mean r after onset | D vs other days [CI] |
+|---|---|---|---|
+| B5 S-BEAR, 5 sessions | 36 | +0.71 | +0.43 [-0.26, +1.09] |
+| B10 S-BEAR, 10 sessions | 35 | +0.39 | -0.19 [-1.44, +0.98] |
+| B21 S-BEAR, 21 sessions | 35 | +1.04 | -0.18 [-2.29, +1.61] |
+| V5 S-EVOL, 5 sessions | 64 | +0.02 | -0.27 [-0.95, +0.35] |
+| V10 S-EVOL, 10 sessions | 64 | +0.26 | -0.32 [-1.28, +0.58] |
+| V21 S-EVOL, 21 sessions | 64 | +1.10 | -0.13 [-1.58, +1.17] |
+
+The mean return after an onset is positive in every cell, and no cell differs from other days.
+This is a null, not proof of no effect: the intervals are wide. The printed "done" table
+says the median share of an episode's fall already made at the BEAR entry close was 0.36 for
+`E-DD8`. That uses known episode ends, so it is hindsight.
+
+### Q5: the book by market state, descriptive only
+
+Lag bins on v4: `LIVE 124  NEAR 6  RETRO 1740`. So 93% of the rows are labelled after the fact,
+and the v3 export has `LIVE 0`. The Q5 tables carry no verdict and no multiple-comparison
+correction. One lag-ALL reading, from the real-priced rows on v4:
+
+| Bear rows entered in state | Rows | R [CI] |
+|---|---|---|
+| BEAR | 108 | -10.80% [-29.48, +8.21] |
+| BULL | 207 | -14.51% [-25.51, -3.38] |
+| RANGE | 55 | -6.20% [-26.80, +15.56] |
+
+Bear rows have a negative mean R in all three direction states. One cell split by vol reads
+positive, and its interval spans 0.
+
+| Cell, real bear rows, lag ALL | Rows | R [CI] |
+|---|---|---|
+| v4 BEAR/L-VOL | 47 | +4.30% [-24.97, +33.27] |
+| v3 BEAR state | 133 | -9.66% [-26.80, +8.97] |
+
+### Q4 and the forward read
+
+- **Q4 is `AWAITING SCRAPE`.** 11 contracts are missing, for 10 of 39 onsets. No collector
+  script exists for them, so nothing priced.
+- **Forward is `STILL-OPEN`.** `>>> state_map FORWARD (episodes and onsets after 2026-11-20):
+  Q2 STILL-OPEN Q3 STILL-OPEN <<<`. The forward count is 0 against a floor of 10 episodes.
+
+### Limits
+
+- **10 episodes, at the floor.** Every Q2 interval is wide, and one episode moves the lift.
+- **Case-control design.** The lift compares lead windows with matched calm days. It does not
+  test a rule that trades on the flag.
+- **Hindsight peak.** An episode's top is known only after the fall, so the lead window is
+  anchored on information a trader lacks.
+- **PBO is fragile or vetoing.** Q2 is 0.395 and Q3 is 0.603. The Q3 veto is why its cells
+  print `NULL (PBO veto)`.
+- **Q5 labels are 93% RETRO.** A model that may know what came next wrote them.
+
+### A flaw in the printed TURN-ON table
+
+**The TURN-ON table answers nothing.** It reads `followed 0.000` for every candidate in both
+windows, against a base rate of 0.080 (test) and 0.079 (discovery). The zero is a result of
+how the table is built, not a finding.
+
+- **Rule.** The registration defines `TURN-ON` as the share of a candidate's turn-ons followed
+  by an `E-DD8` trigger within 21 sessions. It says turn-ons inside an exclusion zone are
+  "counted separately".
+- **Behaviour.** The table counts only turn-ons outside every exclusion zone. A zone starts
+  at the onset minus 21 sessions, and a trigger always comes after its onset. A session
+  outside every zone therefore cannot have a trigger within 21 sessions after it.
+- **Implementation.** `report_other_side` in
+  `scripts/backtest_study/f1_selection/regime/state_map.py` filters on `z8[t]` and then
+  tests `followed(t)`. The in-zone counts print beside the zero, for example C1: 50 outside
+  and 42 inside.
+- **Effect.** No verdict reads this table. It was printed only. The registration's
+  false-alarm question stays unanswered.
+- **Unresolved.** A fix would be a disclosed post-hoc descriptive table that counts the
+  in-zone turn-ons. It is not built. It needs the operator's decision
+  ([`next-steps.md`](next-steps.md) under *Waiting on the operator*, item 19).
+
+<a id="state_map-grading"></a>
+### Grading
+
+`study_review` ran on 2026-11-21 with two analysts and a validator. They found no graded
+verdict contradicted by a printed figure, and no misquoted number.
+
+- **The `COINCIDENT` words cannot be checked from the report.** Both analysts rated them
+  `NOT EVALUABLE`, because the report prints one Holm p column and it belongs to the lead
+  family. The coincident Holm p (m = 6) and the raw p for C5 to C7 are not printed. The
+  printed coincident CI lower bounds for C1 to C7 are all above 0.
+- **The `LEADS` word is not met on any candidate.** That part both analysts confirmed.
+- **Two graders split on small points.** One analyst graded the GB gate MET, the other found
+  its VIX half not evaluable. The Q4 gate read `NOT MET` for one and `NOT EVALUABLE` for the
+  other. The validator left both unresolved.
+- **The report differs from the registration in places.** The printed gap starts on
+  2026-09-22, and the registration says 2026-09-23. The "selection fragile" tag sits on the
+  PBO line, not beside the words. The Q4 banner reads `AWAITING SCRAPE`, not the template.
+- **One count does not reconcile.** The discovery census says 22 `E-DD8` episodes, 19 after
+  follow-ons. The printed discovery lift n is 15 or 16 for most candidates. The validator
+  could not reconcile them from the report.
+- **The tree was dirty at the run.** The header reads `744433f (main, working tree dirty)`.
+
+### Next
+
+- A new item, [`next-steps.md`](next-steps.md) §2.31: Q4 needs the 11 contracts fetched, and
+  no collector script exists.
+- Waiting on the operator, item 19: whether to build the in-zone TURN-ON table.
+- The forward read needs 10 closed episodes after 2026-11-20, so it will take years. The
+  current sell-off is excluded from it.
 
 ---
 

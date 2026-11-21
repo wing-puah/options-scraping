@@ -558,7 +558,13 @@ STUDIES: dict[str, Study] = {
         question="Which market states (VIX level and shape, price trend, realised vol, credit) come "
                  "before SPY falls of 8% or more since 1993, and once the mechanical BEAR or E-VOL "
                  "state prints, does SPY keep falling or is the move already over?",
-        verdict="Registered and accepted by default 2026-11-21; built, not yet run. Nothing ships.",
+        verdict="Accepted by default and first run 2026-11-21 (market closes to 2026-11-20): `>>> "
+                "state_map Q2 READ (state variables before E-DD8 onsets, 10-session lead, test "
+                "2016-01-01 to 2026-09-22): COINCIDENT <<<`; `>>> state_map Q3 READ (B10: SPY 10 "
+                "sessions after a mech BEAR onset vs other days, test 2016-01-01 to 2026-09-22): NULL "
+                "<<<`; `>>> state_map PBO: Q2 0.395 Q3 0.603 <<<`; `>>> state_map Q4 (SPY put spread "
+                "on Q3 signals, 2022 on): AWAITING SCRAPE <<<`; `>>> state_map FORWARD (episodes and "
+                "onsets after 2026-11-20): Q2 STILL-OPEN Q3 STILL-OPEN <<<`. Nothing ships.",
     ),
     "tail_breach_intraday": Study(
         family="selection", state="open",
