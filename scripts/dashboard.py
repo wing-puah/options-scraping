@@ -657,6 +657,20 @@ def hbars(groups: list[tuple[str, int, float, float]], words: dict) -> str:
     return "".join(out)
 
 
+def regime_watch_section() -> str:
+    """The regime-watch table against SPY, QQQ and SMH (scripts/regime_page). Never stops the page."""
+    try:
+        from scripts.regime_page import build as rp
+        try:
+            from scripts.study_map import render as sm_render
+            href = sm_render.prereg_by_study().get("state_map")
+        except Exception:  # noqa: BLE001  a missing link must not drop the table
+            href = None
+        return rp.render(rp.gather(WATCH_CSV), href)
+    except Exception as ex:  # noqa: BLE001
+        return f'<section id="regime-watch"><h2>Regime watch</h2>{nocard(type(ex).__name__)}</section>'
+
+
 def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: dict, wait: dict) -> str:
     out: list[str] = []
     # status sentence
@@ -675,6 +689,7 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
     out.append(f'<header><p class="eyebrow">Project dashboard</p><h1>As of {e(today)}</h1>'
                f'<p class="lede">{e(" ".join(bits))}</p>'
                '<p class="sub jump"><a href="#flow">Data</a> · <a href="#regime">Regime</a> · '
+               '<a href="#regime-watch">Regime watch</a> · '
                '<a href="#book">Backtest</a> · <a href="#gate">Flow layer</a> · <a href="#studies">Studies</a> · '
                '<a href="#waiting">Waiting on you</a></p></header>')
 
@@ -735,6 +750,8 @@ def render(today: str, flow: dict, reg: dict, book: dict, gate: dict, studies: d
         s.append(nocard(reg.get("why", "")))
     s.append("</section>")
     out.append("".join(s))
+
+    out.append(regime_watch_section())
 
     # 4 book
     s = ['<section id="book"><h2>How is the backtested book doing?</h2><p class="q">Simulated trades from every '
@@ -972,6 +989,10 @@ font:12.5px/1.45 "IBM Plex Mono",ui-monospace,Menlo,monospace;overflow-x:auto;wh
 table.infra{border-collapse:collapse;width:100%;font-size:14px}
 table.infra td{border-top:1px solid var(--line);padding:6px 8px;vertical-align:top}
 table.infra td.name{white-space:nowrap} table.infra td+td{font-family:inherit}
+table.rw{min-width:640px} table.rw th{font-size:13px;font-weight:600;text-align:left;padding:6px 8px;white-space:nowrap}
+table.rw th.grp{text-align:center;border-bottom:1px solid var(--line)}
+table.rw .num{text-align:right;white-space:nowrap}
+table.rw td{white-space:nowrap}
 </style>
 """
 

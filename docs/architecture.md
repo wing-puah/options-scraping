@@ -1170,6 +1170,13 @@ The dashboard is rebuilt after every study run and review (`build.refresh_quietl
 `make dashboard` forces a rebuild and opens it. `python3 -m scripts.study_map --check` (or
 `make study-check`) prints per-study last-run status, no HTML.
 
+**`scripts/regime_page/`** — builds the "Regime watch" section of `site/dashboard.html`, after
+the regime section. It sets each regime-watch status run against SPY, QQQ and SMH, and lists
+the 5, 10 and 21 session returns after every CONFIRMED onset. It reads
+`backtests/regime_watch/history.csv` and the OHLC cache only. Sessions are counted on the
+price calendar, because the history has gaps. A missing close shows a dash. The section
+describes the past and forecasts nothing.
+
 The section opens with a **Reading queue** for the operator. `catalog.Study.attention` is a
 hand-written one-liner, the same authority tier as `verdict`. It says why the operator should
 personally open a study's review artifacts NOW. It is set during the recording pass that
