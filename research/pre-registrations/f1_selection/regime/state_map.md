@@ -12,6 +12,9 @@ hit rate, lift, episode count or episode outcome was computed before this file w
 registration date is stamped when the second reader's fixes are folded in and the file is
 committed. Contested choices are parameters printed both ways, with one named as the headline.
 
+A fresh second reader checked the draft on 2026-11-21, before any outcome existed. Its read was
+FREEZE AFTER MINOR EDITS. Its three blocking findings and every minor one are folded in below.
+
 ## The question
 
 The operator asked whether any pattern marks a bull, bear or range-bound market early enough to
@@ -32,8 +35,28 @@ It asks five questions.
 | Q4 | What would a fixed SPY put spread opened on each Q3 signal have paid, at real prices, from 2022? | Secondary, printed with a THIN flag, decides nothing |
 | Q5 | How did the book's bear and bull rows do in each state at entry? | Secondary, descriptive, no verdict |
 
-A `LEADS` on Q2 would say a state variable gives warning before the top. A `ROOM-LEFT` on Q3 would
-say a bear trade opened on the confirmed signal still has a fall to catch. Neither changes a rule.
+What each verdict word would mean for the operator:
+
+| Word | Question | Meaning |
+|---|---|---|
+| `LEADS` | Q2 | The variable was on more often in the 10 sessions before a top. This says nothing about how often it fires without a top |
+| `COINCIDENT` | Q2 | The variable turns on during the fall, not before the top. It marks a fall already under way |
+| `NO-FORECAST` | Q2 | No warning before the top was shown |
+| `UNDERPOWERED` | Q2, Q3 | Too few sell-offs or signals to judge. Nothing is concluded |
+| `ROOM-LEFT` | Q3 | After the signal SPY kept falling, more than after an ordinary day. A bear trade at the next close still had a fall to catch |
+| `TOO-LATE` | Q3 | After the signal SPY did better than after an ordinary day. The fall was over |
+| `NULL` | Q3 | No difference from an ordinary day was shown |
+
+No verdict changes a rule.
+
+**Two limits to read first.**
+
+- **Q2 looks backward from known tops.** Its onset is the peak, which is only known after the
+  fall. It compares how often a variable was on before tops with how often it was on in calm
+  stretches. It does not measure how often a sell-off follows when the variable turns on. Two
+  printed-only tables show that side, with no verdict.
+- **The peak is a 63-session high by construction.** Price rules are pushed off before it and on
+  after it (see [the bias](#the-q2-statistic)).
 
 ## What this study is not
 
@@ -88,6 +111,10 @@ A session with `ok` false has no state. It leaves every count and is counted.
 the BEAR and BULL rules, with the 20-session return and the vol part unchanged. It is labelled
 `BEAR200` and is printed beside the headline in Q1 and Q3, never graded.
 
+`MechLabeler`'s window lengths are hard-coded constants (`SMA_WINDOW = 50`). So `BEAR200` needs a
+copy of `compute_mech_table` that takes the SMA length as a parameter. `tests/test_state_map.py`
+pins the copy, run at length 50, to `MechLabeler` on every session.
+
 ### Windows
 
 | Window | Sessions | Use |
@@ -98,14 +125,16 @@ the BEAR and BULL rules, with the 20-session return and the vol part unchanged. 
 | Forward | From 2026-11-21 | The one-shot forward read |
 
 - **No close after 2026-09-22 enters the in-sample run.** The study cuts every series at
-  2026-09-22 (`IN_SAMPLE_END`) before it computes anything. A window that needs a later close is
-  dropped and counted.
-- **Why 2026-09-22.** Closes after it were seen in the 2026-11-21 bear peek and the regime-watch
-  row (see the plan-time observations). The date is also the day before the holdout seal starts.
+  2026-09-22 (`IN_SAMPLE_END`) before it computes anything.
+- **Windows past the cut.** A window that needs a later close is dropped and counted.
+- **Why 2026-09-22.** Closes after it were seen in the 2026-11-21 bear peek and in the
+  regime-watch row (see the plan-time observations).
+- **The seal.** 2026-09-22 is also the day before the holdout seal starts.
 - **Short-history candidates.** VIX3M starts 2006-07-17 and HYG 2007-04-11. Their test window is
-  the same as every other candidate's. Their discovery window starts at their first usable session.
-  When a discovery window holds fewer than 10 episodes, the discovery check is waived and the
-  report says so.
+  the same as every other candidate's.
+- **Their discovery window** starts at their first session with the full runway.
+- **Waiver.** When a discovery window holds fewer than 10 episodes, the discovery check is waived
+  and the report says so.
 
 ### Sell-off episodes
 
@@ -118,17 +147,24 @@ unchanged and hash-checked against `EPISODE_DEFS_SHA256`. They run on the unadju
 | `E-DD5` | The same with a 5% trigger | Secondary, printed both ways |
 
 - Episodes fewer than 10 sessions apart, trough to next peak, merge (`merge_gap` 10).
-- **Onset, `p`.** The episode's peak session: the highest close in the 63 sessions up to the first
-  trigger, latest on a tie.
-- **Trigger, `g`.** The first session after `p` whose close is at or past the trigger.
+- **Trigger, `g`.** The first session whose close is at least 8% below the highest close of the 63
+  sessions ending at it: the code's `drawdowns` value at or below −0.08.
+- **Onset, `p`.** The session of that 63-session high, latest on a tie. At `g` the rolling high is
+  `c_p`, so `g` is also the first session after `p` with a close at or below 0.92 × `c_p`. For
+  `E-DD5` read 5% and 0.95.
+- **Merged episodes.** `p` is the earliest peak, as the code keeps it. `g` is the trigger of the
+  first sub-episode.
 - **Trough.** As the code defines it, earliest on a tie.
+- **Unclosed episodes.** An episode whose trough is not yet fixed at the 2026-09-22 cut (the
+  code's `closed` is false) is dropped and counted.
 - **Window of an episode.** The window that holds its onset `p`. An episode needs `g` on or before
   2026-09-22.
 - **Exclusion zone.** Sessions from `p − 21` to `trough + 21`, for every episode of the same
-  definition.
+  definition. Zones are read from the episodes of both windows.
 - **Follow-on episode.** One whose 10-session lead window touches an earlier episode's exclusion
-  zone. Its lead window sits in the aftermath of the last fall, when VIX is still high. Follow-ons
-  leave the graded Q2 cells and are printed in a twin that keeps them.
+  zone, in either window. Its lead window sits in the aftermath of the last fall, when VIX is
+  still high.
+- **Follow-ons** leave the graded Q2 cells and are printed in a twin that keeps them.
 
 `E-DD8` is the headline because an 8% fall is the size a bear spread is meant for. `E-DD5` holds
 more episodes, and more of them are noise.
@@ -138,29 +174,42 @@ more episodes, and more of them are noise.
 Each candidate is a state that is on or off at the close of session `t`. It reads closes on or
 before `t`, never later. A candidate with too little history at `t` is missing.
 
-| Label | On at the close of `t` when | First usable |
+| Label | On at the close of `t` when | First session with the full runway |
 |---|---|---|
-| `C1` | VIX close at or above 20 | 1993-01-29 |
-| `C2` | VIX close's midrank percentile in the 252 VIX closes on the SPY sessions strictly before `t` is 0.80 or above | 1993-01-29 |
-| `C3` | VIX close up 25% or more on the VIX close 5 sessions earlier | 1993-01-29 |
+| `C1` | VIX close at or above 20 | The first SPY session, 1993-01-29 |
+| `C2` | VIX close's midrank percentile in the 252 VIX closes on the SPY sessions strictly before `t` is 0.80 or above | After 252 prior SPY sessions |
+| `C3` | VIX close up 25% or more on the VIX close 5 sessions earlier | After 5 prior SPY sessions |
 | `C4` | VIX close above the VIX3M close | 2006-07-17 |
-| `C5` | SPY close below the mean of the 50 SPY closes ending at `t` | 1993, 50-session runway |
-| `C6` | SPY close below the mean of the 200 SPY closes ending at `t` | 1993, 200-session runway |
-| `C7` | SPY close below the SPY close 20 sessions earlier | 1993, 20-session runway |
-| `C8` | 21-session realised vol above the VIX close | 1993, 21-return runway |
-| `C9` | HYG/IEF `Adj Close` ratio down more than 1% over 20 sessions | 2007, 20-session runway |
+| `C5` | SPY close below the mean of the 50 SPY closes ending at `t` | The 50th SPY session |
+| `C6` | SPY close below the mean of the 200 SPY closes ending at `t` | The 200th SPY session |
+| `C7` | SPY close below the SPY close 20 sessions earlier | After 20 prior SPY sessions |
+| `C8` | 21-session realised vol above the VIX close | After 21 SPY returns |
+| `C9` | HYG/IEF `Adj Close` ratio down more than 1% over 20 sessions | 20 sessions after HYG starts, 2007 |
 
 - **Midrank percentile (`C2`).** (count below + half the count equal) / 252, as `tail_breach`'s
-  `X2`.
+  `X2`. It is the share of the prior year's closes below today's, with ties counted half.
 - **Realised vol (`C8`).** `√(mean of r²) × √252 × 100` over the 21 log returns of `Adj Close`
   ending at `t`.
 - **Credit (`C9`).** The `regime_confirm` `C-CR` rule and `regime_watch` code: the change is
   rounded to 9 decimals, so −1.0% exactly is not on.
-- **Thresholds.** Each comes from a rule the repo already uses: the H-VOL line (`C1`), the E-VOL
-  jump (`C3`), the BEAR halves (`C5`, `C7`), `regime_confirm`'s conditions (`C6`, `C9`) and
-  `tail_breach`'s predictors (`C2`, `C4`, `C8`). `C2`'s 0.80 line is the one new number. It was set
-  before any figure was read.
-- **VIX level buckets.** Below 15, 15–20, 20–30, 30 and up. Printed only.
+- **Thresholds.** Each comes from a rule the repo already uses.
+
+  | Source | Candidates |
+  |---|---|
+  | The mech label's H-VOL line and E-VOL jump | `C1`, `C3` |
+  | The mech label's BEAR halves | `C5`, `C7` |
+  | `regime_confirm`'s conditions | `C6`, `C9` |
+  | `tail_breach`'s predictors | `C2`, `C4`, `C8` |
+
+- **One new number.** `C2`'s 0.80 line. It was set before any figure was read.
+- **VIX level buckets**, printed only:
+
+  | Bucket | VIX close |
+  |---|---|
+  | Low | below 15 |
+  | Mid | 15 to below 20 |
+  | High | 20 to below 30 |
+  | Extreme | 30 and up |
 
 ### Lead and coincident windows
 
@@ -168,15 +217,17 @@ before `t`, never later. A candidate with too little history at `t` is missing.
 |---|---|---|
 | Lead, `W` = 10 | `p − 10` to `p − 1` | Headline |
 | Lead, `W` = 5 and `W` = 21 | `p − W` to `p − 1` | Parameters, printed both ways |
-| Coincident | `p` to `g` | Splits `COINCIDENT` from `NO-FORECAST` |
+| Coincident | `p` to `g` | Splits `COINCIDENT` from `NO-FORECAST`, for `C1`–`C4`, `C8`, `C9` |
+| Trigger-anchored lead | `g − W` to `g − 1` | Printed only |
 
 ### Matched calm days
 
 For each episode `e`, its **control sessions** are every session `d` that meets all of these:
 
 - `d` lies in the same window as `p`, and within 252 sessions of `p` on either side.
-- `d` lies in no exclusion zone of any episode of the same definition.
-- The control lead window `d − W` to `d − 1` has every candidate value the episode's has.
+- `d` lies in no exclusion zone of any episode of the same definition, in either window.
+- The control lead window `d − W` to `d − 1` also lies in no exclusion zone.
+- The control lead window has every candidate value the episode's has.
 - For the coincident contrast only, `d` to `d + (g − p)` lies in no exclusion zone.
 
 An episode with fewer than 20 control sessions leaves the cell and is counted.
@@ -189,9 +240,12 @@ For candidate `k` and episode `e`:
 - `f_d` is the same share over the control lead window of control session `d`.
 - **Lift**, `x_e = f_e − mean of f_d` over `e`'s controls.
 
-`L_k` is the mean of `x_e` over the cell's episodes, in percentage points of sessions. A positive
-`L_k` means the candidate was on more often in the 10 sessions before a top than in calm stretches
-of the same year.
+`L_k` = 100 × (mean of `x_e` over the cell's episodes). It is in percentage points of sessions. An
+`L_k` of +20 means the candidate was on in 20 more sessions per 100 before a top than in the
+matched calm windows.
+
+A positive `L_k` means the candidate was on more often in the 10 sessions before a top than in
+calm stretches near it. It says nothing about how often the candidate fires without a top.
 
 The **coincident lift** `L_k^coin` is the same, with the coincident window `p` to `g` and control
 windows `d` to `d + (g − p)`.
@@ -207,6 +261,24 @@ An episode with any missing value of `k` in its window leaves `k`'s cell only, a
 
 The bias is part of the question. A price rule that only turns on once the fall is under way is
 not early warning.
+
+**`C5`, `C6` and `C7` leave the coincident family.** A fall of 8% from a 63-session high makes
+"below the 50-day SMA" and "20-session return below 0" close to certain by `g`, and "below the
+200-day SMA" far more likely. Their coincident lift is largely true by construction. It prints as
+`COINCIDENT (mechanical)`, and the Q2 READ ignores it.
+
+### The other side of Q2, printed only
+
+The lift reads from known tops backward. Two tables look forward from the variable instead. They
+carry no verdict, enter no Holm family and no PBO grid.
+
+| Table | What it prints, per candidate, test and discovery windows |
+|---|---|
+| `TURN-ON` | Of the candidate's off-to-on turn-ons, the share followed by an `E-DD8` trigger `g` within 21 sessions. Beside it, the share of all sessions followed by a trigger within 21 sessions |
+| `G-LEAD` | The lift computed on the trigger-anchored lead window `g − W` to `g − 1`, with the same controls |
+
+A turn-on is a session on which the candidate is on and was off the session before. Turn-ons
+inside an exclusion zone are counted separately.
 
 ### Q3 signals and outcomes
 
@@ -251,6 +323,11 @@ A negative `D` means SPY did worse after the signal than after an ordinary day.
 `B10` is the headline cell. It is the direct test of "the bear state prints and the move is gone",
 over about two weeks.
 
+**Clusters.** Onsets 10 sessions apart can still share part of a 10- or 21-session window. So
+every Q3 cell groups its onsets by the calendar month of `D`. A cluster is one month's onsets. The
+bootstrap resamples clusters, the report prints each cell's cluster count, and the floor of 10
+counts clusters, not onsets.
+
 ### Q4 structure
 
 On each `S-BEAR` and `S-EVOL` onset with `D` from 2022-02-01, the study prices one fixed bear put
@@ -276,12 +353,25 @@ spread.
 - **State at entry.** The record's `mech_direction` and `mech_vol`, from `lib/book.py`'s labeler.
 - **Direction.** `ticker_class.direction(structure)`: bull or bear. Other rows print as "other".
 - **Source.** Real-priced rows and proxy (`tweak`) rows, split. `bs` rows are out.
-- **Lag bin.** Signal date to the analysis row's `created_datetime`, as
-  [`market_read`](market_read.md) defines it: LIVE 0–1 day, NEAR 2–7, RETRO more than 7, UNKNOWN.
-  A RETRO row was written after the fact by a model that may know what came next.
+- **Lag bin.** Days from the signal date to the analysis row's `created_datetime`, binned as
+  [`market_read`](market_read.md) defines it (LIVE, NEAR, RETRO, UNKNOWN). A RETRO row, written
+  more than a week late, came from a model that may know what came next.
 - **Figures per cell.** Rows, signal dates, mean [R](../../../glossary.md#r), mean
   [MFE and MAE](../../../glossary.md#mfe), [capture](../../../glossary.md#capture), and a
   date-clustered [CI95](../../../glossary.md#ci95-date-clustered-bootstrap) on mean R.
+
+### Terms used here
+
+| Term | Meaning |
+|---|---|
+| Lift | How much more often a candidate was on before a top than in matched calm windows, in percentage points of sessions |
+| Exclusion zone | The sessions from 21 before an episode's peak to 21 after its trough. Calm days never fall in one |
+| Midrank | A percentile that counts ties as half below |
+| Holm | A step-down correction for testing several things at once. The smallest p faces the strictest bar |
+| PBO / CSCV | The chance that the best cell of a grid in one half of the history ranks below the median in the other half, over every split. `lib/pbo.py` holds the method and its source |
+| THIN | Fewer units than the floor. Counts print, figures carry the flag or are withheld, and nothing is concluded |
+| MFE / MAE | The best and worst open P&L a position reached ([glossary](../../../glossary.md#mfe)) |
+| Capture | Sum of R over sum of MFE ([glossary](../../../glossary.md#capture)) |
 
 ## Dependencies
 
@@ -383,8 +473,8 @@ So on that date `C1`, `C4`, `C6` and `C9` were on. The date is in the gap.
 
 - **`regime_confirm`'s exploration (2026-10-21), on 97 SPY mech BEAR flips.** The median 60-day
   return from the flip was +3.9%. The share followed by a 10% fall was 11%. 56% of BEAR runs lasted
-  3 sessions or fewer. Those flips are close to Q3's `S-BEAR` onsets, with no re-arm. The horizon
-  was 60 sessions, not Q3's 5, 10 and 21.
+  3 sessions or fewer. Those flips are close to Q3's `S-BEAR` onsets, with no re-arm. Its horizon
+  of 60 sessions is longer than any of Q3's.
 - **The vol-expansion count (2026-11-06,
   [entry](../../../current.md#2026-11-06--long-straddles-and-backspreads-after-a-vol-expansion-untested-one-spy-study-proposed),
   [next-steps item 18](../../../next-steps.md#waiting-on-the-operator)).** It read 140 E-VOL
@@ -395,6 +485,18 @@ So on that date `C1`, `C4`, `C6` and `C9` were on. The date is in the gap.
 - **`tail_breach` (2026-11-14).** Breaches of twice the VIX-implied move ran at a steady rate in
   2024–2026. Its forecast was `UNDERPOWERED` at 9 test episodes against a floor of 10.
   `tail_breach_intraday`'s VIX forecast printed `NO-FORECAST`.
+
+### Studies that already read these episodes and candidates
+
+| Study | What it read that this study also reads |
+|---|---|
+| [`index_bear_hedge`](../../f5_hedging/index_bear_hedge.md) | The `E-DD` episodes of 2023–2026, with the book's hedge P&L printed per episode |
+| [`tail_rebound`](tail_rebound.md) | SPY's path after tail falls from 1993, the 2023–2026 falls among them |
+| [`regime_confirm`](regime_confirm.md) | `C1`, `C4`, `C6` and `C9` at mech BEAR flips, test window included |
+| [`tail_breach`](tail_breach.md) | `C2`, `C4` and `C8` as its predictors `X2`, `X3`, `X4`, on 2024–2026 |
+
+So part of the test window is not blind for these candidates. The candidate list was taken from
+the plan, not from those results.
 
 ### Prior verdicts on nearby questions
 
@@ -418,9 +520,12 @@ read found that v4's A/B R tracks the underlying's direction.
 ### General knowledge, not counted
 
 The drafter knows from public market history that the test window holds roughly ten falls of 8%
-or more (among them 2018, 2020, 2022, 2025). No episode was counted on the data. The Q2 floor is 10
+or more, among them those of 2020 and 2022. No episode was counted on the data. The Q2 floor is 10
 test episodes, so `UNDERPOWERED` on the headline is a real possibility. The floor was set without
 knowing the count.
+
+**There is no fallback.** If `E-DD8` prints `UNDERPOWERED`, `E-DD5` stays ungraded. Its words
+print as "secondary, not graded" either way.
 
 ### A prior, not evidence
 
@@ -433,7 +538,9 @@ is Q3: how much fall is left after the signal, split by VIX state.
 |---|---|---|---|
 | Q1 tables | descriptive cut | Days per state, run lengths, transitions | Printed only |
 | `C1`–`C9` | arm | One Q2 candidate each, lead lift `L_k` on `E-DD8`, `W` = 10 | Primary, Holm m = 9 |
-| `C1`–`C9` coincident | arm | Coincident lift `L_k^coin` | Holm m = 9; only splits `COINCIDENT` from `NO-FORECAST` |
+| `C1`–`C4`, `C8`, `C9` coincident | arm | Coincident lift `L_k^coin` | Holm m = 6; only splits `COINCIDENT` from `NO-FORECAST` |
+| `C5`–`C7` coincident | descriptive cut | Coincident lift, true by construction | Printed as `COINCIDENT (mechanical)` when it would pass; ignored by the READ |
+| `TURN-ON`, `G-LEAD` | descriptive cut | The forward-looking side of Q2 | Printed only |
 | Calm days | control | Each episode's matched control sessions | The reference for every lift |
 | `B5`–`B21`, `V5`–`V21` | arm | Q3 cells, `D_{s,h}` | Primary, Holm m = 6; `B10` is the headline |
 | Other days | control | Every non-onset test session | The reference for every `D` |
@@ -447,7 +554,7 @@ Printed for the discovery and test windows separately, for the headline label an
 
 - sessions in each of the nine cells (direction × vol), and unlabelled sessions;
 - run length per direction and per vol: count, median, mean, 90th percentile, longest;
-- day-to-day transition counts and shares: direction 3 × 3, vol 3 × 3, cell 9 × 9;
+- day-to-day transition counts and shares, for direction, for vol and for the full cell;
 - the share of sessions in each direction by calendar year.
 
 ### Q2, early warning
@@ -459,7 +566,9 @@ For each candidate, the test-window lead lift is graded. Printed beside it, neve
 - the twin that keeps follow-on episodes;
 - the discovery-window lift and its CI;
 - the VIX level buckets in lead windows and in control windows;
-- per episode: `p`, `g`, trough, control count and each candidate's lead share.
+- per episode: `p`, `g`, trough, control count and each candidate's lead share;
+- the `TURN-ON` and `G-LEAD` tables;
+- `C5`–`C7` coincident lifts, marked mechanical.
 
 ### Q3, after the signal
 
@@ -502,11 +611,13 @@ dates prints its counts and THIN, and its figures are withheld.
 ### Bootstrap
 
 - **Q2.** Episodes are the unit. Each draw resamples the cell's test episodes with replacement,
-  as many as the cell holds. An episode carries its own lift, so its controls travel with it. All
-  nine candidates share one draw set.
-- **Q3.** Onsets are the unit. Each draw resamples the cell's onsets with replacement. In the same
-  draw, other days are resampled in fixed 21-session blocks (`i // 21`), as `market_read` does.
-  All six cells share one draw set.
+  as many as the cell holds. An episode carries its own lift, so its controls travel with it.
+- **Q2 shared draws.** One set of draws over episode indices, with each cell using its members.
+- **Q3.** Calendar-month clusters of onsets are the unit. Each draw resamples the cell's clusters
+  with replacement, as many as the cell holds.
+- **Q3 other days.** In the same draw, other days are resampled in fixed 21-session blocks
+  (`i // 21`), as `market_read` does.
+- **Q3 shared draws.** One set of draws over cluster indices, with each cell using its members.
 - 10,000 draws, seed 20261121.
 - **Why not days.** Lead windows, control windows and forward returns overlap across neighbouring
   days. A per-day bootstrap would treat them as independent.
@@ -522,7 +633,7 @@ dates prints its counts and THIN, and its figures are withheld.
 | Family | Members | m |
 |---|---|---|
 | Q2 lead | `C1`–`C9`, lead lift | 9 |
-| Q2 coincident | `C1`–`C9`, coincident lift | 9 |
+| Q2 coincident | `C1`–`C4`, `C8`, `C9`, coincident lift | 6 |
 | Q3 | `B5`, `B10`, `B21`, `V5`, `V10`, `V21` | 6 |
 
 Holm at 0.05 within each family, with `ticker_class.holm`. Q1, Q4 and Q5 test nothing.
@@ -538,17 +649,22 @@ once per grid, over the whole history from 1995.
 | Grid | Configs | N | Per-period value |
 |---|---|---|---|
 | Q2 | `C1`–`C9` × `W` in 5, 10, 21, on `E-DD8` | 27 | [sum of lead lifts, episode count] for episodes with `p` in the year |
-| Q3 | `S-BEAR`, `S-BEAR200`, `S-EVOL` × `h` in 5, 10, 21 | 9 | [sum of `z`, onset count] for onsets in the year |
+| Q3 | `S-BEAR`, `S-EVOL` × `h` in 5, 10, 21 | 6 | [sum of `z`, onset count] for onsets in the year |
 
+- **Only graded configs.** `S-BEAR200` and `S-BOTH` are printed only, so they stay out of the Q3
+  grid and cannot veto. `lib/pbo.py` needs at least 2 configs, so N = 6 is valid.
+- **Same population.** The Q2 grid uses the graded cell's episodes, follow-ons out.
 - **Rows.** Calendar years, T = 32, cut into S = 16 blocks of two years. The data spans 34 years,
   so the two earliest (1993 and 1994) are trimmed. The trim is by date only.
-- **Metric.** `pbo.ratio_metric`, so a block's value is the mean over its episodes or onsets. A
-  year with none is blank, never zero.
-- **Q3's `z`.** `(m_h − r_h) / sd_h` per onset, where `m_h` and `sd_h` are the mean and standard
-  deviation of `r_h` over every session from 1993 to the cut. It puts the three horizons on one
-  scale, and a larger `z` means more room left.
-- **Short histories.** `C4` and `C9` are blank before their first usable year. A blank block ranks
-  worst, which can only raise PBO.
+- **Metric.** `pbo.ratio_metric`, so a half's value is the mean over its episodes or onsets.
+- **Empty years.** A year with no episode or onset is [0, 0]. It adds nothing to either sum.
+- **Short histories.** `C4` and `C9` are [0, 0] before their first year with the full runway. A
+  half holds 16 years and at most 12 fall before 2007, so every half has data for them.
+- **Q3's `z`.** `(m_h − r_h) / sd_h` per onset. It puts the three horizons on one scale, and a
+  larger `z` means more room left.
+- **`z` uses the whole span.** `m_h` and `sd_h` are the mean and standard deviation of `r_h` over
+  every session from 1993 to the cut, in both halves. That is harmless here: they shift and scale
+  every onset of a horizon alike, so a ranking within a horizon does not change.
 
 | PBO | Reading |
 |---|---|
@@ -588,12 +704,12 @@ evidence.
 | Population | Floor |
 |---|---|
 | Q2 cell, test | 10 episodes with a defined lift, each with at least 20 controls |
-| Q3 cell, test | 10 onsets with a closed window |
-| Discovery check | 10 episodes or onsets, else the check is waived and the report says so |
+| Q3 cell, test | 10 calendar-month clusters of onsets with a closed window |
+| Discovery check | 10 episodes, or 10 onset clusters, else the check is waived and the report says so |
 | Q4 cell | 10 priced trades, else THIN |
 | Q5 cell | 20 rows on 10 signal dates, else THIN |
 | Forward Q2 cell | 10 forward episodes |
-| Forward Q3 cell | 10 forward onsets |
+| Forward Q3 cell | 10 forward onset clusters |
 
 **Why 10.** It is the episode floor `tail_breach` used. Below about 10 units, a resampled draw can
 hold only two or three episodes, and the CI measures which ones were drawn rather than the effect.
@@ -609,35 +725,63 @@ No result here makes a candidate rule. A `LEADS` or a `ROOM-LEFT` files "to be t
 
 The first matching row wins.
 
-| Token | When |
-|---|---|
-| `UNDERPOWERED` | Fewer than 10 test episodes with a defined lift; census printed, nothing concluded |
-| `LEADS` | Lead lift CI lower bound above 0, Holm-adjusted p below 0.05 (m = 9), discovery lift above 0 or waived, and PBO 0.50 or below |
-| `COINCIDENT` | Not `LEADS`; coincident lift CI lower bound above 0, Holm-adjusted p below 0.05 (m = 9), and PBO 0.50 or below |
-| `NO-FORECAST` | Otherwise. This includes a negative lead lift, and every candidate under the PBO veto |
+**`UNDERPOWERED`.** Fewer than 10 test episodes with a defined lift. The census prints and nothing
+is concluded.
+
+**`LEADS`.** All four hold:
+
+1. The lead lift's CI lower bound is above 0.
+2. Its Holm-adjusted p is below 0.05 (lead family, m = 9).
+3. The discovery-window lift is above 0, or the discovery check is waived.
+4. The Q2 PBO is 0.50 or below.
+
+**`COINCIDENT`.** Not `LEADS`, the candidate is one of `C1`–`C4`, `C8`, `C9`, and all three hold:
+
+1. The coincident lift's CI lower bound is above 0.
+2. Its Holm-adjusted p is below 0.05 (coincident family, m = 6).
+3. The Q2 PBO is 0.50 or below.
+
+**`COINCIDENT (mechanical)`.** For `C5`, `C6` or `C7` only: not `LEADS`, and their coincident lift
+meets conditions 1 and 3 above on its raw p below 0.05. It is printed, never graded.
+
+**`NO-FORECAST`.** Otherwise. This includes a negative lead lift, every candidate under the PBO
+veto, and `C5`–`C7` when they are not `LEADS`, whatever their mechanical line prints.
 
 In plain words:
 
-- `LEADS` means the variable was on more often in the 10 sessions before a top than in calm
-  stretches of the same year.
+- `LEADS` means the variable was on more often in the 10 sessions before a top. This says nothing
+  about how often it fires without a top.
 - `COINCIDENT` means it turned on during the fall to the 8% line, not before the top. It marks a
   fall in progress, which the mech label already does.
 - `NO-FORECAST` means neither showed.
 
 **Q2 READ.** `LEADS` if any candidate prints `LEADS`. Otherwise `COINCIDENT` if any prints
-`COINCIDENT`. Otherwise `NO-FORECAST`, unless all nine print `UNDERPOWERED`, which gives
-`UNDERPOWERED`.
+`COINCIDENT`, which `COINCIDENT (mechanical)` never counts as. Otherwise `NO-FORECAST`, unless all
+nine print `UNDERPOWERED`, which gives `UNDERPOWERED`.
 
 ### Q3, per cell
 
 The first matching row wins.
 
-| Token | When |
-|---|---|
-| `UNDERPOWERED` | Fewer than 10 test onsets with a closed window; census printed, nothing concluded |
-| `ROOM-LEFT` | CI upper bound of `D` below 0, Holm-adjusted p below 0.05 (m = 6), mean onset `r_h` below 0, discovery `D` below 0 or waived, and PBO 0.50 or below |
-| `TOO-LATE` | CI lower bound of `D` above 0, Holm-adjusted p below 0.05 (m = 6), discovery `D` above 0 or waived, and PBO 0.50 or below |
-| `NULL` | Otherwise; printed with the half-width |
+**`UNDERPOWERED`.** Fewer than 10 test onset clusters with a closed window. The census prints and
+nothing is concluded.
+
+**`ROOM-LEFT`.** All five hold:
+
+1. The CI upper bound of `D` is below 0.
+2. Its Holm-adjusted p is below 0.05 (m = 6).
+3. The mean onset `r_h` is below 0.
+4. The discovery-window `D` is below 0, or the discovery check is waived.
+5. The Q3 PBO is 0.50 or below.
+
+**`TOO-LATE`.** All four hold:
+
+1. The CI lower bound of `D` is above 0.
+2. Its Holm-adjusted p is below 0.05 (m = 6).
+3. The discovery-window `D` is above 0, or the discovery check is waived.
+4. The Q3 PBO is 0.50 or below.
+
+**`NULL`.** Otherwise, printed with the half-width.
 
 In plain words:
 
@@ -658,13 +802,19 @@ prints `NULL` with the note "below normal drift, no fall".
 - **Opens 2026-11-21.** One shot, for Q2 and Q3, on frozen definitions. No discovery check and no
   PBO veto apply forward, because nothing is selected.
 - **Forward Q2 episodes.** `E-DD8` episodes whose peak `p` is at least 11 sessions after
-  2026-11-20, so the whole lead window is forward. An episode that merges with one peaking on or
-  before 2026-11-20 is part of the current sell-off and is out. Controls are forward sessions
-  within 252 sessions of `p`.
+  2026-11-20, so the whole lead window is forward.
+- **The current sell-off.** An episode that merges with one peaking on or before 2026-11-20 is
+  part of the current sell-off and is out.
+- **Its exclusion zone.** The current episode's trough is fixed on the first forward run at which
+  the code marks it closed. Its zone, to trough + 21, then applies to forward controls and to the
+  follow-on rule. Until then no forward control is drawn.
+- **Forward controls.** Forward sessions within 252 sessions of `p`, under the same calm-day rule.
 - **Forward Q3 onsets.** Onsets on or after 2026-11-21 whose 10 re-arm sessions also fall on or
-  after 2026-11-21. So the BEAR and E-VOL runs in force on 2026-11-20 never count. Other days are
-  forward sessions.
-- **Holm.** The same families, m = 9, 9 and 6.
+  after 2026-11-21. So the BEAR and E-VOL runs in force on 2026-11-20 never count.
+- **Onsets inside the current zone.** Forward onsets inside the current episode's exclusion zone
+  leave the graded forward cell. They print in a split of their own.
+- **Forward other days.** Forward sessions.
+- **Holm.** The same families, m = 9, 6 and 6.
 - **Words.** The in-sample tokens, with `STILL-OPEN` in place of `UNDERPOWERED`. A cell stays
   `STILL-OPEN` until it reaches its floor of 10.
 - **Verdict of record.** The first forward run in which a cell prints a token other than
@@ -694,7 +844,7 @@ no banner line.
 - **Fixed here, the inputs.** The mech label and its thresholds, the episode definitions, the nine
   candidates and their thresholds, and the windows and their dates.
 - **Fixed here, the design.** The lead and coincident windows, the calm-day rule, the follow-on
-  rule, the re-arm, the horizons, the D + 1 entry and the Q4 structure.
+  rule, the re-arm, the month clusters, the horizons, the D + 1 entry and the Q4 structure.
 - **Fixed here, the judging.** The floors, the seed, the blocks, the Holm families, the PBO grids
   and thresholds, and the verdict words.
 - The parameters printed both ways (`E-DD5`, `W` of 5 and 21, `BEAR200`) and every printed-only
