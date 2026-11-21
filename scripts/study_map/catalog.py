@@ -566,6 +566,15 @@ STUDIES: dict[str, Study] = {
                 "on Q3 signals, 2022 on): DESCRIPTIVE <<<`; `>>> state_map FORWARD (episodes and "
                 "onsets after 2026-11-20): Q2 STILL-OPEN Q3 STILL-OPEN <<<`. Nothing ships.",
     ),
+    "signal_call_calendar": Study(
+        family="selection", state="open",
+        question="After a mech BEAR or E-VOL onset (state_map's Q3 signals, 2022-02-01 to 2026-09-22), "
+                 "does a SPY call calendar (short the monthly nearest 30 DTE, long the same strike "
+                 "nearest 60 DTE, strike nearest spot x 1.03, out after 21 sessions) pay net of "
+                 "commission, and does it beat the same calendar opened on a calm day?",
+        verdict="Accepted by default 2026-11-21; module built the same day, not yet run. No "
+                "calendar was priced and no outcome was computed. Nothing ships from this study.",
+    ),
     "tail_breach_intraday": Study(
         family="selection", state="open",
         question="Does SPY's intraday low breach twice its VIX-implied move, or fall 5% below a close "

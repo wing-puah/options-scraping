@@ -17,6 +17,7 @@
     tail_rebound.py         after either fall, does SPY beat its usual 5/21/63-session return?
     tail_rebound_etf.py     the same question on QQQ and SMH, with VXN as the implied vol
     state_map.py            which market states come before SPY sell-offs, and is the confirmed bear state too late?
+    signal_call_calendar.py after a mech BEAR or E-VOL onset, does a SPY call calendar pay?
 
 `mech_regime_recut` and `regime_gap_reread` do their work at MODULE level, which
 is why the runner reads docstrings with `ast` instead of importing.
