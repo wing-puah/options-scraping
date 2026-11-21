@@ -1706,20 +1706,20 @@ the bear or extreme-vol state printed. Nothing ships
 ([entry](current.md#2026-11-21--state_map-no-market-state-warned-before-a-top),
 [pre-registration](pre-registrations/f1_selection/regime/state_map.md),
 [record](study-results/f1_selection/regime/state_map.md)). `study_review` graded it on
-2026-11-21 with no disagreement on a printed verdict. Q4 is `AWAITING SCRAPE` and the forward
-read is `STILL-OPEN`.
+2026-11-21 with no disagreement on a printed verdict. Q4 printed `DESCRIPTIVE` after the fetch
+of 2026-11-21 and decides nothing. The forward read is `STILL-OPEN`.
 
 | Open item | State |
 |---|---|
-| Q4 fetch | 11 contracts, for 10 of 39 onsets; no collector script exists |
+| Q4 fetch | DONE 2026-11-21: 12 contracts fetched, 39 of 39 onsets priced, none refused |
 | `TURN-ON` table | registered table vacuous by construction; post-hoc all-sessions table added 2026-11-21 at the operator's go-ahead (item 19) |
 | Forward read | 0 closed episodes against a floor of 10; the current sell-off is excluded |
 
 How to resume:
 
 1. Run, record and grade: done 2026-11-21.
-2. Q4: write a collector script for the 11 contracts, then re-run `state_map`. The fetch needs
-   no other cache writer running.
+2. Q4: done 2026-11-21. `fetch_state_map_legs.py` fetched 12 SPY puts in two rounds and the
+   re-run is filed as `state_map-v4-20261121c.txt`. Q4 is descriptive and decides nothing.
 3. `TURN-ON`: decided 2026-11-21. The post-hoc table is built and printed, descriptive only
    (re-run filed as `state_map-v4-20261121b.txt`).
 4. Forward: expect `STILL-OPEN` for years. The first forward run that prints another word is the

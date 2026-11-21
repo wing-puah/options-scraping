@@ -30,3 +30,12 @@ VERDICT
 
 The verdict banner above is unchanged after a printing-only re-run. The report now prints the coincident Holm p (m = 6) and the raw p for C5 to C7, a discovery census that reconciles 19 episodes to the lift n, and a labelled post-hoc all-sessions TURN-ON table (not registered, descriptive only). Reading: [current.md](../../../current.md#2026-11-21--state_map-no-market-state-warned-before-a-top).
 
+## Note 2026-11-21 (later) · re-run `state_map-v4-20261121c.txt`
+
+Q4 priced after the fetch. Every other verdict line is unchanged from `-b`; only the Q4 line moved, from `AWAITING SCRAPE` to `DESCRIPTIVE`. `fetch_state_map_legs.py` fetched 12 SPY puts (none unlisted, none refused). All 39 onsets priced.
+
+```
+  >>> state_map Q4 (SPY put spread on Q3 signals, 2022 on): DESCRIPTIVE <<<
+```
+
+Reading: [current.md](../../../current.md#2026-11-21--state_map-no-market-state-warned-before-a-top).

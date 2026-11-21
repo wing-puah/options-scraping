@@ -563,7 +563,7 @@ STUDIES: dict[str, Study] = {
                 "2016-01-01 to 2026-09-22): COINCIDENT <<<`; `>>> state_map Q3 READ (B10: SPY 10 "
                 "sessions after a mech BEAR onset vs other days, test 2016-01-01 to 2026-09-22): NULL "
                 "<<<`; `>>> state_map PBO: Q2 0.395 Q3 0.603 <<<`; `>>> state_map Q4 (SPY put spread "
-                "on Q3 signals, 2022 on): AWAITING SCRAPE <<<`; `>>> state_map FORWARD (episodes and "
+                "on Q3 signals, 2022 on): DESCRIPTIVE <<<`; `>>> state_map FORWARD (episodes and "
                 "onsets after 2026-11-20): Q2 STILL-OPEN Q3 STILL-OPEN <<<`. Nothing ships.",
     ),
     "tail_breach_intraday": Study(

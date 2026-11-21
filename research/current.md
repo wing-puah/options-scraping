@@ -445,6 +445,7 @@ positive, and its interval spans 0.
 
 - **Q4 is `AWAITING SCRAPE`.** 11 contracts are missing, for 10 of 39 onsets. No collector
   script exists for them, so nothing priced.
+  _Addendum 2026-11-21 (later): see the Q4 addendum below. Q4 now prints `DESCRIPTIVE`._
 - **Forward is `STILL-OPEN`.** `>>> state_map FORWARD (episodes and onsets after 2026-11-20):
   Q2 STILL-OPEN Q3 STILL-OPEN <<<`. The forward count is 0 against a floor of 10 episodes.
 
@@ -458,6 +459,35 @@ positive, and its interval spans 0.
 - **PBO is fragile or vetoing.** Q2 is 0.395 and Q3 is 0.603. The Q3 veto is why its cells
   print `NULL (PBO veto)`.
 - **Q5 labels are 93% RETRO.** A model that may know what came next wrote them.
+
+### Q4 addendum, 2026-11-21 (later): the put spreads priced, and they decide nothing
+
+**Q4 is descriptive and decides nothing.** After the fetch, all 39 onsets priced and the
+verdict line moved from `AWAITING SCRAPE` to `DESCRIPTIVE`. The mean returns are small, change
+sign across horizons and carry no interval. No other verdict line moved.
+
+- **Fetch.** `fetch_state_map_legs.py` requested 12 SPY puts in two rounds. The first round took
+  11 and exposed one nearer strike (2026-04-17 638P), which the second round took. None was
+  unlisted and none errored. Report: `state_map-v4-20261121c.txt`.
+- **Priced.** 39 onsets built, none awaiting, none dropped. One onset is cut at horizons 10
+  and 21 because the exit falls past the data.
+- **Refused.** 0 of 39. Every priced cell lists `unpriced 0`.
+- **Flag.** Each cell holds 13 to 25 trades, above the floor of 10, so none prints `THIN`.
+  The section title still reads "THIN-flagged"; that is the registered wording, not a result.
+
+```
+  >>> state_map Q4 (SPY put spread on Q3 signals, 2022 on): DESCRIPTIVE <<<
+  onsets from 2022-02-01: 39; strikes built 39, awaiting a fetch 0, dropped 0 {}
+  contracts to fetch: 0
+  n_truncated (onsets with D + 1 + h past the data, left out): h 5: 0  h 10: 1  h 21: 1
+  commission $0.65 per contract per leg-side; R = P&L over the entry debit
+    S-BEAR  h  5  priced  14  unpriced   0 {}  mean R -0.078
+    S-BEAR  h 10  priced  13  unpriced   0 {}  mean R +0.115
+    S-BEAR  h 21  priced  13  unpriced   0 {}  mean R -0.022
+    S-EVOL  h  5  priced  25  unpriced   0 {}  mean R +0.005
+    S-EVOL  h 10  priced  25  unpriced   0 {}  mean R +0.167
+    S-EVOL  h 21  priced  25  unpriced   0 {}  mean R -0.208
+```
 
 ### A flaw in the printed TURN-ON table
 
