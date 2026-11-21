@@ -35,8 +35,10 @@ is not listed.
 ONE WRITER. Two writers into the option cache is how duplicates were made
 before. A real fetch REFUSES (exit 3) while another cache writer runs: a
 backtest/proxy, the journal, or any other `fetch_*_legs.py` collector,
-`mechanical_benchmark`'s ARM U loop included. The check is the `pgrep -f`
-bracket pattern `scripts/daily_loop.sh` uses, so pgrep cannot match itself.
+`mechanical_benchmark`'s ARM U loop included. The check reads one `ps` table and counts only
+a Python interpreter running a writer script or module, so this process, its
+ancestors (shell, `caffeinate`, `rtk`) and any command that merely names the
+script as text are never counted.
 `--dry-run` writes nothing and is not refused.
 
 `--dry-run` is offline: it reads the cache index and the skip-list from disk
@@ -56,6 +58,8 @@ import argparse
 import asyncio
 import logging
 import os
+import re
+import shlex
 import subprocess
 import sys
 from collections import Counter
@@ -77,35 +81,83 @@ log = logging.getLogger("fetch_mechanical_baseline_legs")
 
 SCOPES = ("primary", "all")
 EXIT_OTHER_WRITER = 3
-#: Cache writers this collector must not run beside. Bracketed so `pgrep -f`
-#: never matches its own command line (the `daily_loop.sh` pattern).
-WRITER_PATTERNS = (r"[s]cripts\.backtest(\.proxy)?( |$)",
-                   r"[s]cripts\.journal",
-                   r"[f]etch_[a-z_]*legs\.py")
+#: Cache writers this collector must not run beside, as regexes on the writer's
+#: TARGET: the `-m` module, or the script path a Python interpreter runs.
+WRITER_PATTERNS = (r"^scripts\.backtest(\.proxy)?$",
+                   r"^scripts\.journal(\.|$)",
+                   r"fetch_[a-z_]*legs\.py$")
+_PYTHON = re.compile(r"^[Pp]ython(\d+(\.\d+)*)?$")
 
 
-def ancestry(pid: int | None = None, run=subprocess.run) -> set[str]:
-    """This process and every parent: a wrapper (`caffeinate`, a shell, `rtk`)
-    carries this script's name on its command line and is not another writer."""
+def process_table(run=subprocess.run) -> list[tuple[str, str, str]]:
+    """`[(pid, ppid, command)]` for every process, from one `ps` call."""
+    res = run(["ps", "-axo", "pid=,ppid=,command="], capture_output=True, text=True)
+    rows = []
+    for line in (res.stdout or "").splitlines():
+        parts = line.split(None, 2)
+        if len(parts) == 3:
+            rows.append((parts[0], parts[1], parts[2]))
+    return rows
+
+
+def ancestry(pid: int | None = None, table=None, run=subprocess.run) -> set[str]:
+    """This process and every parent: a wrapper (`caffeinate`, a shell, `rtk`,
+    `make`) carries this script's name on its command line and is not another
+    writer."""
+    rows = process_table(run) if table is None else table
+    parent = {p: pp for p, pp, _ in rows}
     out, cur = set(), str(pid if pid is not None else os.getpid())
     while cur and cur not in out and cur != "0":
         out.add(cur)
-        res = run(["ps", "-o", "ppid=", "-p", cur], capture_output=True, text=True)
-        cur = (res.stdout or "").strip()
+        cur = parent.get(cur, "")
     return out
 
 
+def writer_target(command: str) -> str | None:
+    """What a Python interpreter command line runs: the `-m` module or the script
+    path. None when the command is not a Python interpreter, so a shell `-c`
+    string, `tail`, `grep` or an editor that merely names a script never counts."""
+    try:
+        argv = shlex.split(command)
+    except ValueError:
+        argv = command.split()
+    if not argv or not _PYTHON.match(os.path.basename(argv[0])):
+        return None
+    args = argv[1:]
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "-m":
+            return args[i + 1] if i + 1 < len(args) else None
+        if a == "-c":
+            return None
+        if a in ("-W", "-X"):
+            i += 2
+            continue
+        if a.startswith("-"):
+            i += 1
+            continue
+        return a
+    return None
+
+
 def other_writers(patterns=WRITER_PATTERNS, own: set[str] | None = None,
-                  run=subprocess.run) -> list[tuple[str, str]]:
-    """`[(pid, pattern)]` of running processes that write the option cache,
-    this process and its parents excluded."""
-    own = ancestry(run=run) if own is None else own
+                  run=subprocess.run, table=None) -> list[tuple[str, str]]:
+    """`[(pid, pattern)]` of running Python processes that write the option
+    cache. This process, its ancestors and the scan's own children are excluded."""
+    rows = process_table(run) if table is None else table
+    own = ancestry(table=rows) if own is None else own
     found = []
-    for pat in patterns:
-        res = run(["pgrep", "-f", pat], capture_output=True, text=True)
-        for pid in (res.stdout or "").split():
-            if pid not in own:
+    for pid, ppid, cmd in rows:
+        if pid in own or ppid == str(os.getpid()):
+            continue
+        target = writer_target(cmd)
+        if target is None:
+            continue
+        for pat in patterns:
+            if re.search(pat, target):
                 found.append((pid, pat))
+                break
     return found
 
 

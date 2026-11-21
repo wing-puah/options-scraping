@@ -3,7 +3,6 @@ refuses to run beside another option-cache writer. No network, no cache."""
 from __future__ import annotations
 
 from datetime import date
-from types import SimpleNamespace
 
 import pytest
 
@@ -41,29 +40,48 @@ def test_real_fetch_refuses_beside_another_writer(no_network, monkeypatch, capsy
     assert "REFUSED" in capsys.readouterr().err
 
 
-def _fake_run(table):
-    def run(cmd, **k):
-        if cmd[0] == "pgrep":
-            return SimpleNamespace(stdout=table["pgrep"].get(cmd[-1], ""))
-        return SimpleNamespace(stdout=table["ppid"].get(cmd[-1], "0"))
-    return run
+SCRIPT = "scripts/collector/study_legs/f1_selection/fetch_state_map_legs.py"
+SELF = "500"
 
 
-def test_other_writers_excludes_self_and_parents():
-    pat = F.WRITER_PATTERNS[-1]
-    run = _fake_run({"pgrep": {pat: "100\n200\n300\n"},
-                     "ppid": {"100": "200", "200": "1", "1": "0"}})
-    own = F.ancestry(100, run=run)
-    assert own == {"100", "200", "1"}
-    assert F.other_writers((pat,), own=own, run=run) == [("300", pat)]
+def _writers(rows, own=SELF):
+    ancestors = F.ancestry(int(own), table=rows)
+    return F.other_writers(own=ancestors, table=rows)
 
 
-def test_writer_patterns_match_the_running_loops():
-    import re
-    pats = [re.compile(p.replace("[s]", "s").replace("[f]", "f")) for p in F.WRITER_PATTERNS]
-    for cmd in ("python3 scripts/collector/study_legs/f1_selection/fetch_mechanical_legs.py --limit 400",
-                "python3 -m scripts.backtest --config config/backtest.yml",
-                "python3 -m scripts.backtest.proxy --config config/backtest.yml",
-                "python3 -m scripts.journal"):
-        assert any(p.search(cmd) for p in pats), cmd
-    assert not any(p.search("python3 -m scripts.backtest_study run x") for p in pats)
+def test_launching_shell_and_wrappers_are_not_counted():
+    rows = [("1", "0", "/sbin/launchd"),
+            ("200", "1", f"/bin/zsh -c caffeinate -i python3 {SCRIPT} --limit 5"),
+            ("300", "200", f"caffeinate -i python3 {SCRIPT} --limit 5"),
+            ("400", "300", f"rtk python3 {SCRIPT}"),
+            ("450", "400", f"make fetch ARGS={SCRIPT}"),
+            (SELF, "450", f"/usr/bin/python3 {SCRIPT} --limit 5"),
+            ("501", SELF, "ps -axo pid=,ppid=,command=")]
+    assert _writers(rows) == []
+
+
+def test_scan_own_children_and_text_mentions_are_not_counted():
+    rows = [(SELF, "1", f"python3 {SCRIPT}"),
+            ("501", SELF, f"pgrep -f {SCRIPT}"),
+            ("600", "1", f"tail -f logs/{SCRIPT}.log"),
+            ("601", "1", "grep fetch_state_map_legs.py logs/x"),
+            ("602", "1", f"vim {SCRIPT}"),
+            ("603", "1", f"/bin/zsh -c python3 {SCRIPT}"),
+            ("604", "1", "python3 -c print('fetch_x_legs.py')")]
+    assert _writers(rows) == []
+
+
+def test_second_real_python_writer_is_counted():
+    rows = [(SELF, "1", f"python3 {SCRIPT}"),
+            ("700", "10", f"/opt/homebrew/bin/python3.12 {SCRIPT} --limit 9"),
+            ("701", "11", "python3 -m scripts.backtest --config config/backtest.yml --redo"),
+            ("702", "12", "Python -m scripts.journal recommend"),
+            ("703", "13", "python3 -m scripts.backtest_study run x")]
+    got = _writers(rows)
+    assert [p for p, _ in got] == ["700", "701", "702"]
+
+
+def test_writer_target_reads_interpreter_args():
+    assert F.writer_target("python3 -u -m scripts.backtest.proxy --x") == "scripts.backtest.proxy"
+    assert F.writer_target("python3 -W ignore a/fetch_a_legs.py") == "a/fetch_a_legs.py"
+    assert F.writer_target("caffeinate python3 a/fetch_a_legs.py") is None
