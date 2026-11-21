@@ -210,3 +210,80 @@ def test_dry_run_with_no_open_positions_is_a_trivial_no_op():
     raw = _raw()
     result = greeks.enrich(raw, as_of=AS_OF, dry_run=True, session=_NeverCalledSession())
     assert result is raw
+
+
+# --------------------------------------------------------------------------
+# Cache freshness (2026-11-21: laptop runs priced QQQ at a months-old close)
+# --------------------------------------------------------------------------
+
+def _seed_underlying(tmp_path, rows):
+    path = tmp_path / f"{SYMBOL}_underlying.csv"
+    path.write_text(_under_csv(rows), encoding="utf-8")
+    return path
+
+
+def _enrich_with_cache(tmp_path, session):
+    return greeks.enrich(_one_position_raw(), as_of=AS_OF, cache_dir=tmp_path,
+                         session=session)
+
+
+def test_stale_cached_underlying_is_refetched_and_replaced(tmp_path):
+    path = _seed_underlying(tmp_path, [(date(2026, 7, 1), 50.0), (date(2026, 7, 2), 51.0)])
+    fresh = _under_csv([(date(2026, 7, 1), 50.0), (date(2026, 7, 2), 51.0),
+                        (AS_OF, 99.0)])
+    session = _Session(option_csv=_opt_csv([(AS_OF, "40%", "0.5", "", "", "")]),
+                       underlying_csv=fresh)
+    out = _enrich_with_cache(tmp_path, session)
+    assert out["underlying_prices"][SYMBOL] == 99.0
+    assert any("%7C" not in u for u in session.calls)
+    assert path.read_text(encoding="utf-8") == fresh
+
+
+def test_fresh_cached_underlying_is_not_refetched(tmp_path):
+    _seed_underlying(tmp_path, [(AS_OF, 77.0)])
+    session = _Session(option_csv=_opt_csv([(AS_OF, "40%", "0.5", "", "", "")]),
+                       underlying_csv=_under_csv([(AS_OF, 1.0)]))
+    out = _enrich_with_cache(tmp_path, session)
+    assert out["underlying_prices"][SYMBOL] == 77.0
+    assert all("%7C" in u for u in session.calls)
+
+
+def test_weekend_as_of_accepts_friday_row(tmp_path):
+    friday = date(2026, 11, 20)
+    _seed_underlying(tmp_path, [(friday, 77.0)])
+    session = _Session(option_csv=_opt_csv([(friday, "40%", "0.5", "", "", "")]),
+                       underlying_csv=_under_csv([(friday, 1.0)]))
+    out = greeks.enrich(_one_position_raw(), as_of=date(2026, 11, 22),
+                        cache_dir=tmp_path, session=session)
+    assert out["underlying_prices"][SYMBOL] == 77.0
+    assert all("%7C" in u for u in session.calls)
+
+
+def test_shorter_refetch_never_shrinks_the_cached_history(tmp_path):
+    old_rows = [(date(2026, 1, 2), 10.0), (date(2026, 7, 2), 51.0)]
+    path = _seed_underlying(tmp_path, old_rows)
+    session = _Session(option_csv=_opt_csv([(AS_OF, "40%", "0.5", "", "", "")]),
+                       underlying_csv=_under_csv([(AS_OF, 99.0)]))
+    out = _enrich_with_cache(tmp_path, session)
+    assert out["underlying_prices"][SYMBOL] == 99.0
+    assert path.read_text(encoding="utf-8") == _under_csv(old_rows)
+
+
+def test_failed_refetch_falls_back_to_the_stale_cache(tmp_path):
+    _seed_underlying(tmp_path, [(date(2026, 7, 2), 51.0)])
+    session = _Session(option_csv=_opt_csv([(AS_OF, "40%", "0.5", "", "", "")]),
+                       underlying_csv=None)
+    out = _enrich_with_cache(tmp_path, session)
+    assert out["underlying_prices"][SYMBOL] == 51.0
+
+
+def test_stale_cached_option_history_is_refetched(tmp_path):
+    from lib.barchart import options as barchart_options
+    opt_path = barchart_options.cache_path(tmp_path, SYMBOL, EXPIRY, STRIKE, "Call")
+    opt_path.write_text(_opt_csv([(date(2026, 7, 2), "30%", "0.2", "", "", "")]),
+                        encoding="utf-8")
+    session = _Session(option_csv=_opt_csv([(date(2026, 7, 2), "30%", "0.2", "", "", ""),
+                                            (AS_OF, "45%", "0.6", "", "", "")]),
+                       underlying_csv=_under_csv([(AS_OF, 99.0)]))
+    out = _enrich_with_cache(tmp_path, session)
+    assert out["greeks"][str(CONID)]["delta"] == 0.6

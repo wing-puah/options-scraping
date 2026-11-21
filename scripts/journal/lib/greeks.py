@@ -49,7 +49,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from lib.barchart import options as barchart_options
@@ -113,22 +113,51 @@ def _as_of_row(details: dict[date, dict], as_of: date) -> tuple[dict | None, int
     return details[picked], (as_of - picked).days
 
 
-async def _fetch_cached(session, path: Path | None, url: str, timeout_ms: int) -> str | None:
-    """Read `path` if it already exists, else fetch `url` and (if given) persist it.
+def _last_weekday_on_or_before(d: date) -> date:
+    """`d`, or the Friday before it when `d` falls on a weekend."""
+    return d - timedelta(days=max(0, d.weekday() - 4))
 
-    Same cache-first shape `scripts/collector/history/fetch_counterpart_history.py` and
-    `fetch_underlying_ohlc.py` use: a re-run of the same trade date should not
-    re-hit Barchart for a contract already on disk. `path=None` (the caller's
-    `cache_dir=None`, the common case for a one-off daily run) simply disables
-    the cache — every call fetches.
+
+def _date_span(csv_text: str | None) -> tuple[date, date] | None:
+    """(earliest, latest) row date of a Barchart history CSV, or None if it has none."""
+    if not csv_text:
+        return None
+    days = list(barchart_options.parse_history_details(csv_text, require_mark=False))
+    return (min(days), max(days)) if days else None
+
+
+async def _fetch_cached(session, path: Path | None, url: str, timeout_ms: int,
+                        fresh_through: date) -> str | None:
+    """A history CSV whose rows reach `fresh_through`, cache-first.
+
+    A cached file is used as-is only when its latest row is on or after the last
+    weekday on or before `fresh_through`. Otherwise it is re-fetched. The cache is
+    shared with the research collectors (`GREEKS_CACHE_DIR` is
+    `backtests/option_history_cache`), so a file written once and never refreshed
+    used to freeze a laptop run's spot and greeks at the first fetch date. On
+    2026-11-21 QQQ was found priced at its 2026-08-14 close. CI never saw it
+    because each runner starts with an empty cache.
+
+    A re-fetch replaces the cached file only when the new text covers the old
+    span on both ends, so a shorter download never shrinks a research history.
+    When the fetch fails or comes back older, the cached text is returned and
+    the caller logs the staleness.
     """
-    if path is not None and path.exists():
-        return path.read_text(encoding="utf-8")
-    csv_text = await session.fetch_history_fast(url, timeout_ms)
-    if csv_text and path is not None:
+    cached = path.read_text(encoding="utf-8") if path is not None and path.exists() else None
+    old_span = _date_span(cached)
+    if old_span and old_span[1] >= _last_weekday_on_or_before(fresh_through):
+        return cached
+    fetched = await session.fetch_history_fast(url, timeout_ms)
+    new_span = _date_span(fetched)
+    if new_span is None:
+        return cached
+    if path is not None and (old_span is None
+                             or (new_span[0] <= old_span[0] and new_span[1] >= old_span[1])):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(csv_text, encoding="utf-8")
-    return csv_text
+        path.write_text(fetched, encoding="utf-8")
+    if old_span and new_span[1] < old_span[1]:
+        return cached
+    return fetched
 
 
 async def _enrich_greeks(session, raw: dict, as_of: date, cache_dir: Path | None,
@@ -153,7 +182,7 @@ async def _enrich_greeks(session, raw: dict, as_of: date, cache_dir: Path | None
         path = (barchart_options.cache_path(cache_dir, symbol, expiry, strike, opt_type)
                 if cache_dir else None)
         url = barchart_options.option_history_url(symbol, expiry, strike, opt_type)
-        csv_text = await _fetch_cached(session, path, url, timeout_ms)
+        csv_text = await _fetch_cached(session, path, url, timeout_ms, min(as_of, expiry))
         details = (barchart_options.parse_history_details(csv_text, require_mark=False)
                    if csv_text else {})
         row, staleness = _as_of_row(details, as_of)
@@ -164,8 +193,8 @@ async def _enrich_greeks(session, raw: dict, as_of: date, cache_dir: Path | None
             greeks[str(conid)] = _blank_greek()
             unavailable.append(conid)
         else:
-            if staleness:
-                log.info("%s %s %s: no Barchart row for %s — using the %dd-stale "
+            if staleness and as_of - timedelta(days=staleness) < _last_weekday_on_or_before(as_of):
+                log.warning("%s %s %s: no Barchart row for %s — using the %dd-stale "
                          "settlement instead", symbol, expiry.isoformat(), opt_type,
                          as_of.isoformat(), staleness)
             greeks[str(conid)] = {
@@ -203,14 +232,14 @@ async def _enrich_underlying(session, raw: dict, as_of: date, cache_dir: Path | 
     for symbol in symbols:
         path = (cache_dir / f"{symbol}_underlying.csv") if cache_dir else None
         url = barchart_underlying.stock_history_url(symbol)
-        csv_text = await _fetch_cached(session, path, url, timeout_ms)
+        csv_text = await _fetch_cached(session, path, url, timeout_ms, as_of)
         details = (barchart_options.parse_history_details(csv_text, require_mark=False)
                    if csv_text else {})
         row, staleness = _as_of_row(details, as_of)
         mark = row.get("_mark") if row is not None else None
         if mark is not None:
-            if staleness:
-                log.info("%s: no Barchart underlying row for %s — using the %dd-stale "
+            if staleness and as_of - timedelta(days=staleness) < _last_weekday_on_or_before(as_of):
+                log.warning("%s: no Barchart underlying row for %s — using the %dd-stale "
                          "close instead", symbol, as_of.isoformat(), staleness)
             prices[symbol] = mark
         if sleep_s:
