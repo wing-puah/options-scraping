@@ -3,7 +3,7 @@
 # and then compiles the day. The GitHub twin is .github/workflows/flow-pacemaker.yml;
 # run this when Actions is down or dropping its crons.
 #
-#   ./scripts/pacemaker.sh [--dry-run] [--force] [--skip-compile]
+#   ./scripts/pacemaker/pacemaker.sh [--dry-run] [--force] [--skip-compile]
 #                          [--flow-times "1500 1600 ..."] [--unusual-time 2200|""]
 #   make pacemaker [ARGS="--force"]
 #
@@ -29,7 +29,7 @@
 # means. Exit: 3 = another pacemaker is running; 4 = no session / already done.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 ORIG_ARGS=("$@")   # the parse loop consumes $@; the caffeinate re-exec needs the originals

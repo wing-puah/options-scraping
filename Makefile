@@ -96,7 +96,11 @@ daily-loop:
 # day. Start it before 23:00 SGT and leave the terminal open. DRY=1 prints the plan.
 .PHONY: pacemaker
 pacemaker:
-	./scripts/pacemaker.sh $(if $(filter 1,$(DRY)),--dry-run) $(ARGS)
+	./scripts/pacemaker/pacemaker.sh $(if $(filter 1,$(DRY)),--dry-run) $(ARGS)
+
+.PHONY: pacemaker-kick
+pacemaker-kick:
+	bash scripts/pacemaker/kick_github.sh $(if $(filter 1,$(DRY)),--dry-run)
 
 # ── pipeline health ─────────────────────────────────────────────────────────────
 .PHONY: check-pipeline

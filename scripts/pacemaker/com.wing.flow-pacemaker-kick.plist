@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.wing.flow-pacemaker-kick</string>
+
+  <!-- Dispatches the GitHub Flow Pacemaker on time, because its cron fires hours late.
+       Install: cp this file to ~/Library/LaunchAgents, then
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.wing.flow-pacemaker-kick.plist
+       Remove: launchctl bootout gui/$(id -u)/com.wing.flow-pacemaker-kick -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>scripts/pacemaker/kick_github.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/wing/claude_playground/options-trading</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+  </dict>
+
+  <!-- 22:30 local (SGT, no DST) Mon-Fri = 14:30 UTC, 30 min before the first scrape.
+       A Mac asleep at 22:30 fires this on the next wake; the script skips a covered day. -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/Users/wing/claude_playground/options-trading/backtests/run_logs/pacemaker-kick-launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/wing/claude_playground/options-trading/backtests/run_logs/pacemaker-kick-launchd.log</string>
+</dict>
+</plist>
