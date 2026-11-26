@@ -24,7 +24,7 @@ rollback triggers behind them live in
 - Read **`mech_cell`** off the analysis row. Do not hand-compute SPY vs its
   50-day SMA; the column is on every row and backfilled.
 - Budget: the analysis emits ~10 plays/day. **Deploy 1–3.** Size per
-  [§ Sizing](#s2-sizing): full only for Tier A on a dip date, otherwise $500.
+  [§ Sizing](#s2-sizing): heavier, staged in, only for Tier A on a dip date; otherwise $500.
 - Entry basis: the **next trading day's OPEN**. Same-day fills were never
   modeled and are not covered by any rule here.
 
@@ -129,7 +129,7 @@ Vetoes (§1) and tiers (§2–§3) are unchanged. Sizing is the only new rule.
 
 | Play | Size |
 |---|---|
-| Tier A on a **dip date** | Normal size, set by the $1,000 stop |
+| Tier A on a **dip date** | Heavier than $500, staged in over several dip sessions; never full size at once |
 | Tier B, or Tier A on a non-dip date | Small: $500 max risk per position |
 
 | In-sample cell (Tier A, falling market) | Mean R | 95% CI |
@@ -155,7 +155,11 @@ cell in bounds. The forward grade is pending in `dip_buy` and `regime_map`
 **Rollback:** if the `dip_buy` forward verdict is NULL or CONTRARY, revert to
 uniform $500 sizing.
 
-**Risk:** full size on dip days concentrates size exactly when markets fall.
+**Staging (operator ruling 2026-11-26).** The operator does not go full size on a dip date. The dip
+can keep dipping, so the extra size is spread over several sessions. The ruling came after the
+in-sample cell lost replication on 2026-11-26 (p 0.076).
+
+**Risk:** heavier size on dip days still concentrates size when markets fall.
 The §4 hedge sleeve stays at ≤ ½ a position.
 
 The card shows the size class per candidate. It is an annotation: it never

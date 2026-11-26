@@ -759,7 +759,7 @@ NOT_DIP = "NOT_DIP"
 NO_DATA = "NO_DATA"
 MECH_REGIME_CSV = (Path(__file__).resolve().parents[2]
                    / "backtests/mech_regime/spy_vix_daily_full.csv")
-SIZE_FULL = "full ($1,000 stop)"
+SIZE_FULL = "heavier, staged (scale in over dip sessions; never full size at once)"
 SIZE_SMALL = "small ($500 max risk; skip if one contract exceeds it)"
 SIZE_UNKNOWN = "unknown (dip status NO_DATA)"
 
@@ -793,7 +793,7 @@ def annotate_size_class(candidates: list[Candidate], status: str) -> None:
     """Stamp the §2-sizing size class on each deploy candidate.
 
     DISPLAY-ONLY: re-sorts nothing, drops nothing, changes no tier. Tier A on a
-    DIP date is full size; every other deploy is small; NO_DATA claims nothing.
+    DIP date is heavier, staged; every other deploy is small; NO_DATA claims nothing.
     Hedge-sleeve candidates keep their own §4 size and are left blank.
     """
     for c in candidates:
@@ -815,7 +815,8 @@ def _render_size_policy(status: str) -> list[str]:
              NO_DATA: "**NO_DATA** (mech table missing, ends before the session, "
                       "or no SMA runway) — no size class claimed"}[status]
     return [f"**Sizing (§2-sizing, operator policy — in-sample, forward grade pending):** {shown}.",
-            "Tier A on a dip date: full size. Every other deploy: small ($500 max "
+            "Tier A on a dip date: heavier, staged in over several sessions (the dip can keep "
+            "dipping), never full size at once. Every other deploy: small ($500 max "
             "risk; skip a play whose one contract exceeds it). Annotation only.",
             ""]
 
