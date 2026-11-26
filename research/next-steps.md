@@ -1374,7 +1374,11 @@ tokeniser. Then an operator ruling: adopt the head parse in `ladder_tier()`
 updated), or leave it and record that the veto reads prose. Nothing is changed
 here.
 
-### 2.17 The study runner's input fingerprint omits BaselineDaily — OPEN, filed 2026-10-23
+### 2.17 The study runner's input fingerprint omits BaselineDaily — PARTLY DONE 2026-11-26
+
+**2026-11-26.** BaselineDaily is now in every study's input list (`run.py::_input_csvs`), so it
+moves the fingerprint. The per-study input declaration and the `unversioned` header are not built.
+See `current.md` 2026-11-26.
 
 `baseline_read` reads the `BaselineDaily` export and the SPY table, nothing else. The runner's
 input fingerprint covers the results, proxy and analysis exports and the SPY table. A fresh
@@ -1464,7 +1468,10 @@ distribution is unmeasured. What to do: compute the per-session net
 It needs no new data.
 
 <a id="s2-22"></a>
-### 2.22 `account_sim.signed_dn()` turns a missing delta into 0.0 — OPEN, filed 2026-10-29
+### 2.22 `account_sim.signed_dn()` turns a missing delta into 0.0 — DONE 2026-11-26
+
+**2026-11-26.** `signed_dn` returns `None`, and the re-run is recorded in `current.md` 2026-11-26.
+Two of 308 positions are left out. Only the average delta-notional moved, from 3,073 to 3,093.
 
 `scripts/backtest_study/f4_deployment/account_sim.py::signed_dn` returns 0.0 when delta or the
 underlying price is missing. The repo rule is that a missing greek is `None`, never 0.0. This

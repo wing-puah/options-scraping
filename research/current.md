@@ -340,6 +340,51 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-11-26 — data refresh, seal condition met, two bug fixes
+
+**The holdout seal's condition is now met, and the seal is not lifted.** After the refresh,
+`era.seal_census()` returns `priced_dates: 44` against `need: 40`, `condition_met: True` and
+`lifted: None`. Lifting it is a code change to `SEAL_LIFTED` plus the one registered read. That
+is the operator's call ([holdout_seal](pre-registrations/f4_deployment/holdout_seal.md)).
+
+### What ran
+
+- **Analysis backfill.** AnalysisClaude had nothing for 2026-11-19, 11-23 or 11-25. Each date
+  ran on 2026-11-26 through `python3 -m scripts.analysis_pipeline --date D`. These three rows
+  were written after the fact, so treat their MARKET labels as retro labels.
+- **Daily loop** (`START=2026-11-18`). It finished all eight steps. The backtest simulated 36
+  plays, and the proxy ran too. The deploy card is now session 2026-11-25, with analysis one day
+  old. The caches were pushed once as `research-caches-20261126-1328`.
+- **Exports.** The new exports hold BacktestResults 1,214 rows, BacktestProxy 2,286 rows and
+  AnalysisClaude 3,826 rows.
+
+### Bug fixes
+
+- **2.22, `signed_dn`.** A missing delta or underlying now gives `None`, not 0.0.
+  - Cap admission keeps the old reading through `signed_dn_or_zero`.
+  - On the default config, `account_sim` now leaves out 2 of 308 taken positions.
+  - The average delta-notional total rose slightly on both arms, as the table below shows.
+  - No P&L, census, taken count or session gross/net figure moved.
+
+  | `account_sim` arm | Taken positions | Avg delta-notional before | After |
+  |---|---|---|---|
+  | First (308 taken) | 308 | 3,073 | 3,093 |
+  | Second (345 taken) | 345 | 2,991 | 3,009 |
+- **2.17, fingerprint.** The runner's input list now names the BaselineDaily export, so a fresh
+  BaselineDaily export changes the fingerprint. Every study opens one new `study-results` section
+  on its next record. The "unversioned" header that 2.17 proposed is not built.
+- **Stale verdicts.** `catalog.py` and `study-map.md` now carry the latest verdicts for these
+  studies: `mechanical_baseline`, `selloff_put_diagonal`, `daily_vol_structure`, `structure_sweep`,
+  `spy_benchmark` (2026-11-10 run, `DOES-NOT-BEAT`) and `ticker_pattern` (P1 `NULL`). The GLD flag
+  is gone. `structure_sweep` and `daily_vol_structure` moved from `open` to `null`.
+
+### `bear_arm` re-check
+
+The operator asked for this on 2026-10-27. Clause (c) still fires on 2025 at -0.0014:
+`REVERT CONDITION FIRED`. The census prints `n_rows=338 n_dates=181 -> FLOOR MET`. Clauses (a) and
+(b) pass, at $+4,869.50 and +0.0895. The failing year is closed data, so new rows can never clear
+clause (c). The rule it guards has been off since 2026-08-24 (`structure_exit.enabled` false).
+
 ## 2026-11-21 — trend_overlay: a slow trend rule roughly halves drawdown, but not clear of noise
 
 **Faber's 10-month trend rule cut the S&P 500's worst drawdown by about half in both windows, but the bootstrap cannot rule out zero, so it prints `NO-DRAWDOWN-BENEFIT`.** Discovery and holdout agree. The cost was about 1.5 points of CAGR a year, mostly whipsaw. **Nothing ships, and the live net cap stays at 2.50.**
