@@ -505,3 +505,14 @@ def test_both_simulators_take_the_row_hedge_criteria_sleeve_pick_chooses():
         assert hedged == {d1.isoformat(): "HB"}, hedged
         assert sim.census["hedge_taken"] == 1
         assert d3.isoformat() not in hedged
+
+
+def test_open_net_before_skips_unknown_delta():
+    """A position whose delta-notional is unknown (None) is left out, never summed (next-steps 2.22)."""
+    from types import SimpleNamespace as NS
+    from scripts.backtest_study.f4_deployment import portfolio_delta as PD
+    sim = NS(taken=[NS(dn=1000.0, entry_sess=1, exit_sess=5),
+                    NS(dn=None, entry_sess=1, exit_sess=5),
+                    NS(dn=-300.0, entry_sess=2, exit_sess=3)])
+    assert PD.open_net_before(sim, 3) == 700.0
+    assert PD.open_net_before(sim, 4) == 1000.0

@@ -424,7 +424,7 @@ def open_net_before(sim, sess) -> float:
     reconciled explicitly in the report rather than asserted.
     """
     return sum(p.dn for p in sim.taken
-               if p.entry_sess < sess <= p.exit_sess)
+               if p.entry_sess < sess <= p.exit_sess and p.dn is not None)
 
 
 def session_bands(sim, entry_by_date: dict, equity: float) -> dict:
@@ -448,7 +448,8 @@ def reconcile_session_series(sim, entry_by_date: dict) -> tuple[int, int]:
     ser = A.session_series(sim)
     opened: dict = defaultdict(float)
     for p in sim.taken:
-        opened[p.entry_sess] += p.dn
+        if p.dn is not None:  # unknown delta: left out, as session_series does
+            opened[p.entry_sess] += p.dn
     checked = bad = 0
     for sess in set(entry_by_date.values()):
         if sess not in ser:

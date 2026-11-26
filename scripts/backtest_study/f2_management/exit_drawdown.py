@@ -464,7 +464,7 @@ def split_positions(sim: A.Sim, stop: float, cache: dict) -> list:
             share = c / float(p.contracts)
             out.append(A.Pos(
                 rec=p.rec, contracts=c,
-                reserved=p.reserved * share, dn=p.dn * share,
+                reserved=p.reserved * share, dn=None if p.dn is None else p.dn * share,
                 entry_sess=p.entry_sess,
                 exit_sess=grid[min(res["days_held"], len(grid)) - 1],
                 days_held=res["days_held"], R=res["R"], dollars=res["dollars"],
