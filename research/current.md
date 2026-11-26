@@ -2069,6 +2069,13 @@ the ruling below, all four calibrate and print their old verdicts:
 - None of the four studies has a registration file; their gate is in code. So
   the ruling lives in the classifier's docstring and here, not in a
   `Resolved at build` tag.
+- **Resolved at build (2026-11-27).** The same tie also lands a day late.
+  META bull_put_spread 2026-09-21: credit 9.10, day-24 mark 19.10, loss
+  −$1000.0000000000002. Production stops on day 24. The harness rounds first,
+  misses, and stops on day 25. `_dollar_stop_tie` now also accepts a replay
+  `dollar_stop` on a later day when the stored day's loss is within $0.001 of
+  the line and the stored P&L reproduces. A replay on an earlier day, or a
+  stored loss off the line, stays HARD.
 
 | Calibration on 731 debit rows | Exact | Superseded | Boundary tie | Deferred fill | HARD |
 |---|---|---|---|---|---|

@@ -237,10 +237,20 @@ def _dollar_stop_tie(t: Trade, want: tuple, got: tuple) -> bool:
     First seen 2026-10-26, GOOG bear_put_spread 2026-03-25 after the one-clock
     re-price: entry 11.60, day-10 mark 1.60, loss exactly −$1,000.00; the
     replay's rounded pnl gives −$999.99999998 and fires stop_loss instead.
-    Only the label differs, so the row is benign. A replay that exits on a
-    different day or pnl stays HARD.
+    Only the label differs, so the row is benign. A replay that exits on an
+    EARLIER day, or whose stored day is not at the stop, stays HARD.
+
+    Later-day variant (2026-11-27): the replay may instead exit `dollar_stop`
+    on a LATER day than the stored one. First seen on 2026-09-21 META
+    bull_put_spread: credit 9.10, day-24 mark 19.10, unrounded loss
+    −$1000.0000000000002, which production (`simulate.py:1031`) stops on day
+    24; the harness rounds first (−$999.999999999), misses, and stops on day
+    25. Same test on the stored day: its loss is on the line within
+    TIE_DOLLARS and the stored pnl reproduces.
     """
-    if want[0] != "dollar_stop" or got[1] != want[1]:
+    if want[0] != "dollar_stop":
+        return False
+    if got[1] != want[1] and not (got[0] == "dollar_stop" and got[1] > want[1]):
         return False
     marks = bounded(t).marks
     mark = marks[want[1] - 1] if 0 < want[1] <= len(marks) else None
@@ -270,7 +280,8 @@ def classify(t: Trade, prod: dict, unreachable: set[str], replay_fn=replay):
       threshold is nudged TIE_EPS (see `_boundary_tie`). Or the mirror case on
       the dollar stop: production's loss sat exactly on MAX_LOSS_ABS and the
       replay's rounded pnl missed it, same day, same pnl (`_dollar_stop_tie`,
-      added 2026-10-27). Benign, but excluded
+      added 2026-10-27; widened 2026-11-27 to a replay stop one or more days
+      later when the stored day's loss is on the line). Benign, but excluded
       from calibrated-row dollar reconciliation the way superseded rows are —
       its flat replay still books a different (reason, day).
     deferred_fill — `exit_fill` is `deferred_<n>`: production filled the exit

@@ -226,6 +226,38 @@ def test_dollar_stop_tie_does_not_rescue_a_stop_one_tick_short():
     assert _classify(_dollar_tie_row(day2_mark=1.6001)) == "hard"
 
 
+def _later_day_row(day2_mark=-19.1):
+    """META shape (credit 9.10): the stored dollar_stop day-2 loss is on the line
+    (-$1000.0000000000002 unrounded), but the harness rounds to -$999.999999999,
+    misses, and stops a day later."""
+    marks = [-9.1, day2_mark, -21.1] + [-9.1] * (GRID_LEN - 3)
+    row = _row(ticker="LTIE", structure="bull_put_spread", entry=-9.1, marks=marks)
+    row["legs"] = (f"LTIE:{EXPIRY.isoformat()}:100:P -1\n"
+                   f"LTIE:{EXPIRY.isoformat()}:90:P +1")
+    row["exit_reason"] = "dollar_stop"
+    row["days_held"] = "2"
+    row["realized_pnl_pct"] = str(round((day2_mark + 9.1) / 9.1, 4))
+    return row
+
+
+def _classify_credit(row):
+    return m._classify(Trade(dict(row)), m.CREDIT_PROD,
+                       m.unreachable_reasons(m.CREDIT_PROD))[0]
+
+
+def test_dollar_stop_tie_later_day_replay():
+    row = _later_day_row()
+    rp = replay(Trade(dict(row)), **m.CREDIT_PROD)
+    assert (rp["exit_reason"], rp["days_held"]) == ("dollar_stop", 3), \
+        "fixture must reproduce the one-day-late replay"
+    assert _classify_credit(row) == "boundary_tie"
+
+
+def test_dollar_stop_tie_later_day_requires_loss_at_stop():
+    """Stored day's loss is $990, off the line: a later replay stop is HARD."""
+    assert _classify_credit(_later_day_row(day2_mark=-19.0)) == "hard"
+
+
 # ── the gate itself ──────────────────────────────────────────────────────────
 
 def _write_book(tmp_path, monkeypatch, real_rows, proxy_rows=()):
