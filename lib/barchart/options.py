@@ -44,14 +44,21 @@ def _mark(row: dict):
     return latest if latest and latest > 0 else None
 
 
-def parse_history_series(csv_text: str) -> list[tuple[date, float]]:
-    """Parse a Barchart option price-history CSV into a sorted [(date, mark)] series."""
+def parse_history_series(csv_text: str, through: date | None = None) -> list[tuple[date, float]]:
+    """Parse a Barchart option price-history CSV into a sorted [(date, mark)] series.
+
+    ``through`` drops every row dated after it. None (the default) keeps every
+    row, including a partial bar for a session still in progress; the backtest
+    passes its last completed session (`scripts/backtest/shared/history.py`).
+    """
     series: list[tuple[date, float]] = []
     for row in parse_csv(csv_text):
         t = str(row.get("Time", "")).strip()
         try:
             d = date.fromisoformat(t)
         except ValueError:
+            continue
+        if through is not None and d > through:
             continue
         mark = _mark(row)
         if mark is not None:
@@ -60,14 +67,16 @@ def parse_history_series(csv_text: str) -> list[tuple[date, float]]:
     return series
 
 
-def parse_history_details(csv_text: str, require_mark: bool = True) -> dict[date, dict]:
+def parse_history_details(csv_text: str, require_mark: bool = True,
+                          through: date | None = None) -> dict[date, dict]:
     """Parse a Barchart history CSV into {date: row_dict} with a pre-computed '_mark' key.
 
     Rows with a non-date Time are excluded. The '_mark' key holds mid(Bid,Ask) →
     Latest, the same value parse_history_series uses. Rows with no computable mark
     are excluded by default (pricing callers need a mark); pass require_mark=False
     to keep them with '_mark' set to None (callers that only need IV/OI/greeks,
-    e.g. the counterpart-IV fetch).
+    e.g. the counterpart-IV fetch). ``through`` drops rows dated after it, as
+    on :func:`parse_history_series`.
     """
     out: dict[date, dict] = {}
     for row in parse_csv(csv_text):
@@ -76,10 +85,30 @@ def parse_history_details(csv_text: str, require_mark: bool = True) -> dict[date
             d = date.fromisoformat(t)
         except ValueError:
             continue
+        if through is not None and d > through:
+            continue
         mark = _mark(row)
         if mark is not None or not require_mark:
             out[d] = {**row, "_mark": mark}
     return out
+
+
+def drop_rows_after(csv_text: str, through: date) -> str:
+    """``csv_text`` without the data lines dated after ``through``.
+
+    Line-based, so the kept lines are byte-for-byte what Barchart sent. A line
+    whose first field is not an ISO date (the header, a footer) is kept.
+    """
+    kept = []
+    for line in csv_text.splitlines(keepends=True):
+        head = line.split(",", 1)[0].strip().strip('"')
+        try:
+            if date.fromisoformat(head) > through:
+                continue
+        except ValueError:
+            pass
+        kept.append(line)
+    return "".join(kept)
 
 
 def cache_path(cache_dir: Path, symbol: str, expiration: date, strike: float, opt_type: str) -> Path:

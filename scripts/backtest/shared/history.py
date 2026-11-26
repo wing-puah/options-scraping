@@ -3,8 +3,9 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from lib.barchart import options as barchart_options
 from lib.barchart import BarchartSession
@@ -161,13 +162,90 @@ FORWARD_TOLERANCE_SESSIONS = 3
 # calendar (backfill_chain.py carries a private approximation), and the
 # 3-session tolerance absorbs a holiday.
 
-def last_completed_session(today: date | None = None) -> date:
-    """The latest weekday strictly before ``today``. Today's session is never
-    counted complete: a mid-session run must not demand today's bar."""
-    d = (today or date.today()) - timedelta(days=1)
+#: The US options session is judged in New York time. The operator runs from
+#: Singapore (ET+13 in winter), where the local date is already "tomorrow"
+#: while New York is mid-session.
+ET = ZoneInfo("America/New_York")
+
+#: A session's daily bar counts as final only after this ET wall-clock time.
+#: Before it, Barchart's row for the day is a PARTIAL bar of the session in
+#: progress (2026-11-27: the backtest priced such bars as closes).
+SESSION_FINAL_ET = time(16, 15)
+
+
+def _to_et(now: datetime | None) -> datetime:
+    """``now`` in New York time; None is the current instant. A naive datetime
+    is read as machine-local time, as ``datetime.fromtimestamp`` returns it."""
+    if now is None:
+        return datetime.now(ET)
+    return now.astimezone(ET)
+
+
+def last_completed_session(today: date | None = None, *, now: datetime | None = None) -> date:
+    """The latest weekday session whose daily bar is final.
+
+    Judged in New York time: today's ET session counts once the ET clock has
+    passed ``SESSION_FINAL_ET``; before that, the latest weekday strictly before
+    the ET date. ``now`` (any timezone; naive = machine-local) is the test seam
+    and defaults to the current instant.
+
+    ``today`` (a plain date) keeps the old date-only meaning: the latest weekday
+    strictly before it, with no clock. It exists for callers that pin a day.
+    Holidays are not modelled (see the note above).
+    """
+    if isinstance(today, datetime):
+        today, now = None, today
+    if today is not None:
+        d = today - timedelta(days=1)
+    else:
+        et = _to_et(now)
+        d = et.date() if et.time() >= SESSION_FINAL_ET else et.date() - timedelta(days=1)
     while d.weekday() >= 5:
         d -= timedelta(days=1)
     return d
+
+
+def fetched_session(path: Path) -> date:
+    """The last session that was complete when ``path`` was written (its mtime,
+    read in ET). A bar dated after it was a partial bar when fetched."""
+    return last_completed_session(now=datetime.fromtimestamp(path.stat().st_mtime, ET))
+
+
+def bar_cutoff(path: Path | None = None, now: datetime | None = None) -> date:
+    """The latest bar date the backtest may price from ``path``: never past the
+    last completed session (now), nor past the session complete at fetch time."""
+    cut = last_completed_session(now=now)
+    if path is not None:
+        cut = min(cut, fetched_session(path))
+    return cut
+
+
+def partial_bar_date(text: str, path: Path) -> date | None:
+    """The date of the latest row in ``text`` when that row was a PARTIAL bar at
+    fetch time (dated after :func:`fetched_session`), else None. Such a file was
+    written mid-session (by this module before the 2026-11-27 fix, or by the
+    journal's greeks fetch, which shares the cache)."""
+    days = barchart_options.parse_history_details(text, require_mark=False)
+    if not days:
+        return None
+    latest = max(days)
+    return latest if latest > fetched_session(path) else None
+
+
+def load_cached_history(path: Path, now: datetime | None = None):
+    """``(series, details, partial_date)`` for one cache file, with every bar
+    after :func:`bar_cutoff` dropped. ``partial_date`` is
+    :func:`partial_bar_date` (the dropped mid-session bar's date, or None)."""
+    rows = barchart_options.parse_history_details(path.read_text(encoding="utf-8"),
+                                                  require_mark=False)
+    fetched = fetched_session(path)
+    cut = min(last_completed_session(now=now), fetched)
+    # One parse; the same rows parse_history_series / _details(through=cut) keep.
+    details = {d: r for d, r in rows.items() if d <= cut and r["_mark"] is not None}
+    series = sorted((d, r["_mark"]) for d, r in details.items())
+    latest = max(rows, default=None)
+    partial = latest if latest is not None and latest > fetched else None
+    return series, details, partial
 
 
 def weekday_sessions_between(a: date, b: date) -> int:
@@ -193,8 +271,16 @@ def needed_end(play_end: date, today: date | None = None) -> date:
     return min(play_end, last_completed_session(today))
 
 
-def is_forward_stale(latest_bar: date | None, fetched_on: date, end: date) -> bool:
+def is_forward_stale(latest_bar: date | None, fetched_on: date, end: date,
+                     partial_on: date | None = None) -> bool:
     """True when a cached file should be refetched to reach ``end``.
+
+    ``fetched_on`` is the last session complete at fetch time
+    (:func:`fetched_session`), not the local calendar date: a file fetched
+    mid-session on ``end`` has not seen ``end``'s close and is not final.
+    ``partial_on`` is the date of a partial bar the file holds
+    (:func:`partial_bar_date`); once ``end`` reaches it the file is stale
+    whatever the tolerance, so the partial bar is replaced by the final one.
 
     Stale only while BOTH hold: the latest bar is more than
     ``FORWARD_TOLERANCE_SESSIONS`` sessions short of ``end``, and the file was
@@ -204,6 +290,8 @@ def is_forward_stale(latest_bar: date | None, fetched_on: date, end: date) -> bo
     before, not on-or-before: a same-day refetch of a sparse contract would
     repeat on every run of that day and return the same bars.
     """
+    if partial_on is not None and end >= partial_on:
+        return True
     if fetched_on >= end:
         return False
     if latest_bar is None:
@@ -266,8 +354,11 @@ def plan_option_histories(
     missing one is queued in ``to_scrape``; a known-unlisted one is priced as
     no-data (``series_map[key] = []``), exactly like a failed fetch.
 
+    Bars after :func:`bar_cutoff` (a session still in progress now, or one in
+    progress when the file was written) are dropped on read.
+
     ``needed_ends`` ({contract_key: date}) adds the FORWARD check
-    (:func:`is_forward_stale`, judged on the file's mtime date). A
+    (:func:`is_forward_stale`, judged on the file's ET mtime session). A
     forward-stale file is queued as ``PLAN_STALE`` and listed in
     ``plan.stale_forward``; unlike a start-shallow file its bars stay in the
     maps. Nothing is ever unlinked.
@@ -296,9 +387,8 @@ def plan_option_histories(
         cache = barchart_options.cache_path(
             HISTORY_CACHE, c["symbol"], c["expiration"], c["strike"], c["opt_type"])
         if cache.exists():
-            text = cache.read_text(encoding="utf-8")
-            series_map[c["key"]] = barchart_options.parse_history_series(text)
-            details_map[c["key"]] = barchart_options.parse_history_details(text)
+            series_map[c["key"]], details_map[c["key"]], partial_on = \
+                load_cached_history(cache)
             plan.status[c["key"]] = PLAN_CACHED
             if cache_only:
                 continue
@@ -333,10 +423,11 @@ def plan_option_histories(
             if end is not None:
                 series = series_map.get(c["key"], [])
                 latest = max((d for d, _ in series), default=None)
-                fetched_on = date.fromtimestamp(cache.stat().st_mtime)
-                if is_forward_stale(latest, fetched_on, end):
-                    log.info("Cache for %s latest=%s, needed through %s, fetched %s "
-                             "— refetching", c["key"], latest, end, fetched_on)
+                fetched_on = fetched_session(cache)
+                if is_forward_stale(latest, fetched_on, end, partial_on):
+                    log.info("Cache for %s latest=%s, needed through %s, fetched after "
+                             "%s close%s — refetching", c["key"], latest, end, fetched_on,
+                             f", partial bar {partial_on}" if partial_on else "")
                     plan.stale_forward.add(c["key"])
                     _queue(c, PLAN_STALE, forward_only=True)
                     if plan.status[c["key"]] != PLAN_STALE:
@@ -389,8 +480,10 @@ async def fetch_option_histories(
     n_skipped_unlisted = plan.count(PLAN_UNLISTED)
 
     def _load_cache(c: dict, text: str) -> None:
-        series_map[c["key"]] = barchart_options.parse_history_series(text)
-        details_map[c["key"]] = barchart_options.parse_history_details(text)
+        # `text` was cut at the last completed session before it was written.
+        cut = last_completed_session()
+        series_map[c["key"]] = barchart_options.parse_history_series(text, through=cut)
+        details_map[c["key"]] = barchart_options.parse_history_details(text, through=cut)
 
     log.info("Barchart history: %d cached, %d to scrape (%d stale-forward)",
              plan.count(PLAN_CACHED), len(to_scrape), len(plan.stale_forward))
@@ -510,6 +603,12 @@ async def _scrape(to_scrape, email, password, cookies_path, headless, timeout_ms
                           "errors", n_net, n_fetches)
                 raise NetworkOutage(n_net, n_fetches)
             i += 1
+            if csv_text:
+                # Never persist (or price) the partial bar of a session still
+                # in progress: Barchart serves one during US market hours.
+                csv_text = barchart_options.drop_rows_after(csv_text, last_completed_session())
+                if not barchart_options.parse_history_details(csv_text, require_mark=False):
+                    csv_text = ""             # only a partial bar: nothing to keep
             if not csv_text:
                 # setdefault: a forward-stale contract keeps the bars its file
                 # already holds; a missing or start-stale one has none (popped).

@@ -1174,7 +1174,8 @@ def _fwd_file(cache_dir, last_bar: str, fetched: date):
         f"{d},1.00,1.10,0.95,1.05,0.05,5.00%,100,500,0.30,0.40,0.01,-0.02,0.05,"
         f"0.01,1.04,100,1.00,1.10\n" for d in ("2026-06-01", last_bar))
     p.write_text(_HEADER + rows, encoding="utf-8")
-    ts = datetime(fetched.year, fetched.month, fetched.day, 12).timestamp()
+    # 17:00 New York time: after that day's close, whatever the machine's zone.
+    ts = datetime(fetched.year, fetched.month, fetched.day, 17, tzinfo=history.ET).timestamp()
     os.utime(p, (ts, ts))
     return p
 
@@ -1260,3 +1261,119 @@ def test_session_helpers():
                             120) == date(2026, 8, 21)
     assert history.is_forward_stale(None, date(2026, 7, 1), date(2026, 8, 21))
     assert not history.is_forward_stale(None, date(2026, 8, 21), date(2026, 8, 21))
+
+
+# ── Partial bar of a session in progress (2026-11-27) ──────────────────────────
+# Run from Singapore during US hours, Barchart serves a PARTIAL bar for the ET
+# session in progress. It was cached and priced as a close. The session clock is
+# now New York time; partial bars are dropped on read and never written, and a
+# file fetched mid-session is refetched once its window reaches that day.
+
+def _et(y, m, d, hh, mm=0):
+    return datetime(y, m, d, hh, mm, tzinfo=history.ET)
+
+
+def test_last_completed_session_runs_on_new_york_time():
+    # Thu 2026-11-26 10:00 ET (23:00 SGT): Thursday's session is in progress.
+    assert history.last_completed_session(now=_et(2026, 11, 25, 10)) == date(2026, 11, 24)
+    # 16:14 ET still in progress; 16:15 ET the day counts.
+    assert history.last_completed_session(now=_et(2026, 11, 25, 16, 14)) == date(2026, 11, 24)
+    assert history.last_completed_session(now=_et(2026, 11, 25, 16, 15)) == date(2026, 11, 25)
+    # Singapore wall clock: Thu 00:15 SGT = Wed 11:15 ET, mid-session Wednesday.
+    sgt = datetime(2026, 11, 26, 0, 15, tzinfo=history.ZoneInfo("Asia/Singapore"))
+    assert history.last_completed_session(now=sgt) == date(2026, 11, 24)
+    # Weekend → Friday; Monday before the close → Friday.
+    assert history.last_completed_session(now=_et(2026, 11, 28, 12)) == date(2026, 11, 27)
+    assert history.last_completed_session(now=_et(2026, 11, 30, 11)) == date(2026, 11, 27)
+    # A datetime passed positionally is a "now" too.
+    assert history.last_completed_session(_et(2026, 11, 25, 17)) == date(2026, 11, 25)
+
+
+def test_parse_history_through_drops_later_rows():
+    text = _HEADER + "".join(
+        f"{d},1.00,1.10,0.95,1.05,0.05,5.00%,100,500,0.30,0.40,0.01,-0.02,0.05,"
+        f"0.01,1.04,100,1.00,1.10\n" for d in ("2026-11-25", "2026-11-24"))
+    assert [d for d, _ in bo.parse_history_series(text)][-1] == date(2026, 11, 25)
+    assert [d for d, _ in bo.parse_history_series(text, through=date(2026, 11, 24))] \
+        == [date(2026, 11, 24)]
+    assert list(bo.parse_history_details(text, through=date(2026, 11, 24))) \
+        == [date(2026, 11, 24)]
+    kept = bo.drop_rows_after(text, date(2026, 11, 24))
+    assert kept.startswith("Time,") and "2026-11-25" not in kept and "2026-11-24" in kept
+
+
+def _mid_session_file(cache_dir, last_bar="2026-08-18", fetched=(2026, 8, 18, 11)):
+    p = _fwd_file(cache_dir, last_bar, fetched=date(*fetched[:3]))
+    ts = _et(*fetched).timestamp()
+    os.utime(p, (ts, ts))
+    return p
+
+
+def test_a_bar_of_the_session_in_progress_is_dropped_on_read(cache_dir):
+    p = _fwd_file(cache_dir, "2026-11-25", fetched=date(2026, 11, 25))
+    ts = _et(2026, 11, 25, 11).timestamp()          # written mid-session
+    os.utime(p, (ts, ts))
+    series, details, partial = history.load_cached_history(p, now=_et(2026, 11, 25, 12))
+    assert [d for d, _ in series] == [date(2026, 6, 1)]
+    assert date(2026, 11, 25) not in details
+    assert partial == date(2026, 11, 25)
+
+
+def test_the_bar_counts_once_written_after_the_close(cache_dir):
+    p = _fwd_file(cache_dir, "2026-11-25", fetched=date(2026, 11, 25))   # 17:00 ET
+    series, _, partial = history.load_cached_history(p, now=_et(2026, 11, 25, 18))
+    assert series[-1][0] == date(2026, 11, 25) and partial is None
+
+
+def test_a_partial_bar_stays_dropped_after_its_session_closes(cache_dir):
+    """The file was written mid-session; a later run must not take that bar as
+    the close just because the session has since completed."""
+    p = _mid_session_file(cache_dir)
+    series, _, partial = history.load_cached_history(p, now=_et(2026, 8, 24, 12))
+    assert series[-1][0] == date(2026, 6, 1) and partial == date(2026, 8, 18)
+
+
+def test_a_mid_session_fetched_file_is_stale_once_its_window_reaches_that_day(cache_dir):
+    # Same shape as the within-tolerance test (3 sessions short of 08-21), which
+    # is CACHED when written after the close; written mid-session it is stale.
+    _mid_session_file(cache_dir)
+    plan = history.plan_option_histories(_FWD_CONTRACT, needed_ends={FWD_KEY: FWD_EXP})
+    assert plan.status[FWD_KEY] == history.PLAN_STALE
+    assert plan.stale_forward == {FWD_KEY}
+    assert date(2026, 8, 18) not in plan.details_map[FWD_KEY]
+    # A window that ends before the partial day does not refetch.
+    plan = history.plan_option_histories(
+        _FWD_CONTRACT, needed_ends={FWD_KEY: date(2026, 8, 17)})
+    assert plan.status[FWD_KEY] == history.PLAN_CACHED
+
+
+def test_fetched_on_is_the_session_complete_at_fetch_time():
+    assert not history.is_forward_stale(date(2026, 8, 20), date(2026, 8, 21), date(2026, 8, 21))
+    # Fetched mid-session on 08-21: it saw 08-20's close, not 08-21's.
+    assert history.is_forward_stale(date(2026, 8, 14), date(2026, 8, 20), date(2026, 8, 21))
+    assert history.is_forward_stale(date(2026, 8, 20), date(2026, 8, 20), date(2026, 8, 21),
+                                    partial_on=date(2026, 8, 21))
+    assert not history.is_forward_stale(date(2026, 8, 20), date(2026, 8, 20),
+                                        date(2026, 8, 20), partial_on=date(2026, 8, 21))
+
+
+def test_a_fetched_partial_bar_is_never_written(cache_dir, monkeypatch):
+    """A fetch during the ET session drops the in-progress day's row before the
+    file is written and before it is priced."""
+    full = _HEADER + "".join(
+        f"{d},1.00,1.10,0.95,1.05,0.05,5.00%,100,500,0.30,0.40,0.01,-0.02,0.05,"
+        f"0.01,1.04,100,1.00,1.10\n" for d in ("2026-08-19", "2026-08-18", "2026-06-01"))
+    monkeypatch.setenv("BARCHART_EMAIL", "x@example.com")
+    monkeypatch.setenv("BARCHART_PASSWORD", "pw")
+    monkeypatch.setattr(history, "BarchartSession", _fake_session(lambda: full))
+    monkeypatch.setattr(history, "FETCH_PAUSE_S", 0)
+    real = history.last_completed_session
+    monkeypatch.setattr(history, "last_completed_session",
+                        lambda today=None, now=None: real(now=now or _et(2026, 8, 19, 11)))
+
+    series_map, _ = asyncio.run(history.fetch_option_histories(_FWD_CONTRACT, headless=True))
+
+    p = bo.cache_path(cache_dir, "FWD", FWD_EXP, 100.0, "Call")
+    assert "2026-08-19" not in p.read_text(encoding="utf-8")
+    assert "2026-08-18" in p.read_text(encoding="utf-8")
+    assert [d for d, _ in series_map[FWD_KEY]][-1] == date(2026, 8, 18)

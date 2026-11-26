@@ -62,7 +62,8 @@ from .plays import _choose_anchor
 from .shared.analysis_io import load_analysis, load_analysis_csv
 from .shared.build import classify_and_build
 from .shared.history import (EXIT_NETWORK_OUTAGE, NetworkOutage, fetch_option_histories,
-                             needed_end, path_end, plan_option_histories)
+                             load_cached_history, needed_end, path_end,
+                             plan_option_histories)
 from .shared import unlisted
 from .shared.identity import (
     find_untested as _find_untested,
@@ -174,12 +175,13 @@ _details_cache: dict[str, dict] = {}
 
 def _load_details(path: Path) -> dict:
     """``{date: row}`` for one cached contract CSV (row carries a ``_mark`` key),
-    memoized by path so repeated neighbor probing is cheap."""
+    memoized by path so repeated neighbor probing is cheap. Bars after
+    `shared/history.py::bar_cutoff` (a partial bar of a session in progress)
+    are dropped."""
     key = str(path)
     if key not in _details_cache:
         try:
-            _details_cache[key] = barchart_options.parse_history_details(
-                path.read_text(encoding="utf-8"))
+            _details_cache[key] = load_cached_history(path)[1]
         except OSError:
             _details_cache[key] = {}
     return _details_cache[key]
