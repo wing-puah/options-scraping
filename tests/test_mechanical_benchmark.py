@@ -320,7 +320,9 @@ def test_verdict_precedence():
                       False) == "UNWORDED"
 
 
-def test_seal_withholds_sealed_dates():
+def test_seal_withholds_sealed_dates(monkeypatch):
+    from scripts.backtest_study.lib import era as _era
+    monkeypatch.setattr(_era, "SEAL_LIFTED", None)  # tests the sealed state
     recs = [{"date": "2026-09-22"}, {"date": "2026-09-23"}, {"date": "2026-10-08"}]
     kept, line = MB.apply_seal(recs)
     assert [r["date"] for r in kept] == ["2026-09-22"]

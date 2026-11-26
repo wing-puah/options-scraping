@@ -237,7 +237,7 @@ UNSEAL_PRICED_DATES = 40
 # None while the seal stands. Set to the date of the recorded unseal read, in
 # the SAME commit that records it. Meeting the count does NOT lift the guard:
 # the registered read must be the first look, so the census only announces it.
-SEAL_LIFTED: str | None = None
+SEAL_LIFTED: str | None = "2026-11-26"  # the registered read ran 2026-11-26: UNDERPOWERED on both tiers
 
 # The only readers allowed past the guard, each from its own first date. Closed
 # at acceptance: these three were accepted before the seal, with fixed cells

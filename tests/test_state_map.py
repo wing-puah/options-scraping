@@ -939,7 +939,9 @@ def rec(d, src="real", structure="bull_call_spread", R=0.1, mfe=0.2, mae=-0.1, m
             "t": SimpleNamespace(row={"play": play})}
 
 
-def test_q5_population_drops_sealed_bs_pending_and_untrusted_rows_and_counts_them():
+def test_q5_population_drops_sealed_bs_pending_and_untrusted_rows_and_counts_them(monkeypatch):
+    from scripts.backtest_study.lib import era as _era
+    monkeypatch.setattr(_era, "SEAL_LIFTED", None)  # tests the sealed state
     rows = [rec("2026-01-05"), rec("2026-09-22"), rec("2026-09-23"), rec("2026-10-30"),
             rec("2026-02-02", src="bs"), rec("2026-02-03", pending=True), rec("2026-02-04", trusted=False)]
     kept, counts = S.q5_population(rows)

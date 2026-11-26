@@ -347,6 +347,7 @@ def _write(path: Path, fields, rows):
 
 
 def test_seal_withholds_rows_from_its_start(monkeypatch):
+    monkeypatch.setattr(era, "SEAL_LIFTED", None)  # tests the sealed state
     days = _sessions(date(2024, 1, 2), 130)
     cal = _calendar(days)
     rows = _baseline_rows(days[5:105])
@@ -358,6 +359,7 @@ def test_seal_withholds_rows_from_its_start(monkeypatch):
 
 
 def test_forward_is_still_open_while_sealed(monkeypatch, capsys):
+    monkeypatch.setattr(era, "SEAL_LIFTED", None)  # tests the sealed state
     days = _sessions(date(2024, 1, 2), 130)
     cal = _calendar(days)
     monkeypatch.setattr(era, "SEAL_START", days[85])

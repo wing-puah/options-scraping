@@ -25,13 +25,25 @@ ROOT = Path(__file__).resolve().parents[1]
 STUDY_DIR = ROOT / "scripts" / "backtest_study"
 
 
+
+@pytest.fixture(autouse=True)
+def _sealed_state(request, monkeypatch):
+    """Pin the sealed state for the guard-mechanics tests.
+
+    The seal was lifted on 2026-11-26 by the recorded read. These tests check how
+    the guard behaves WHILE sealed, so they pin `SEAL_LIFTED = None`. The
+    constants test reads the real value.
+    """
+    if request.node.name != "test_registered_constants":
+        monkeypatch.setattr(era, "SEAL_LIFTED", None)
+
 # ── the dates, fixed by the registration ────────────────────────────────────
 
 def test_registered_constants():
     """The registration's numbers. Changing one is a new registration."""
     assert era.SEAL_START == "2026-09-23"
     assert era.UNSEAL_PRICED_DATES == 40
-    assert era.SEAL_LIFTED is None
+    assert era.SEAL_LIFTED == "2026-11-26"  # lifted by the recorded read
     assert era.SEALED_READERS == {
         "holdout_seal": "2026-09-23",
         "refuse_floor_forward": "2026-10-08",

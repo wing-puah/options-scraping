@@ -194,7 +194,9 @@ def test_deployed_drops_index_bears_without_backfill():
 
 # ── the seal ────────────────────────────────────────────────────────────────
 
-def test_seal_withholds_sealed_dates():
+def test_seal_withholds_sealed_dates(monkeypatch):
+    from scripts.backtest_study.lib import era as _era
+    monkeypatch.setattr(_era, "SEAL_LIFTED", None)  # tests the sealed state
     rows = [{"date": "2026-09-22"}, {"date": "2026-09-23"}, {"date": "2026-10-20"}]
     kept, info = IB._apply_seal(rows)
     assert [r["date"] for r in kept] == ["2026-09-22"]

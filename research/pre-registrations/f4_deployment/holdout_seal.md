@@ -1,7 +1,7 @@
 ## holdout_seal — seal the live dates before they are spent
 
 <!-- outcome:start -->
-> Latest outcome: sealed; 0 of 40 priced on the exported tabs (census 2026-10-17); the exports date from 2026-10-06, and a re-export is needed before a newer count is recorded · [log](../../current.md).
+> Latest outcome: era v4, read 2026-11-26: `UNDERPOWERED` on both tiers (Tier A 38, Tier B 26 deployed positions, floor 40); the seal is lifted · [record](../../study-results/f4_deployment/holdout_seal.md).
 <!-- outcome:end -->
 
 _Registered 2026-10-09._

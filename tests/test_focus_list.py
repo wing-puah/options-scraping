@@ -241,6 +241,7 @@ def test_live_cut_reports_counts_only_and_no_dollars(tmp_path, monkeypatch):
                       "2026-11-18,GLD,OPEN,\n")
     out = tmp_path / "live.txt"
     monkeypatch.setattr(FL, "ROOT", tmp_path)
+    monkeypatch.setattr(FL.era_mod, "SEAL_LIFTED", None)  # tests the sealed branch
     line = FL.live_cut(trades_csv=trades, out=out)
     detail = out.read_text()
     assert "on-list closes 1" in detail and "off-list closes 1" in detail

@@ -298,7 +298,9 @@ def test_forward_is_still_open_below_the_floor():
 
 # ── windows and the seal ─────────────────────────────────────────────────────
 
-def test_windows_are_contiguous_and_stop_before_the_seal():
+def test_windows_are_contiguous_and_stop_before_the_seal(monkeypatch):
+    from scripts.backtest_study.lib import era as _era
+    monkeypatch.setattr(_era, "SEAL_LIFTED", None)  # tests the sealed state
     a_lo, a_hi = M.WINDOWS["A"]
     b_lo, b_hi = M.WINDOWS["B"]
     assert b_hi + timedelta(days=1) == a_lo
