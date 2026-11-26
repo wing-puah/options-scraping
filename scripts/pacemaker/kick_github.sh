@@ -13,6 +13,10 @@
 #      The workflow's own gate makes a double dispatch harmless; this keeps it quiet.
 #   3. gh workflow run, retried 3x 2 min apart (a just-woken laptop may lack network).
 #   4. confirm a workflow_dispatch run from today appears.
+# Before step 2 it waits for api.github.com, polling every 30s up to WAIT_MIN
+# (default 180) minutes of wall-clock time. A lid-closed Mac on battery runs this
+# job in a dark wake lasting seconds, before Wi-Fi is up (2026-11-24 and -25 both
+# failed that way); the poll freezes through sleep and resumes on a later wake.
 # On failure: log, macOS notification, exit 1. Log: backtests/run_logs/pacemaker-kick.log
 set -euo pipefail
 
@@ -42,12 +46,27 @@ if [ -z "${VIRTUAL_ENV:-}" ] && [ -f .venv/bin/activate ]; then
   source .venv/bin/activate
 fi
 
+# Hold off idle sleep while this runs (it cannot stop a lid-closed battery sleep;
+# the wait loop below covers that).
+caffeinate -i -w $$ >/dev/null 2>&1 &
+
 # 1. session gate
 gate="$(python .github/scripts/pacemaker_gate.py)" || fail "pacemaker_gate.py errored"
 reason="$(echo "$gate" | sed -n 's/^reason=//p')"
 if ! echo "$gate" | grep -qx 'open=true'; then
   log "$reason - no kick."; exit 0
 fi
+
+# Wait for GitHub to be reachable (see header).
+deadline=$(( $(date +%s) + ${WAIT_MIN:-180} * 60 ))
+waited=0
+until gh api rate_limit --silent >/dev/null 2>&1; do
+  [ "$(date +%s)" -ge "$deadline" ] && fail "api.github.com unreachable for ${WAIT_MIN:-180} min (network or gh auth)"
+  [ "$waited" = 0 ] && log "api.github.com unreachable - waiting up to ${WAIT_MIN:-180} min."
+  waited=1
+  sleep 30
+done
+[ "$waited" = 1 ] && log "api.github.com reachable."
 
 # 2. already covered today? Same test as the workflow's dupe step, on the UTC date.
 today="$(date -u +%F)"
