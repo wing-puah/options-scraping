@@ -229,7 +229,7 @@ def build(pop_recs: list[dict], st_b: AS.Settings, cache: dict,
                 continue
             rec, c, rp = it["rec"], it["c"], it["rp"]
             mlpc = rec["max_loss_per_contract"]
-            dn[cid] = AS.signed_dn(rec, c)
+            dn[cid] = AS.signed_dn_or_zero(rec, c)
             over_budget[cid] = mlpc > budget
             pp_bad[cid] = abs(dn[cid]) > st_b.per_pos_cap * st_b.capital + AS.EPS
             row_cost = MC.row_cost(rec)

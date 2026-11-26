@@ -132,7 +132,7 @@ def sized_contracts(rec: dict, budget: float) -> int:
 
 def sized_dn(rec: dict, budget: float) -> float:
     """|delta-notional| at the size the position would be opened."""
-    return abs(A.signed_dn(rec, sized_contracts(rec, budget)))
+    return abs(A.signed_dn_or_zero(rec, sized_contracts(rec, budget)))
 
 
 def dollars_per_delta(rec: dict) -> float:
@@ -147,7 +147,7 @@ def dollars_per_delta(rec: dict) -> float:
     mlpc = rec.get("max_loss_per_contract")
     if mlpc is None or mlpc <= 0:
         return float("-inf")
-    dn = abs(A.signed_dn(rec, 1))
+    dn = abs(A.signed_dn_or_zero(rec, 1))
     if dn <= 0:
         return float("inf")
     return float(mlpc) / dn

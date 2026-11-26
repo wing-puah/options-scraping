@@ -60,7 +60,7 @@ the report rather than buried here.
 `entry_underlying` is absent, and such a position is excluded from BOTH the
 per-cluster numerator and the book-gross denominator, with the count carried on
 every `SessionConcentration`. This deliberately DIVERGES from
-`account_sim.signed_dn`, which returns 0.0 for the same input: there a zero
+`account_sim.signed_dn_or_zero`, which reads the same input as 0.0: there a zero
 merely fails to consume cap headroom, here a zero would silently shrink the
 denominator of the study's independent variable and move the trigger.
 """

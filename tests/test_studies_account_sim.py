@@ -230,6 +230,34 @@ def test_signed_delta_notional_keeps_the_sign():
     assert abs(signed_dn(rec, 2) + 0.30 * 100 * 2 * 200) < 1e-9
 
 
+def _dn_rec(delta, underlying):
+    row = {} if underlying is None else {"entry_underlying": underlying}
+    return {"t": type("T", (), {"row": row})(), "delta": delta}
+
+
+def test_signed_dn_is_none_not_zero_when_delta_or_underlying_is_missing():
+    """next-steps 2.22: a missing greek is unknown, never 0.0."""
+    assert signed_dn(_dn_rec(None, "200"), 2) is None
+    assert signed_dn(_dn_rec(0.3, None), 2) is None
+    assert signed_dn(_dn_rec(0.0, "200"), 2) == 0.0     # a real zero stays 0.0
+    from scripts.backtest_study.f4_deployment.account_sim import signed_dn_or_zero
+    assert signed_dn_or_zero(_dn_rec(None, "200"), 2) == 0.0
+    assert signed_dn_or_zero(_dn_rec(0.3, "200"), 2) == signed_dn(_dn_rec(0.3, "200"), 2)
+
+
+def test_unknown_delta_notional_is_left_out_of_the_totals_and_counted():
+    from scripts.backtest_study.f4_deployment.account_sim import (
+        dn_excluded, session_series)
+    g = [date(2026, 3, 11), date(2026, 3, 12)]
+    t = type("T", (), {"grid": g, "row": {}})()
+    priced = _pos({"t": t, "ticker": "A"}, dn=-1_000.0, entry_sess=g[0], exit_sess=g[1])
+    blind = _pos({"t": t, "ticker": "B"}, dn=None, entry_sess=g[0], exit_sess=g[1])
+    sim = Sim(cfg=_cfg(), taken=[priced, blind])
+    assert dn_excluded(sim.taken) == 1
+    cell = session_series(sim)[g[0]]
+    assert cell["n"] == 2 and cell["gross"] == 1_000.0 and cell["net"] == -1_000.0
+
+
 # ── cap admission ───────────────────────────────────────────────────────────
 
 def test_admission_passes_inside_every_cap():
@@ -2289,3 +2317,19 @@ def test_dollar_stop_key_is_optional_and_validated(tmp_path):
     p.write_text(yaml.safe_dump(cfg))
     with pytest.raises(ConfigError, match="dollar_stop"):
         load_settings(p)
+
+
+def test_simulate_takes_a_delta_less_pick_but_leaves_it_out_of_net_open_and_totals():
+    """next-steps 2.22 through the real loop: the pick is still admitted (an
+    unknown delta consumes no headroom, as before) but carries dn None and
+    session_series totals only the priced one."""
+    from scripts.backtest_study.f4_deployment.account_sim import (
+        dn_excluded, session_series)
+    d1 = date(2025, 1, 6)
+    blind = _day_rec(d1, delta=None)
+    sim = simulate([(d1.isoformat(), [blind])],
+                   _cfg(label="A", capital=25_000.0, risk_pct=0.02))
+    assert len(sim.taken) == 1 and sim.taken[0].dn is None
+    assert dn_excluded(sim.taken) == 1
+    assert all(v["gross"] == 0.0 and v["net"] == 0.0
+               for v in session_series(sim).values())

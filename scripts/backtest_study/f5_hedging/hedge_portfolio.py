@@ -304,7 +304,7 @@ def book_positions(recs: list[dict]) -> list[A.Pos]:
         out.append(A.Pos(
             rec=rec, contracts=t.contracts,
             reserved=(rec["max_loss_per_contract"] or 0.0) * t.contracts,
-            dn=A.signed_dn(rec, t.contracts),
+            dn=A.signed_dn_or_zero(rec, t.contracts),
             entry_sess=t.grid[0], exit_sess=t.grid[dh - 1],
             days_held=int(dh_stored), R=rec["R"],
             dollars=M.stored_booked(rec), exit_reason=rec["exit_reason"]))
@@ -693,7 +693,7 @@ def price_bear_row(rec: dict, contracts: int, stop: float,
     rp = A.replay_sized(rec, contracts, stop, cache=cache)
     pos = A.Pos(rec=rec, contracts=contracts,
                 reserved=(rec["max_loss_per_contract"] or 0.0) * contracts,
-                dn=A.signed_dn(rec, contracts),
+                dn=A.signed_dn_or_zero(rec, contracts),
                 entry_sess=rec["t"].grid[0],
                 exit_sess=rec["t"].grid[min(rp["days_held"],
                                             len(rec["t"].grid)) - 1],

@@ -784,13 +784,35 @@ def replay_sized(rec: dict, contracts: int, stop: float,
     return out
 
 
-def signed_dn(rec: dict, contracts: int) -> float:
-    """Signed delta-notional: `delta x 100 x contracts x entry_underlying`."""
+def signed_dn(rec: dict, contracts: int) -> float | None:
+    """Signed delta-notional: `delta x 100 x contracts x entry_underlying`.
+
+    `None` when the delta or the entry underlying is missing: a missing greek
+    is unknown, never 0.0 (next-steps 2.22; production's `s03_risk.py` rule).
+    A caller that totals exposure must skip the `None` and count it; a caller
+    that only needs a number for cap admission uses `signed_dn_or_zero`.
+    """
     d = rec.get("delta")
     u = _to_float(rec["t"].row.get("entry_underlying"))
     if d is None or u is None:
-        return 0.0
+        return None
     return float(d) * 100.0 * contracts * float(u)
+
+
+def signed_dn_or_zero(rec: dict, contracts: int) -> float:
+    """`signed_dn`, with an unknown delta-notional read as 0.0.
+
+    ONLY for cap admission and sizing, where an unknown delta consumes no cap
+    headroom (the long-standing behaviour). Never total this into an exposure
+    figure: use `signed_dn` and skip the `None`.
+    """
+    dn = signed_dn(rec, contracts)
+    return 0.0 if dn is None else dn
+
+
+def dn_excluded(positions) -> int:
+    """How many positions carry no delta-notional and so sit outside the totals."""
+    return sum(1 for p in positions if p.dn is None)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -883,7 +905,7 @@ class Pos:
     rec: dict
     contracts: int
     reserved: float
-    dn: float
+    dn: float | None     # None = delta or underlying missing; left out of totals
     entry_sess: date
     exit_sess: date
     days_held: int
@@ -1034,7 +1056,8 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
         ticker with nothing open is exactly 0.0 rather than a float residue."""
         if not cfg.ticker_cap:
             return None
-        return sum(p.dn for p in open_pos if p.rec["ticker"] == rec["ticker"])
+        return sum(p.dn for p in open_pos
+                   if p.rec["ticker"] == rec["ticker"] and p.dn is not None)
 
     def release_before(sess) -> None:
         nonlocal net_open
@@ -1042,7 +1065,8 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
                         key=lambda q: q.exit_sess):
             led.close(p.reserved, p.dollars, f"{p.rec['ticker']} {p.rec['date']}")
             open_pos.remove(p)
-            net_open -= p.dn
+            if p.dn is not None:
+                net_open -= p.dn
 
     def take(rec, contracts, stop, downsized=False, hedge=False):
         nonlocal net_open
@@ -1060,7 +1084,8 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
         led.open(pos.reserved, f"{rec['ticker']} {rec['date']}")
         open_pos.append(pos)
         sim.taken.append(pos)
-        net_open += pos.dn
+        if pos.dn is not None:
+            net_open += pos.dn
         return pos
 
     # The live sizing basis. Without compounding these never move, and every
@@ -1180,7 +1205,7 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
                 rec = narrowed
                 mlpc = rec["max_loss_per_contract"]
                 c = risk_contracts(mlpc, budget)
-            unit_dn = signed_dn(rec, 1)
+            unit_dn = signed_dn_or_zero(rec, 1)
             t_open = ticker_open(rec)
             ok, why = admission(c * mlpc, c * unit_dn, led.cash, net_open, cfg,
                                 equity=marked, ticker_open=t_open)
@@ -1228,7 +1253,7 @@ def simulate(day_lists, cfg: Cfg, bear_by_day: dict | None = None,
                 if base is not None:
                     c = max(1, int(cfg.hedge_risk_fraction * base))
                     ok, _ = admission(c * rec["max_loss_per_contract"],
-                                      c * signed_dn(rec, 1),
+                                      c * signed_dn_or_zero(rec, 1),
                                       led.cash, net_open, cfg, equity=marked,
                                       ticker_open=ticker_open(rec))
                     if ok:
@@ -1257,8 +1282,9 @@ def session_series(sim: Sim) -> dict:
                 continue
             cell = out[s]
             cell["reserved"] += p.reserved
-            cell["gross"] += abs(p.dn)
-            cell["net"] += p.dn
+            if p.dn is not None:
+                cell["gross"] += abs(p.dn)
+                cell["net"] += p.dn
             cell["n"] += 1
     return dict(sorted(out.items()))
 
@@ -2179,6 +2205,8 @@ def print_census(sim: Sim, label: str) -> bool:
         print("  downsizes by binding constraint: " +
               "  ".join(f"{k}={v}" for k, v in sim.downsize_reason.items()))
     n_taken = c["taken"] + c["taken_downsized"]
+    print(f"  delta-notional unknown, left out of the net/gross totals: "
+          f"{dn_excluded(sim.taken)} of {len(sim.taken)} taken positions")
     ok = (n_taken == len(sim.signal_pos)
           and total == n_taken + sum(c[k] for k in census_exclusions(sim.cfg)))
     print(f"  A4 sum check: taken {n_taken} == positions {len(sim.signal_pos)} and "
@@ -2297,7 +2325,9 @@ def print_regime(sim: Sim, label: str) -> None:
         tiers = Counter(p.rec.get("tier") for p in ps)
         print(f"  {cell:<12}{len(ps):>5}{tiers['A']:>7}{tiers['B']:>7}"
               f"{fmean([p.reserved for p in ps]):>14,.0f}"
-              f"{fmean([abs(p.dn) for p in ps]):>20,.0f}")
+              f"{fmean([abs(p.dn) for p in ps if p.dn is not None]):>20,.0f}")
+    print(f"  (delta-notional means leave out the {dn_excluded(taken)} taken "
+          f"positions with no delta or underlying)")
 
     sub("what the caps SKIPPED, by mechanical cell (every candidate)")
     print(f"  {'cell':<12}{'bucket':<18}{'n':>5}")
@@ -2904,6 +2934,8 @@ def print_hedge(day_lists, bear_by_day, capital: float, label: str,
               f"   sleeve positions {len(hed):>4}  ${sum(p.dollars for p in hed):>10,.0f}")
         print(f"    total ${sum(p.dollars for p in s.taken):>10,.0f}   "
               f"gross avg {gross:.2f}x max {gmax:.2f}x   net avg {net:.2f}x max {nmax:.2f}x")
+        print(f"    delta-notional unknown, left out of gross/net: "
+              f"{dn_excluded(s.taken)} of {len(s.taken)} positions")
         print(f"    net/gross divergence: avg {gross - net:+.2f}x  max-session "
               f"{gmax - nmax:+.2f}x")
         if hedge:

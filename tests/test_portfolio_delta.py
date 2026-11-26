@@ -207,7 +207,7 @@ def test_admission_banded_matches_decision_for_decision_along_a_fixture_walk():
         for rec in ranked:
             mlpc = rec["max_loss_per_contract"]
             c = A.risk_contracts(mlpc, cfg.budget)
-            unit_dn = A.signed_dn(rec, 1)
+            unit_dn = A.signed_dn_or_zero(rec, 1)
             got = PD.admission_banded(c * mlpc, c * unit_dn, cash, net_open, cfg,
                                       net_band=cfg.net_cap)
             assert got == A.admission(c * mlpc, c * unit_dn, cash, net_open, cfg)

@@ -673,6 +673,42 @@ def test_input_inventory_counts_csv_rows_not_lines(tmp_path, monkeypatch):
     assert line.strip().startswith("2 rows"), line
 
 
+def test_input_list_names_the_unversioned_baseline_daily_export():
+    """next-steps 2.17: `baseline_read` reads BaselineDaily, which carries no era
+    prefix, so the era-resolved list never held it and a fresh export left the
+    fingerprint unmoved."""
+    for e in (era.CURRENT, "v3"):
+        paths = study_runner._input_csvs(e)
+        assert study_runner.BASELINE_REL in paths
+        assert paths[-1].endswith("analysis - BaselineDaily.csv")
+    assert study_runner.BASELINE_REL.endswith("BaselineDaily.csv")
+
+
+def test_a_baseline_daily_re_export_moves_the_fingerprint(tmp_path, monkeypatch):
+    """The header the runner writes feeds `study_results.fingerprint`: a changed
+    BaselineDaily row count must change it."""
+    from scripts import study_results
+    from scripts.study_map import summary
+    monkeypatch.setattr(study_runner, "ROOT", tmp_path)
+    base = tmp_path / study_runner.BASELINE_REL
+    base.parent.mkdir(parents=True)
+    monkeypatch.setattr(study_runner, "_input_csvs",
+                        lambda e: [study_runner.BASELINE_REL])
+
+    def fp(n_rows):
+        base.write_text("d,v\n" + "".join(f"{i},1\n" for i in range(n_rows)))
+        out = tmp_path / "out"
+        out.mkdir(exist_ok=True)
+        head = "\n".join(["=" * 78, "STUDY: s", "=" * 78, "  era       v4 (bare exports)",
+                          "  inputs:", *study_runner._input_inventory("current"),
+                          "=" * 78, ""])
+        (out / "s-latest.txt").write_text(head + "body\n")
+        return study_results.fingerprint(summary.summarize("s", out))
+
+    assert fp(10) != fp(11)
+    assert fp(10) == fp(10)
+
+
 # ──────────────────────────── tools, not studies ─────────────────────────────
 #
 # A subcommand-driven tool declares `BULK_RUN = False`; `run --all` skips it,

@@ -138,8 +138,8 @@ def synthetic_book(open_positions, equity: float, per_pos_cap: float,
     broker name, matching what `risk.delta_source()` would have stamped on a
     Flex-path position. A record with no delta is put in `unpriced` and left out
     of the totals, exactly as a live position with no broker greek would be:
-    `signed_dn()` returns 0.0 for such a record, and treating that 0.0 as a real
-    zero here would understate the simulated book the same way it would
+    `signed_dn()` returns None for such a record (`signed_dn_or_zero` reads it
+    as 0.0), and treating that 0.0 as a real zero here would understate the simulated book the same way it would
     understate a live one.
     """
     priced: list[PositionRisk] = []
@@ -212,7 +212,8 @@ def join_entry_check(ac_df: pd.DataFrame, by_key: dict[tuple, dict], mode: str,
 
     # Deferred: account_sim imports this module, so a module-level import here
     # would be circular. Nothing else in this file needs it at import time.
-    from scripts.backtest_study.f4_deployment.account_sim import risk_contracts, signed_dn
+    from scripts.backtest_study.f4_deployment.account_sim import (
+        risk_contracts, signed_dn_or_zero)
 
     out = ac_df.copy()
     stats = {"mode": mode, "rows": 0, "joined": 0, "no_record": 0}
@@ -240,7 +241,7 @@ def join_entry_check(ac_df: pd.DataFrame, by_key: dict[tuple, dict], mode: str,
         stats["joined"] += 1
         deltas.append(rec["delta"])
         contracts = risk_contracts(rec.get("max_loss_per_contract"), budget) or 1
-        dns.append(signed_dn(rec, contracts))
+        dns.append(signed_dn_or_zero(rec, contracts))
 
     out["short_leg_delta"] = deltas
     out["delta"] = deltas

@@ -335,7 +335,7 @@ def build_positions(picked: list[dict]) -> tuple[list[Pos], dict]:
                        date=str(rec["date"]), ticker=rec["ticker"],
                        direction=direction, sector=sector,
                        R=rec.get("R"), R_dol=rec.get("R_dol"),
-                       dn=A.signed_dn(rec, int(getattr(t, "contracts", 1) or 1))))
+                       dn=A.signed_dn_or_zero(rec, int(getattr(t, "contracts", 1) or 1))))
     census["unmapped_tickers"] = sorted(census["unmapped_tickers"])
     census["accountable"] = len(out)
     return out, census

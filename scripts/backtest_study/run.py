@@ -255,13 +255,17 @@ DEFAULT_ARGS = {
 # export, which is the thing that actually changed. Paths are resolved per-era,
 # so a `--era v3` run reports the files it really read.
 MECH_TABLE_REL = "backtests/mech_regime/spy_vix_daily_full.csv"
+# `baseline_read` reads the UNVERSIONED BaselineDaily export (no era prefix, so
+# `resolve_paths` never returns it). Listed here so a fresh export moves the
+# fingerprint and opens a new `study-results` section (next-steps 2.17).
+BASELINE_REL = "backtests/to_evaluate/analysis - BaselineDaily.csv"
 
 
 def _input_csvs(era: str) -> list[str]:
     """Repo-relative input paths for `era`, in report order."""
     paths = era_mod.resolve_paths(era)
     return [str(paths[k].relative_to(ROOT)) for k in ("results", "proxy", "analysis")] + \
-        [MECH_TABLE_REL]
+        [MECH_TABLE_REL, BASELINE_REL]
 
 
 def study_paths() -> dict[str, Path]:

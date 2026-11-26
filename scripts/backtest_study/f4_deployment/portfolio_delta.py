@@ -305,7 +305,7 @@ def simulate_banded(day_lists, cfg, bear_by_day: dict | None = None,
         t = rec["t"]
         pos = A.Pos(rec=rec, contracts=contracts,
                     reserved=rec["max_loss_per_contract"] * contracts,
-                    dn=A.signed_dn(rec, contracts),
+                    dn=A.signed_dn_or_zero(rec, contracts),
                     entry_sess=t.grid[0],
                     exit_sess=t.grid[min(rp["days_held"], len(t.grid)) - 1],
                     days_held=rp["days_held"], R=rp["R"], dollars=rp["dollars"],
@@ -340,7 +340,7 @@ def simulate_banded(day_lists, cfg, bear_by_day: dict | None = None,
                 sim.skipped.append((rec, "min1_refusal",
                                     A.replay_sized(rec, c, stop, cache=cache)))
                 continue
-            unit_dn = A.signed_dn(rec, 1)
+            unit_dn = A.signed_dn_or_zero(rec, 1)
             ok, why = admission_banded(c * mlpc, c * unit_dn, led.cash, net_open,
                                        cfg, equity=equity, net_band=net_band)
             if not ok and cfg.downsize:
@@ -372,7 +372,7 @@ def simulate_banded(day_lists, cfg, bear_by_day: dict | None = None,
                 rec = pick
                 base = A.risk_contracts(rec["max_loss_per_contract"], budget)
                 if base is not None:
-                    unit_dn = A.signed_dn(rec, 1)
+                    unit_dn = A.signed_dn_or_zero(rec, 1)
                     if hedge_target is None:
                         c = max(1, int(cfg.hedge_risk_fraction * base))
                     else:

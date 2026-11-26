@@ -457,21 +457,15 @@ STUDIES: dict[str, Study] = {
                  "AMD), is there ANY per-name effect once week, direction and side are held "
                  "fixed? One omnibus permutation test first; per-name contrasts graded only if it "
                  "passes, Holm over ten, split-half replication, with a CSCV veto.",
-        verdict="2026-10-23 first run (v4, exports dated 2026-10-21, BEFORE the one-clock "
-                "re-price): `>>> ticker_pattern P1 (omnibus, ten names, v4): TICKER-EFFECT <<<`, "
-                "`>>> ticker_pattern P2 (per-name, Holm m=10, split-half): FLAGGED GLD <<<`, "
-                "`>>> ticker_pattern PBO (CSCV, pick-the-best-name): 0.274 <<<`, "
-                "`P1 p = 0.0383 (T 0.817); selection fragile`. Read the flag at its size: GLD's "
-                "Holm-adjusted p is 0.047 against a bar of 0.05, with Monte Carlo error of about "
-                "0.005; on real-priced rows only, P1 reads p = 0.356 (GLD is 27 real rows and 66 "
-                "tweak-proxy rows); GLD's effect size spans zero (+0.281, CI [-0.074, +0.606]); "
-                "61 of its 64 graded rows were written after the fact, during gold's 2024-26 "
-                "rally. TLT is negative in both eras but fails Holm. The v3 replication (same ten "
-                "names) reads NULL under the PBO veto (0.533, p = 0.072). The registration names "
-                "the post-re-price export as the read of record, so step 3 (a second registration "
-                "on the next ten names) waits on the queued `--redo`. Nothing ships.",
-        attention="GLD FLAGGED on a pre-re-price read; after the one-clock --redo re-run, decide "
-                  "whether step 3 (the next ten names) is written.",
+        verdict="2026-10-26 run (v4, after the one-clock re-price): "
+                "`>>> ticker_pattern P1 (omnibus, ten names, v4): NULL <<<`, "
+                "`>>> ticker_pattern P2 (per-name, Holm m=10, split-half): none graded <<<`, "
+                "`>>> ticker_pattern PBO (CSCV, pick-the-best-name): 0.314 <<<`, "
+                "`P1 p = 0.1243 (T 0.647); p = 0.1243 > 0.05`. The three gates pass: "
+                "`GP0 10/10 names at the floor (bar 8) pass; GP1 share 0.821 pass; GP2 power "
+                "0.825 pass`. The PBO reads `0.25-0.50: selection fragile`. The earlier "
+                "pre-re-price run (2026-10-23, `TICKER-EFFECT`, `FLAGGED GLD`) is superseded "
+                "and no name is flagged. Nothing ships.",
     ),
     "focus_list": Study(
         family="selection", state="open",
@@ -510,11 +504,13 @@ STUDIES: dict[str, Study] = {
                  "close back above -2%), does a near ATM put plus a long-dated call diagonal, "
                  "rolled three times, pay net of commission? Graded against zero, against the "
                  "same package on calm weeks (ARM C), and for the put's own contribution.",
-        verdict="Accepted by default 2026-11-01; module built the same day. First run: "
-                "`VERDICT: NOT BUILT — AWAITING SCRAPE`, with `149 primary trades await a "
-                "fetch` (`fetch plan: primary 172 unique uncached contracts; every cell 326`). "
-                "G-CENSUS passes: the nine registered trigger days and 154 calm weeks. No "
-                "outcome was computed for any arm. Nothing ships from this study.",
+        verdict="Accepted by default 2026-11-01; module built the same day. First graded "
+                "on 2026-11-13; the 2026-11-16 re-run (the report of record) holds the verdict: "
+                "`STUDY                  NO-EDGE (PROVISIONAL)`, from `ARM K vs zero          PAYS "
+                "(PROVISIONAL)`, `ARM K vs ARM C         NULL (PROVISIONAL)` and `put "
+                "contribution       NULL (PROVISIONAL)`. The forward read is `FORWARD                "
+                "STILL-OPEN  (1 forward triggers, 0 closed and priced; confirmation needs 3)`. "
+                "Nine in-sample triggers. Nothing ships from this study.",
     ),
     "adaptive_ladder": Study(
         family="selection", state="open",
@@ -685,9 +681,14 @@ STUDIES: dict[str, Study] = {
                  "expiry nearest 65 DTE, under the shipped debit exits? Graded against zero, against "
                  "SPY's own drift (ARM H), a random flow ticker (ARM RND) and the v4 book (ARM BK).",
         verdict="Registered and accepted by the operator 2026-10-26; module built the same day. "
-                "Not graded: `VERDICT: NOT BUILT — AWAITING SCRAPE`. Primary trades await an "
-                "operator-run fetch (`fetch_mechanical_baseline_legs.py`), so no outcome was "
-                "computed for any arm. Nothing ships from the retrospective.",
+                "2026-11-11 run: `VERDICT: NO-REPLACEMENT`, from `ARM X NULL  ·  ARM H "
+                "NEGATIVE-ALPHA  ·  ARM RND NOT BUILT — AWAITING SCRAPE (not in the study "
+                "token)  ·  ARM BK NULL`. ARM X: `trades 140 dates 140  meanR +0.062 CI95 "
+                "[-0.054, +0.180]`. ARM H: `alpha/month -0.03834 CI95 [-0.06292, -0.01812]`. "
+                "ARM BK: `ARM BK v4: NULL`, `ARM BK v3: TRAILS-BOOK (replication)`. The "
+                "forward read is `FORWARD: STILL-OPEN` (`forward dates with a closed trade 0 "
+                "(floor 30)`). `BOOK-BETTER takes precedence. Nothing ships from the "
+                "retrospective.`",
     ),
     "spy_benchmark": Study(
         family="selection", state="null",
@@ -695,7 +696,7 @@ STUDIES: dict[str, Study] = {
                  "wrap (ATM/+5%, the pick's own expiry, same entry day, same exit profile) on "
                  "SPY instead of the pick's ticker? P2 of the 2026-10-13 plan; post hoc, and "
                  "not a programme_gate input.",
-        verdict="2026-10-15 run (v4, exports 2026-10-06, post-P3 tiers, git c8b1f4e): "
+        verdict="2026-11-10 run of record (era current): `VERDICT (headline basis, SB-UNIT = pick): DOES-NOT-BEAT` on `SPY   pairs  381 dates  189  meanR T +0.084 C +0.108  gain -0.023 [-0.134, +0.086]`, `C0 Y  C1 n  C2 n  clears C0-C2 n  CONTRARY n`. The SB-UNIT = date line also prints `DOES-NOT-BEAT`. Earlier run, 2026-10-15 (v4, exports 2026-10-06, post-P3 tiers, git c8b1f4e): "
                 "`VERDICT (headline basis, SB-UNIT = pick): DOES-NOT-BEAT` on `SPY   pairs  381 "
                 "dates  190  meanR T +0.093 C +0.124  gain -0.031 [-0.134, +0.074]`, `C0 Y  C1 n  "
                 "C2 n  clears C0-C2 n  CONTRARY n`. The SB-UNIT = date line and the declared "
@@ -1185,10 +1186,16 @@ STUDIES: dict[str, Study] = {
                 "`NO-PREMIUM`. Nothing ships.",
     ),
     "daily_vol_structure": Study(
-        family="structure", state="open",
+        family="structure", state="null",
         question="Do a daily straddle and 1x2 ratios on QQQ and SMH pay net of commission, and do "
                  "their results move with volume or price?",
-        verdict="Not yet run.",
+        verdict="Accepted by default 2026-11-06; first run 2026-11-18: `cells (144): CANDIDATE 0  "
+                "CONTRARY 0  NULL 144  UNDERPOWERED 0`. `Pays every day: none`, `Moves with a "
+                "known feature: none`, `LIVE read, its own forward test: none`. The "
+                "unconditional sides read `CANDIDATE 0  CONTRARY 1  NULL 19  UNDERPOWERED 0`; "
+                "the analysis cells are `RETRO-ONLY, not tallied`. `FORWARD  no CANDIDATE, so "
+                "nothing to grade`. `Nothing ships from this study. A CANDIDATE earns only a "
+                "forward grade.`",
     ),
     "earnings_vol": Study(
         family="structure", state="null",
@@ -1206,18 +1213,17 @@ STUDIES: dict[str, Study] = {
                 "pass G1. PBO 0.262 over the 8 printed configs. Nothing ships.",
     ),
     "structure_sweep": Study(
-        family="structure", state="open",
+        family="structure", state="null",
         question="Holding the analysis's ticker, signal date and expiry fixed, would a "
                  "different option structure (flipped, type-swapped, iron condor, iron "
                  "butterfly, straddle, strangle or calendar) have made money on the same "
                  "2026 plays?",
-        verdict="Registered and accepted by default 2026-10-22, built the same day. The "
-                "first run has not been reviewed, so no verdict is on record. Eight "
-                "structures are tried against the play re-priced as a control, with a Holm "
-                "correction across seven graded arms and a PBO read. A sample S2 replicates "
-                "any S1 finding on rows an arm could not price, and S2 needs the follow-up "
-                "leg fetch before it can print. Nothing ships whatever it prints; a "
-                "`CANDIDATE` only earns a forward registration.",
+        verdict="Registered and accepted by default 2026-10-22, built the same day. 2026-10-26 "
+                "run: `>>> structure_sweep WIDE-NET-NULL <<<`, with all seven graded arms "
+                "`-> NULL` (`ARM B short iron butterfly   S1 n= 62/40d  dR +0.724 [-0.022, "
+                "+1.635]  Holm p 0.413  S2 n=247  -> NULL` is the closest) and `PBO 0.159 "
+                "(threshold < 0.5)   Holm family 7 arm(s), alpha 0.05`. `Nothing ships whatever "
+                "this prints; a CANDIDATE earns a forward registration.`",
     ),
 
     # ④ deployment
