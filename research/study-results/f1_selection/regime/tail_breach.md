@@ -25,3 +25,24 @@ VERDICT
   Nothing ships from this study (tail_breach.md).
 ```
 
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 15:10:19 · git 436c8f7 (main, working tree clean) · exit 0 · 1.3s
+command     python -m scripts.backtest_study.f1_selection.regime.tail_breach
+excerpt     verdict
+
+```
+VERDICT
+  test window 2024-01-02 -> 2026-11-06 (origins); 717 rows, 9 episodes; 10000 moving-block draws (block 21), seed 20261114
+  >>> tail_breach P (four-predictor logistic, any 2x-VIX down breach in the next 5 sessions, test from 2024-01-02): UNDERPOWERED <<<
+  >>> tail_breach SECONDARY (each predictor alone, Holm m=4): S1 UNDERPOWERED S2 UNDERPOWERED S3 UNDERPOWERED S4 UNDERPOWERED <<<
+  >>> tail_breach N1 (four-predictor logistic, next-session breach): UNDERPOWERED <<<
+  >>> tail_breach FORWARD (forecast origins after the registration date): STILL-OPEN <<<
+  PREDICTABLE needs the 95% CI on the Brier skill score wholly above 0; S1-S4 also
+  need a Holm-adjusted p below 0.05. AUC is context only.
+  Nothing ships from this study (tail_breach.md).
+```
+

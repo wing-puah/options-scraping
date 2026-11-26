@@ -107,3 +107,16 @@ excerpt     matched
     VERDICT: structure-keyed bear_put trail STAYS GATED.
 ```
 
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 15:18:04 · git 436c8f7 (main, working tree clean) · exit 0 · 1.9s
+command     python -m scripts.backtest_study.f2_management.exit_switch_structure_study
+excerpt     matched
+
+```
+    VERDICT: structure-keyed bear_put trail STAYS GATED.
+```
+

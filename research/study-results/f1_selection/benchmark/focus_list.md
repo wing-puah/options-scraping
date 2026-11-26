@@ -46,3 +46,21 @@ Two analysts and a validator graded the v4 in-sample report (sha abab7a3, tree d
 - **Verdict:** `FOCUS-BEATS-CARD` stands, in-sample only. GF0 to GF5 and criteria 1 to 6 are all met. The forward read is not evaluable and stays `STILL-OPEN`.
 - **Fault in the report:** the second load prints `227 kept (include_pending)` and `1911 rows`, while the registration says pending rows are dropped at the loader. The report does not say which load built the arms. The arm totals match the registration's census.
 - **Unmet expectation:** the registration expected `NULL` on v4.
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 14:47:26 · git 436c8f7 (main, working tree clean) · exit 0 · 3.7s
+command     python -m scripts.backtest_study.f1_selection.benchmark.focus_list
+excerpt     verdict
+
+```
+VERDICT
+  P1  gain +0.126  CI95 [+0.046, +0.205]  dates 190  ARM F positions 310
+  criteria  1 Y  2 Y  3 Y  4 Y  5 Y  6 Y
+>>> focus_list P1 (ARM F minus ARM C, paired by date, in-sample v4): FOCUS-BEATS-CARD <<<
+>>> focus_list FORWARD (one read from 2026-11-16): STILL-OPEN <<<
+  In-sample only. The list was chosen after trading these names, so only the forward read can confirm it. Nothing ships.
+```
+

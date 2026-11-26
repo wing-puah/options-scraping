@@ -28,3 +28,24 @@ Two analysts and a validator graded the 2026-11-11 report (v4, sha 5ac1a8e) agai
 - **Not graded:** `ARM RND`, the C5 overfitting check and the forward read. Each prints no figure to grade.
 - **Fault in the report:** the study token reads `NO-REPLACEMENT` while a line says `BOOK-BETTER takes precedence`. The registration ties `BOOK-BETTER` to `ARM BK` printing `TRAILS-BOOK`, and v4 prints `NULL`. Both analysts declined to grade the token. The wording needs a ruling.
 - **Count mismatch:** the v3 census drops 1 date and the graded block drops 2, and the v4 graded block prints `no_spot=1` where the census does not.
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 14:47:32 · git 436c8f7 (main, working tree clean) · exit 0 · 658.5s
+command     python -m scripts.backtest_study.f1_selection.benchmark.mechanical_baseline
+excerpt     verdict
+
+```
+VERDICT: NOT BUILT — AWAITING SCRAPE
+  PRIMARY: NOT BUILT — AWAITING SCRAPE — 84 primary trades await a fetch.
+  No outcome was computed for any arm: no R, no P&L, no CI.
+  Operator-run steps, in order (none runs from here):
+    1. python3 scripts/collector/study_legs/f1_selection/fetch_mechanical_baseline_legs.py --dry-run   (then --limit N)
+    2. python3 scripts/backup_research_caches.py push
+    3. re-run this study; a fetch can expose a nearer strike, so steps 1-3
+       repeat until no primary trade awaits
+  It does not run while mechanical_benchmark's ARM U loop runs: one writer.
+```
+

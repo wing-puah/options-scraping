@@ -131,3 +131,19 @@ VERDICT (grammar pre-registered; operationalizations coded before first run)
 G4 note: no annualised return, Sharpe, or time-to-recover is printed anywhere above, by design.
 ```
 
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 15:20:18 · git 436c8f7 (main, working tree clean) · exit 0 · 9.6s
+command     python -m scripts.backtest_study.f2_management.volume_signal
+excerpt     verdict
+
+```
+VERDICT (grammar pre-registered; operationalizations coded before first run)
+  components: H1a readable=True r_sep=-0.1418  exit_ok=False  amihud_collapse=False  mfe/mae mirrored=False
+  VERDICT: NULL — the volume column is CLOSED; the live pipeline never pays the version bump.
+G4 note: no annualised return, Sharpe, or time-to-recover is printed anywhere above, by design.
+```
+

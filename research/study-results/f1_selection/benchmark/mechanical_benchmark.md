@@ -164,3 +164,23 @@ VERDICT (headline basis): SAME-TICKER READ — ARM U NOT BUILT
   pairs written to backtests/study_output/mechanical_benchmark-pairs.csv (no ARM U rows)
 ```
 
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 14:58:32 · git 436c8f7 (main, working tree clean) · exit 0 · 588.9s
+command     python -m scripts.backtest_study.f1_selection.benchmark.mechanical_benchmark
+excerpt     verdict
+
+```
+VERDICT: NOT BUILT — AWAITING SCRAPE
+  The census is the recorded result. No outcome column was read.
+  Operator-run steps, in order (each resumable; none runs from here):
+    0. universe files for 2 dates: python3 -m scripts.analysis_pipeline --skip-llm --date <D> (no LLM, no Sheets write)
+    1. stock bars for 805 universe tickers: python3 scripts/collector/history/fetch_underlying_ohlc.py --tickers <list from python3 scripts/collector…
+    2. option legs: python3 scripts/collector/study_legs/f1_selection/fetch_mechanical_legs.py --dry-run   (then --limit N)
+    3. python3 scripts/backup_research_caches.py push
+    4. re-run this study; a fetch can expose nearer strikes, so steps 2-4 repeat until nothing awaits
+```
+

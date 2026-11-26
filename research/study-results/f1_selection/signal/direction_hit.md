@@ -58,3 +58,21 @@ VERDICT
   Nothing ships from this study. PREDICTS would let the operator consider a registered filter or tie-break.
 ```
 
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 15:10:35 · git 436c8f7 (main, working tree clean) · exit 0 · 27.6s
+command     python -m scripts.backtest_study.f1_selection.signal.direction_hit
+excerpt     verdict
+
+```
+VERDICT
+  v4 OOS AUC 0.514 CI95 [0.480, 0.549]; v3 OOS AUC 0.564; PBO 0.028
+  >>> direction_hit MODEL (all directional, v4): NULL <<<
+  secondary, Tier A/B: NULL (AUC 0.488 [0.437, 0.540])
+  forward: STILL-OPEN
+  Nothing ships from this study. PREDICTS would let the operator consider a registered filter or tie-break.
+```
+

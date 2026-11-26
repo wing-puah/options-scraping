@@ -56,3 +56,29 @@ VERDICT
   Nothing ships.
 ```
 
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 15:26:28 · git 436c8f7 (main, working tree clean) · exit 0 · 23.7s
+command     python -m scripts.backtest_study.f3_structure.earnings_vol
+excerpt     verdict
+
+```
+VERDICT
+  ARM S (mid, exit E, in-sample): n 271  mean +0.019  CI95 [-0.085, +0.123] over 11 seasons;  H1 +0.064  H2 -0.036;  G1 corr -0.098 -> PASS
+  ARM K (mid, exit E, in-sample): n 161  mean +0.073  CI95 [-0.024, +0.170] over 11 seasons;  H1 +0.079  H2 +0.067;  G1 corr -0.023 -> PASS
+  >>> earnings_vol ARM S NULL / ARM K NULL <<<
+  secondary, ARM S natural fill: NULL
+  secondary, ARM S run-up exit (close of E-1): NULL
+  secondary, ARM S with unknown-as-amc events: NULL
+  secondary, ARM S at the 0.10 gate: NULL
+  secondary, ARM K natural fill: CONTRARY
+  secondary, ARM K run-up exit (close of E-1): NULL
+  secondary, ARM K with unknown-as-amc events: NULL
+  secondary, ARM K at the 0.10 gate: NULL
+  forward (2 sealed events): STILL-OPEN
+  Nothing ships.
+```
+

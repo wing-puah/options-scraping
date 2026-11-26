@@ -40,3 +40,21 @@ VERDICT
   A descriptive map, not a selection rule. Nothing ships from this study.
 ```
 
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 15:09:47 · git 436c8f7 (main, working tree clean) · exit 0 · 2.4s
+command     python -m scripts.backtest_study.f1_selection.regime.regime_map
+excerpt     verdict
+
+```
+VERDICT
+  v4 net, graded cells: POSITIVE 2, NEGATIVE 8, NULL 37, THIN 29
+  v3 gross, graded cells: POSITIVE 17, NEGATIVE 8, NULL 19, THIN 32
+  >>> regime_map REPLICATED cells (v4 net vs v3 gross): 2: A x RM-MDIR=BEAR POSITIVE, B x RM-RVOL=C-VOL POSITIVE <<<
+  forward: {'STILL-OPEN': 2}
+  A descriptive map, not a selection rule. Nothing ships from this study.
+```
+

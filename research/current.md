@@ -340,6 +340,65 @@ blocks any work; each has its full entry in an archive volume.
 
 ---
 
+## 2026-11-26 — seal lifted; suite re-run on the unsealed dates (44 of 63 studies)
+
+**The seal's one read is `UNDERPOWERED` on both tiers, and the seal is lifted.** On the sealed
+window the deployed set holds 38 Tier A and 26 Tier B positions, against a floor of 40 per tier.
+That leaves a census only ([record](study-results/f4_deployment/holdout_seal.md)). The operator
+approved the lift and a full re-grade. `SEAL_LIFTED = "2026-11-26"` (commit 436c8f7).
+
+**The re-run stopped at 44 of 63 studies.** Claude Code killed it when the machine ran low on
+memory. Not run yet:
+- `financed_spread`, `index_vrp`, `ladder_overlay`, `structure_sweep`
+- every f4 study
+- every f5 study
+
+`exit_mechanism_study` returned rc=1 under the runner but exits 0 when run directly. It needs a
+re-check. All 46 available reports are recorded in `study-results/`.
+
+### What moved
+
+| Study | Before | After the lift |
+|---|---|---|
+| `adaptive_ladder` | forward `STILL-OPEN`, 0 of 30 dates | forward `NULL`: 41 dates, 91 M0 positions |
+| `regime_map` | 3 `REPLICATED` cells | 2 cells; A x below-SMA dropped (see below) |
+| `regime_map` A x BEAR forward | n=0 | n=19 on 12 dates, meanR -0.591 [-0.678, -0.518], `STILL-OPEN` |
+| `text_features` | every feature `NULL` | `invalidation_level` and `trigger_level` `CANDIDATE` |
+| `dip_buy` forward | 0 of 30 dates | below arm 14 of 30, above arm 19 of 30; `STILL-OPEN` |
+| `baseline_read` forward | 0 dates | 25 dates in 2 blocks; `STILL-OPEN` |
+| `mechanical_baseline` | `NO-REPLACEMENT` | `NOT BUILT — AWAITING SCRAPE`, 84 primary trades |
+| `mechanical_benchmark` | ARM M1/M2 graded | census only; legs await a fetch |
+| `daily_vol_structure` | 144 cells `NULL` | 163 forward trades await a fetch |
+| `selloff_put_diagonal` | armed 2026-11-13 | re-armed 2026-11-25 at dd -0.080; forward `STILL-OPEN` |
+
+`exit_drawdown`, `exit_from_text` and `staged_exit` shifted at cell level only. More cells moved
+from `UNDERPOWERED` to `NULL`, and no cell reached `CANDIDATE`. `staged_exit` prints
+`REACTIVE-AGAIN` once. Of the 44 studies, 32 show no change in their verdict tokens.
+
+### The sizing cell lost its in-sample replication
+
+The card's dip-date full-size rule rests on `regime_map` Tier A on dates when SPY is below its
+50-day SMA.
+
+| Read of v4 A x below-SMA | meanR | p |
+|---|---|---|
+| 2026-10-26 | +0.333 | 0.029 |
+| 2026-11-26 | +0.270 | 0.076 |
+
+This is in-sample movement, not forward data. Rows dated before 09-23 that were open in October
+have now closed, and they closed worse. The cell now misses the registered threshold, so it is no
+longer `REPLICATED`. The v3 side is unchanged at +0.383. Nothing changes on the card without an
+operator ruling.
+
+### The two text candidates
+
+- **Both sit in `bear_put_spread` Tier C**, which the card already vetoes as a selection.
+- **The contrast is T3 vs T1:**
+  - `invalidation_level`: dR +0.303 [+0.158, +0.450], all criteria `PASS`.
+  - `trigger_level`: dR +0.288 [+0.137, +0.435], all criteria `PASS`.
+- **Both are in-sample candidates** on a book that grew by 235 rows. They need PBO and a forward
+  grade before any weight. An earlier text candidate vanished after the one-clock re-price.
+
 ## 2026-11-26 — data refresh, seal condition met, two bug fixes
 
 **The holdout seal's condition is now met, and the seal is not lifted.** After the refresh,

@@ -169,3 +169,23 @@ VERDICTS
   Nothing ships from this study. INDEX-MORE-RELIABLE or CONTRARY files a 'to be tested' entry in research/deployment-evidence.md.
 ```
 
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 15:08:33 · git 436c8f7 (main, working tree clean) · exit 0 · 7.7s
+command     python -m scripts.backtest_study.f1_selection.benchmark.ticker_class
+excerpt     verdict
+
+```
+VERDICTS
+  P1  NULL (PBO 0.827 > 0.50: no group-level verdict ships)
+  S1  NULL vs G5 (PBO 0.827 > 0.50: no group-level verdict ships)
+  S2  NULL vs G6 (PBO 0.827 > 0.50: no group-level verdict ships)
+  S3  NULL vs G7 (PBO 0.827 > 0.50: no group-level verdict ships)
+  S4  UNDERPOWERED vs G2
+  PBO 0.827 (graded N=5)  |  bear-stratum diagnostic PBO 0.570
+  Nothing ships from this study. INDEX-MORE-RELIABLE or CONTRARY files a 'to be tested' entry in research/deployment-evidence.md.
+```
+

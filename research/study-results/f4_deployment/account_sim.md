@@ -290,3 +290,33 @@ CAPITAL LADDER — operator note, printed because the verdict is NOT FEASIBLE
   smallest capital passing A1 AND A2 AND A3 (disclosed addition): none of the three
 ```
 
+
+## era v4 · inputs fe17826 · sha 332786e — recorded 2026-11-26
+<!-- key era=v4 sha=332786e inputs=fe17826 -->
+
+population  1,178 results · 2,273 proxy · 3,792 analysis · 873 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-21 12:09 … 2026-11-26 11:54)
+run         2026-11-26 12:11:30 · git 332786e (main, working tree dirty) · exit 0 · 283.6s
+command     python -m scripts.backtest_study.f4_deployment.account_sim
+excerpt     verdict
+
+```
+CAPITAL LADDER — operator note, printed because the verdict is NOT FEASIBLE
+  Same anti-tuning rule: this is the smallest capital in {$25k, $35k, $50k} at
+  which A1 AND A2 pass, not a recommendation to trade any of them. A rung whose
+  dollar stop does not divide the frozen $1,000 harness stop evenly (e.g. $700
+  on a $35k rung at 2%) is rounded UP to a TIGHTER stop, the conservative
+  direction, and the affected position count is printed.
+  The maxDD and A3 columns and the A3 summary line below are DISCLOSED
+  ADDITIONS (2026-09-20), not part of the registered operator note: the
+  registration names A1 AND A2 only, and a verdict can be NOT FEASIBLE on A3
+  alone. No threshold moved — A3 here is `a3_no_blowup`, the clause
+  `evaluate()` scores, measured against the RUNG's capital. Read a rung that
+  passes A1 AND A2 while failing A3 as an account size that keeps the edge and
+  still breaches the drawdown bar, never as a feasible one.
+  $ 25,000  n= 308  $    15,793  meanR +0.119 CI-lo +0.011  attrition   52%  maxDD 52.3%  A1 no   A2 no   A3 no
+  $ 35,000  n= 345  $    21,363  meanR +0.106 CI-lo +0.008  attrition   80%  maxDD 45.9%  A1 no   A2 MET  A3 no   [341 inexact-stop positions]
+  $ 50,000  n= 367  $    23,150  meanR +0.097 CI-lo -0.007  attrition  107%  maxDD 38.3%  A1 no   A2 MET  A3 no
+  smallest capital passing A1 AND A2: none of the three
+  smallest capital passing A1 AND A2 AND A3 (disclosed addition): none of the three
+```
+

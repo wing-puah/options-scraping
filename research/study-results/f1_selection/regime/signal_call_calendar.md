@@ -23,3 +23,22 @@ VERDICT
   Nothing ships from this study (signal_call_calendar.md).
 ```
 
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 15:10:00 · git 436c8f7 (main, working tree clean) · exit 0 · 7.6s
+command     python -m scripts.backtest_study.f1_selection.regime.signal_call_calendar
+excerpt     verdict
+
+```
+VERDICT
+  >>> signal_call_calendar K-BEAR (call calendar after S-BEAR, 1.03 strike, 30/60 DTE, 21 sessions or short expiry, 2022-02-01 to 2026-09-22): NULL <…
+  >>> signal_call_calendar K-EVOL (call calendar after S-EVOL, 1.03 strike, 30/60 DTE, 21 sessions or short expiry, 2022-02-01 to 2026-09-22): NULL <…
+  >>> signal_call_calendar PBO: 0.334 <<<  [second structure on one signal set; geometry set after Q4]
+  >>> signal_call_calendar FORWARD (onsets from 2026-11-21, current sell-off out): K-BEAR STILL-OPEN K-EVOL STILL-OPEN <<<  [second structure on one …
+  CALENDAR-PAYS files 'to be tested' in deployment-evidence.md, pending the forward read.
+  Nothing ships from this study (signal_call_calendar.md).
+```
+

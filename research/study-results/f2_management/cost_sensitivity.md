@@ -34,3 +34,19 @@ VERDICT-SECONDARY (secondary: ungraded C4 dropped from the verdict): Tier A VANI
 SWEEP: graded (G4 PASS)
 ```
 
+
+## era v4 · inputs 2f45ae6 · sha 436c8f7 — recorded 2026-11-26
+<!-- key era=v4 sha=436c8f7 inputs=2f45ae6 -->
+
+population  1,214 results · 2,286 proxy · 3,826 analysis · 878 spy_vix_daily_full · 703 BaselineDaily  (inputs dated 2026-11-26 11:38 … 2026-11-26 14:01)
+run         2026-11-26 15:15:33 · git 436c8f7 (main, working tree clean) · exit 0 · 15.8s
+command     python -m scripts.backtest_study.f2_management.cost_sensitivity
+excerpt     verdict
+
+```
+VERDICTS — one per tier, graded on ARM X
+VERDICT (headline: ungraded C4 counts as not holding): Tier A VANISHES · Tier B VANISHES
+VERDICT-SECONDARY (secondary: ungraded C4 dropped from the verdict): Tier A VANISHES · Tier B VANISHES
+SWEEP: graded (G4 PASS)
+```
+
