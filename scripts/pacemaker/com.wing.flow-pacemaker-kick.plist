@@ -24,14 +24,28 @@
     <string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
   </dict>
 
-  <!-- 22:30 local (SGT, no DST) Mon-Fri = 14:30 UTC, 30 min before the first scrape.
-       A Mac asleep at 22:30 fires this on the next wake; the script skips a covered day. -->
+  <!-- 18:00, 20:00 and 22:30 local (SGT, no DST) Mon-Fri = 10:00, 12:00, 14:30 UTC.
+       Three chances so an evening when the laptop is awake gets the run started; the
+       first that reaches GitHub dispatches, later ones see the run and skip. A dispatch
+       is safe from ~09:10 UTC: the gate job sleeps to 14:50 UTC within its 350-min limit.
+       A Mac asleep at a slot fires it on the next wake (often a seconds-long dark wake
+       with no network; kick_github.sh waits for the network). -->
   <key>StartCalendarInterval</key>
   <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>18</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
     <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>18</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
     <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>18</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
     <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>18</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
     <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>18</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
     <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
   </array>
 

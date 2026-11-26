@@ -11,8 +11,9 @@ name: Flow Pacemaker
 #
 # HOW IT STARTS (2026-10-18). A daily cron at 10:00 UTC (18:00 SGT), Mon-Fri, plus
 # workflow_dispatch by hand. The laptop's launchd job
-# (scripts/pacemaker/kick_github.sh) dispatches it at 14:30 UTC on weeknights if no
-# run has started; the cron stays as the backup. The cron may be late or dropped
+# (scripts/pacemaker/kick_github.sh) dispatches it at 10:00, 12:00 or 14:30 UTC on
+# weeknights, whichever slot first finds the laptop online, if no run has started;
+# the cron stays as the backup. The cron may be late or dropped
 # like any GitHub cron; a manual dispatch still works and is safe at ANY hour, because:
 #   - the `gate` job refuses a day that is not an NYSE session (weekend or
 #     holiday, judged by the ET date via .github/scripts/pacemaker_gate.py), so a

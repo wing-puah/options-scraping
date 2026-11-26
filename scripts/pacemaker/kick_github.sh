@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Start the GitHub Flow Pacemaker from the laptop, on time. GitHub's 10:00 UTC
 # cron fires 8-12h late (2026-11: 18:25-21:56 UTC), after most of the scrape
-# window. launchd runs this at 22:30 SGT (14:30 UTC) on weeknights
-# (com.wing.flow-pacemaker-kick.plist) so a run is up before the 15:00 UTC scrape.
+# window. launchd runs this at 18:00, 20:00 and 22:30 SGT (10:00, 12:00, 14:30 UTC)
+# on weeknights (com.wing.flow-pacemaker-kick.plist) so a run is up before the
+# 15:00 UTC scrape. The first slot that reaches GitHub dispatches; later ones skip.
 #
 #   bash scripts/pacemaker/kick_github.sh [--dry-run]
 #   make pacemaker-kick [DRY=1]
