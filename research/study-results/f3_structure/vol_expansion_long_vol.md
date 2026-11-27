@@ -76,3 +76,25 @@ VERDICT
   trades -> backtests/study_output/vol_expansion_long_vol-trades.csv
 ```
 
+
+## era v4 · inputs e7318a6 · sha 05b58b8 — recorded 2026-11-28
+<!-- key era=v4 sha=05b58b8 inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 16:53)
+run         2026-11-28 01:01:41 · git 05b58b8 (main, working tree clean) · exit 0 · 10.5s
+command     python -m scripts.backtest_study.f3_structure.vol_expansion_long_vol
+excerpt     verdict
+
+```
+VERDICT
+>>> vol_expansion_long_vol ARM S (ATM straddle after E-VOL onset, D+1 close to D+6 close, monthly ~30 DTE, 2022-03-01 to 2026-09-22): NULL (half-widt…
+>>> vol_expansion_long_vol ARM BC (call 1x2 -1 ATM +2 at 1.05, same): NULL (half-width 0.067) — VIX direction after 23 in-window onsets was printed b…
+>>> vol_expansion_long_vol ARM BP (put 1x2 -1 ATM +2 at 0.95, same): CONTRARY — VIX direction after 23 in-window onsets was printed before registrati…
+>>> vol_expansion_long_vol PBO (12 cells, gates all three arms): 0.572 <<<
+>>> vol_expansion_long_vol FORWARD (onsets from 2026-11-27): ARM S STILL-OPEN ARM BC STILL-OPEN ARM BP STILL-OPEN <<<
+  A long-straddle `CONTRARY` is not evidence for selling straddles, because no short side is graded.
+  A backspread result says nothing about tail loss beyond five sessions or about margin.
+  Nothing ships from this study.
+  trades -> backtests/study_output/vol_expansion_long_vol-trades.csv
+```
+
