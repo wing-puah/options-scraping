@@ -1,7 +1,7 @@
 ## spy_put_write — does a weekly SPY put credit spread pay beyond its SPY beta?
 
 <!-- outcome:start -->
-> Latest outcome: not yet run.
+> Latest outcome: `NULL` on the first run, 2026-11-27, signal weeks 2022-01-31 to 2026-10-26. `ARM Z NULL: cycle-mean R +0.019 CI95 [-0.072, +0.095] on 232 trades, 55 cycles`; `ARM H NO-ALPHA` at beta 4.49; `C4 PBO 0.829`. Nothing ships · [record](../../study-results/f3_structure/spy_put_write.md).
 <!-- outcome:end -->
 
 _Registered 2026-11-27._
@@ -184,6 +184,11 @@ never from the fill day's.
   expiry on the target strikes, in dollars. It carries no verdict. It shows
   whether the cache's holes sit on calm or violent weeks.
 
+_Resolved at build (2026-11-27):_ the selection print takes its target strikes
+from the close-table close on D, rounded to $5. A week with no option spot
+still needs strikes for this print. "Not built" holds every week the census
+does not count as built.
+
 _Resolved at draft (2026-11-27):_ the cache was fetched for past plays and
 other studies, not for this rule, so its holes need not be random. Some
 studies fetched puts around sell-offs. The coverage floors bound how many weeks
@@ -217,6 +222,11 @@ history choose the strike.
 - **Costs.** Commission $0.65 per contract per leg per side, from
   `config/backtest.yml` through `_cost_knobs`. Slippage 0. That is $2.60 per
   one-lot round trip. R is net of commission. Gross prints beside it.
+
+_Resolved at build (2026-11-27):_ a credit of zero is refused, because the
+Definitions call a valid credit positive. A credit equal to the width is
+refused too, because the rule says "at or above". `_entry_outside_bounds`
+alone refuses only a credit strictly above it.
 
 _Resolved at draft (2026-11-27):_ commission is charged at exit on both legs
 even when the spread settles at expiry. Production's `_apply_costs` charges
@@ -252,6 +262,20 @@ _Resolved at draft (2026-11-27):_ a target fill on t+1 avoids filling at the
 mark that fired the target. A mark with no real price on t+1 carries the rule
 of `junk_day_mark`; if it returns nothing, the close moves to the next session
 with a mark.
+
+_Resolved at build (2026-11-27):_ four gaps, each filled with production's
+rule or the stricter reading.
+
+- A leg with no row on a day carries its last real snap, as production's daily
+  mark does. That mark is tagged `carried`, and `barchart_stale` past
+  `max_price_carry_days` (5).
+- The 21-DTE session is the first session after the fill day with DTE of 21 or
+  less, so no trade closes on its own fill day.
+- An unmarked 21-DTE session moves the close to the next session with a mark,
+  as the target fill does. A close that finds no mark before expiry settles at
+  intrinsic.
+- MFE and MAE use the gross marks over max loss. Capture divides net R by that
+  gross MFE.
 
 ### Size
 
@@ -458,6 +482,12 @@ No floor may be lowered after the census.
 _Resolved at draft (2026-11-27):_ the coverage floors are new here. A hole of
 25% could hide a crash month, so each year is checked too.
 
+_Resolved at build (2026-11-27):_ a week counts as built for C0a only when
+both legs also have a row on the planned fill day. A week without one is
+printed as "no fill-day quote" and left out of the built count. It is still
+priced if both legs quote inside the five-session window. This can only make
+C0a harder to pass.
+
 ## Bar for a candidate
 
 The primary cell is a candidate only when all of these hold:
@@ -502,6 +532,9 @@ prints.
 - The other eleven cells print their own `ARM Z` and `ARM H` tokens, labelled
   descriptive. They carry no verdict.
 
+_Resolved at build (2026-11-27):_ a descriptive cell's tokens use the primary's
+C0b floors. Below them the cell prints `UNDERPOWERED`.
+
 ### The forward read
 
 The forward read is the grade of record for anything that would trade.
@@ -516,6 +549,11 @@ The forward read is the grade of record for anything that would trade.
   `FORWARD-HOLDS` when it clears zero above; `FORWARD-FAILS` when it clears
   zero below.
 - Forward trades are priced only from quotes the cache holds when the read runs.
+
+_Resolved at build (2026-11-27):_ the sequence's running intersection starts
+at the cycle in which the 30th closed forward week falls. Earlier cycles feed
+the mean but cannot end the read.
+
 _Resolved at draft (2026-11-27):_ the unit is one cycle, not one trade. Weekly
 trades on one expiry share most of their path, so a per-trade sequence would
 count one bet four or five times. At seven cycles the sequence is unlikely to
