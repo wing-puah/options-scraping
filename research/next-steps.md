@@ -1849,7 +1849,8 @@ and the [record](study-results/f1_selection/regime/ticker_regime_move.md).
 Open:
 
 - The forward read. It needs LIVE labels after 2026-11-27, and S needs 12 blocks, about a year.
-- `study_review ticker_regime_move` grading is owed.
+- `study_review` graded the v4 report on 2026-11-27. The graders agree on every word; see the
+  disagreement log in the current.md entry.
 - To be tested, not registered: does the E-VOL tag mark larger moves on LIVE labels? S's own
   interval on v4 sat just above zero, and v3 did not replicate it.
 

@@ -425,6 +425,20 @@ A fresh reader checked the registration before any outcome. Five rulings were fo
 the beta-adjusted outcome, a split guard that keeps real crashes, a frozen in-sample set,
 LIVE-only forward rows, and the `IN-SAMPLE-ONLY` word in place of an in-sample `SUPPORTED`.
 
+### Disagreement log
+
+`study_review` graded the v4 report on 2026-11-27 (two analysts, one validator). The files are
+`backtests/study_output/ticker_regime_move-review-*-latest.md`.
+
+- **Agreed:** every gate and every in-sample word. D's floor is not met, S's floor is met, S
+  misses the Holm bar, and no `SUPPORTED` prints in-sample.
+- **Disagreed, unresolved by the validator:** the two forward floors. With zero forward rows,
+  analyst A wrote NOT EVALUABLE and analyst B wrote NOT MET.
+- **Ruling:** this is wording only. The registration prints `STILL-OPEN` until a forward
+  floor is met, and both readings give that word. No verdict moves.
+- **Defects:** analyst A dropped a colon in one quote and collapsed spacing in two. Analyst B
+  named the v3 run as the "next read", which the v4 report does not say. All digits match.
+
 ### Also seen today: the `night3-suite` re-run
 
 Another session re-ran the suite on 2026-11-27 (61 studies, `financed_spread` still running
