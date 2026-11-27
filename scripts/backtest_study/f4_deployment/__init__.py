@@ -37,6 +37,11 @@ built is runnable in a real account, not whether it is right.
                         trend rule (10-month SMA, month-end) cut the drawdown
                         of a long index position at an acceptable cost, and
                         does a matching net-cap switch cut the book's?
+    multi_asset_trend.py
+                        open · PBO-VETO — monthly 12-month trend on nine
+                        ETFs against holding all nine. The holdout drawdown
+                        gain counts and the Sharpe gain does not, but the
+                        12-cell grid's PBO (0.746) vetoes any claim.
     concurrency_correlation.py
                         open · NOISE — nothing caps the STOCK of open positions,
                         so does the size or internal similarity of the open book

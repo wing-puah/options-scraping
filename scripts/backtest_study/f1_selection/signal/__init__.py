@@ -7,4 +7,5 @@
     trigger_entry.py        entering only on the model's stated trigger vs unconditionally.
     emission_timing.py      does re-emission (ARM P) or fill lag (ARM L) degrade a play?
     direction_hit.py        does anything known at entry predict the underlying moving the play's way?
+    calendar_drift.py       do the pre-FOMC drift and the turn of the month still pay on SPY?
 """

@@ -593,6 +593,16 @@ STUDIES: dict[str, Study] = {
                 "731r/34b  other-vol 1647r/34b  Holm adj p 0.0572`. `--era v3` prints the same "
                 "four words (`S      +0.118 [-0.056, +0.310]  p=0.1808`). Nothing ships.",
     ),
+    "calendar_drift": Study(
+        family="selection", state="open",
+        question="Do the pre-FOMC drift (SPY's close-to-close return on scheduled FOMC decision "
+                 "days, 2012 on) and the turn of the month (the last session plus the first three "
+                 "of the next, 2009 on) still beat SPY's other days after publication, net of 2 bps "
+                 "a side?",
+        verdict="Registered 2026-11-27. First run 2026-11-27 refused at gate GE, as designed: "
+                "`GE: SPY ends 2026-11-25, before the registration date 2026-11-27`. No return "
+                "was computed. The graded run is owed after the 2026-11-27 close. Nothing ships.",
+    ),
     "tail_breach_intraday": Study(
         family="selection", state="open",
         question="Does SPY's intraday low breach twice its VIX-implied move, or fall 5% below a close "
@@ -1315,6 +1325,24 @@ STUDIES: dict[str, Study] = {
                 "`UNDERPOWERED` (15 switched dates, floor 20); FORWARD `STILL-OPEN`. The point "
                 "estimates halve the drawdown, but the lower CI bound sits just below zero in "
                 "both windows. Nothing ships.",
+    ),
+    "multi_asset_trend": Study(
+        family="deployment", state="open",
+        question="Does a monthly time-series momentum rule (12-month return above T-bills, "
+                 "Moskowitz, Ooi and Pedersen 2012; Faber 2007's long-or-T-bills form) run on "
+                 "nine ETFs at once beat equal-weight buy-and-hold of the same nine after 5 bp "
+                 "costs, on the Sharpe ratio and the maximum drawdown (discovery 2007-2016 sign "
+                 "check, holdout 2017-01 to 2026-08 decides)?",
+        verdict="Registered and first run 2026-11-27 (era current: yfinance closes to "
+                "2026-09-22, first common decision 2007-02-28): `>>> multi_asset_trend HEADLINE "
+                "(TB-12-EW vs EW-9, holdout 2017-01 to 2026-08, 5 bp): PBO-VETO <<<`; `>>> "
+                "multi_asset_trend HOLDOUT (2017-01 to 2026-08): dSharpe +0.187 [-0.165, +0.491] "
+                "dMDD +0.131 [+0.021, +0.235] dCAGR -2.04 points alpha +0.022 beta 0.45 <<<`; "
+                "discovery `dSharpe +0.154 [-0.396, +0.619] dMDD +0.231 [-0.009, +0.408]`; `>>> "
+                "multi_asset_trend PBO (12 cells, S=16, in-sample): 0.746 <<<`; options arm "
+                "`36/191 trades priced`; FORWARD `STILL-OPEN (0 forward months of 36)`. The "
+                "drawdown gain counts and the Sharpe gain does not, so without the veto the word "
+                "would be DRAWDOWN-ONLY. Nothing ships.",
     ),
     "ruin_bound": Study(
         family="deployment", state="open",

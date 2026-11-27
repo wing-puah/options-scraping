@@ -1,7 +1,7 @@
 ## multi_asset_trend — does monthly trend across nine ETFs beat holding all nine?
 
 <!-- outcome:start -->
-> Latest outcome: not run.
+> Latest outcome: `>>> multi_asset_trend HEADLINE (TB-12-EW vs EW-9, holdout 2017-01 to 2026-08, 5 bp): PBO-VETO <<<` — `dMDD` counts (holdout `+0.131 [+0.021, +0.235]`, discovery `+0.231`), `dSharpe` does not (holdout `+0.187 [-0.165, +0.491]`), and the in-sample PBO is `0.746`; options arm `36/191 trades priced`; forward `STILL-OPEN (0 forward months of 36)` — era current (yfinance closes to 2026-09-22), run 2026-11-27 · [record](../../study-results/f4_deployment/multi_asset_trend.md)
 <!-- outcome:end -->
 
 _Registered 2026-11-27._
@@ -111,6 +111,10 @@ No word changes a rule in production.
   sessions refuses (gate GI).
 - `Resolved at draft (2026-11-27)`: `^IRX` is quoted on a discount basis, not as a bond-equivalent
   yield. The error is a few basis points a year and falls on every curve that holds cash.
+- `Resolved at build (2026-11-27)`: `^IRX` quoted at or below zero on 7 sessions from
+  2020-03-19 to 2020-03-27. Those quotes are real closes and are used as printed, which gives a
+  small negative daily T-bill return. They are not dropped and carried, since dropping them would
+  manufacture a 7-session carry that gate GI refuses.
 
 ### The rule
 
@@ -198,7 +202,7 @@ Each cell is one lookback, one trend rule and one weighting.
 | Sharpe | `√12 ×` mean / sample standard deviation of monthly excess returns over the monthly T-bill return |
 | Max drawdown (`MDD`) | The largest fall of the compounded monthly equity from its running peak, as a fraction of that peak |
 | CAGR | Compounded monthly equity, `E_end^(12 / months) − 1` |
-| Turnover | One-way traded notional over equity, summed per year, averaged over years |
+| Turnover | One-way traded notional over equity, summed per year, averaged over years. `Resolved at build (2026-11-27)`: per execution, the cost's traded notional (all ten sleeves) over pre-cost equity, each trade counted once; summed over the window and scaled by 12 / months |
 | Time in market | The mean, over executions, of the summed target weight in ETFs; also per sleeve |
 | Worst calendar year | The lowest compounded calendar-year return; a partial year is labelled partial |
 | Jensen alpha and beta | OLS of the cell's monthly excess return on `EW-9`'s; alpha × 12; Newey–West errors, 12 lags |
@@ -238,7 +242,9 @@ Each cell is one lookback, one trend rule and one weighting.
 ## Population and basis, fixed here
 
 - **Era.** The inputs carry no prompt version. The report prints `era: current (inputs are
-  unversioned market closes)`, as `trend_overlay` does.
+  unversioned market closes)`, as `trend_overlay` does. `Resolved at build (2026-11-27)`: a run
+  asked for any other era refuses (exit 2), as `tail_breach` does, so a `--era v3` suite run
+  never files these closes under a past era.
 - **The seal.** The seal binds signal dates of emitted plays. This study reads no play, flow
   signal or backtest row, so the seal does not bind it. The options arm reads cached SPY quotes
   only, and only through 2026-09-22.
@@ -315,6 +321,8 @@ place? It is printed so a later study can be designed on real quotes. It grades 
   opens.
 - **Expiry.** The standard monthly expiry (third Friday) with the calendar days to expiry nearest
   65 from the entry session. A tie takes the later expiry. Only expiries with cached files count.
+  `Resolved at build (2026-11-27)`: "third Friday" is read strictly. A holiday-shifted Thursday
+  expiry is not a candidate, and an expiry on or before the entry day cannot be opened.
 - **Strikes.** The long call is the cached strike nearest the unadjusted SPY close on the entry
   day. The short call is the cached strike nearest 1.05 × that close. A tie takes the lower strike
   for the long call and the higher strike for the short call.
@@ -333,6 +341,8 @@ place? It is printed so a later study can be designed on real quotes. It grades 
   debit is above 0, and both legs have a two-sided, non-junk closing quote on the exit day.
   Otherwise it is unpriced. No strike, expiry, price, carried mark or `Latest` print is
   substituted, so every price sits on one closing clock.
+  `Resolved at build (2026-11-27)`: when the two strike rules pick the same cached strike, the
+  trade is not a vertical and is unpriced ("strikes coincide").
 - **No fetch.** A contract with no cached file is unpriced. The arm never calls the network.
 - **Cut.** No entry or exit after 2026-09-22. A vertical whose exit would fall after the cut is
   not wanted. It is left out of both coverage counts and printed as a count of open trades.
@@ -418,6 +428,15 @@ Jensen alpha and beta against `EW-9`. Per-sleeve time IN prints for the headline
 - `Resolved at draft (2026-11-27)`: 5% rather than `trend_overlay`'s 2%, because some of these
   ETFs pay large annual or year-end distributions. A refusal here is settled by a
   `Resolved at build` ruling, never by loosening the bound silently.
+- `Resolved at build (2026-11-27)`: the first run refused on one row, DBC 2024-12-20 to
+  2024-12-23, an `Adj Close / Close` jump of +5.34%. DBC's close fell 5.0% that session while its
+  adjusted close rose 0.08%. yfinance's dividend feed lists a 1.116 distribution on 2024-12-23,
+  which implies the same +5.34% jump. The ruling: a jump above 5% passes only when the dividend
+  feed lists a cash distribution on that ex-date whose implied jump,
+  `close_prev / (close_prev − D) − 1`, matches the observed step within 0.1 points. The report
+  prints every row passed this way. The 5% bound holds for every other row. The fall bound and the
+  ±25% return bound have no exemption. `--refresh` writes the feed to
+  `backtests/multi_asset_trend/<TICKER>_dividends.csv`.
 - **GX, no lookahead.** The target weights and states behind session `k`'s return read no close
   after the latest decision close at or before `k − 2`. Drift between executions moves weights
   with realised prices only, so it is not a signal. `tests/test_multi_asset_trend.py` changes every later close
@@ -430,6 +449,9 @@ Jensen alpha and beta against `EW-9`. Per-sleeve time IN prints for the headline
 - **GR, replay.** A cell forced IN on every sleeve, with `EW` weights, must reproduce `EW-9`'s
   monthly returns exactly. A mismatch refuses (exit 3). Without it, a gap could come from the
   simulator, not the rule.
+- `Resolved at build (2026-11-27)`: `EW-9` is computed by a separate function that has no
+  states and no cash sleeve, so GR is a real replay check. "Exactly" is read as a largest monthly
+  difference of at most 1e-12, which allows float rounding only.
 - **GN, floors.** A window is `UNDERPOWERED` when either holds:
   - it has fewer than **96** complete months;
   - `EW-9` has fewer than **2** episodes with a trough inside it.
@@ -469,6 +491,8 @@ The rows are complete and mutually exclusive: each case meets exactly one first 
 - **"Clearly worse" reads the holdout only.** It has no discovery clause.
 - **Grid cells** print the word they would get by the same rows, marked "grid, not graded".
 - **Sensitivities** print the headline word they would give, marked "printed only".
+  `Resolved at build (2026-11-27)`: a cost sensitivity runs every cell and `EW-9` at that cost
+  and recomputes PBO at it. A block sensitivity keeps the 5 bp PBO, which no block changes.
 - **The other benchmarks** print the headline cell's deltas against `SPY` and `60-40`, with no
   word.
 

@@ -1,7 +1,7 @@
 ## calendar_drift — do the pre-FOMC drift and the turn of the month still pay on SPY after publication?
 
 <!-- outcome:start -->
-> Latest outcome: not run.
+> Latest outcome: no verdict yet — the first run refused at gate GE (`GE: SPY ends 2026-11-25, before the registration date 2026-11-27`), so no return was computed; the graded run is owed after the 2026-11-27 close, run 2026-11-27 · [record](../../../study-results/f1_selection/signal/calendar_drift.md)
 <!-- outcome:end -->
 
 _Registered 2026-11-27._
@@ -73,6 +73,10 @@ Both windows are fixed by the papers, so the study has no free parameter.
 - **`Resolved at draft`: a cancelled meeting is no event.** When a scheduled meeting was cancelled
   or replaced by an unscheduled one, its date is not an event. The drafter knows one case: the
   March 2020 meeting, replaced by the 2020-03-15 emergency action.
+- **`Resolved at build (2026-11-27)`: the September 15, 2003 meeting is no event.** The Fed's 2003
+  page lists two meetings that week. The August 2003 minutes name September 16 as the next regular
+  meeting, and the September 15 session discussed only communication practice. So September 16 is
+  the decision day and September 15 is listed as excluded. With it out, 2003 holds eight.
 - **`Resolved at draft`: a transcription fix.** A date may change after the first report only when
   the Fed's own page proves it wrong. The fix is tagged `Resolved at build (date)` beside this
   clause, and the report prints the old and new verdicts side by side.
@@ -106,6 +110,12 @@ return and sell at the close of the last.
 - **`Resolved at second read (2026-11-27)`: unscheduled market closures.** The calendar is the
   sessions in the file. A window that spans an unscheduled closure (2001-09, Hurricane Sandy in
   2012-10) holds a return over the closed days. This is accepted, not corrected.
+- **`Resolved at build (2026-11-27)`: the data's final session.** The calendar cannot show
+  whether the last session in the file is its month's last, because no later session exists yet.
+  So that session is an open `TOM` event and sits in neither set. It joins a set on the next run
+  that has a later session.
+- **`Resolved at build (2026-11-27)`: today's bar.** The fetch keeps a bar dated on the fetch day
+  only after 16:30 New York time, so every cached close is a finished session.
 
 ### Cost
 
@@ -290,11 +300,20 @@ is undefined. The placebo shift and the cost are fixed here and never varied.
 | `YEARS` | `Δ` per calendar year, and the count of years with `Δ` above zero |
 | `EX-OVERLAP` | Each arm with overlapping events removed, with its CI (used by gate GV) |
 | `UNION` | Holding SPY in the union of both arms' windows, one cost per contiguous holding |
+
+- **`Resolved at build (2026-11-27)`: `UNION` and `HIT` populations.** `UNION` uses counted
+  windows of both arms that fall inside the years both arms share: 2012-01-01 to `REGISTERED`
+  for `GRADED`, and 1994-01-01 to 2008-12-31 for `PRIOR`. Its out-of-window days are sessions in
+  no window of either arm. `HIT`'s SPY share counts every gross same-length window that starts
+  inside the population's dates.
 | `PRIOR` | Every line above, and `Δ` with its CI, for the pre-publication years |
 
 - **`ANNUAL`.** `(product of (1 + s_t))^(252 / N) − 1`, where `s_t` is the strategy's net return on
   session t and N counts the population's sessions.
 - **`SHARPE`.** `mean(s_t) / sd(s_t) × √252`, over every session in the population.
+- **`Resolved at build (2026-11-27)`: the population's sessions.** For `ANNUAL`, `SHARPE` and
+  `CAPTURE` these are the population's in-window and out-of-window days. Days in neither set are
+  left out.
 - **`CAPTURE`.** It prints `n/a` when SPY's summed log return over the population is zero or less.
 - **`YEARS` and the leave-one-year-out gate.** An event, with all its window days, belongs to the
   year of its last session. An out-of-window day belongs to its own year.
@@ -342,6 +361,8 @@ is undefined. The placebo shift and the cost are fixed here and never varied.
 - **GN.** At least 40 events in the arm's population, spread over at least 5 calendar years for
   `GRADED` and at least 3 for `FORWARD`. Otherwise the arm prints `UNDERPOWERED` on `GRADED` and
   `STILL-OPEN` on `FORWARD`.
+- **`Resolved at build (2026-11-27)`: the year span.** GN counts the distinct calendar years of
+  the counted events' last sessions.
 
 **Why 40.** It is about five years of FOMC meetings and the smallest count at which the bootstrap
 interval is stable for a one-day window. It is set here from the calendar counts above, not from
@@ -359,6 +380,12 @@ any return.
 - **GV, overlap.** An overlap is a decision day that is one of a `TOM` window's four sessions.
   Remove every overlapping event from the arm. Its window days leave the in-window set and do not
   join the out-of-window set. GV passes when the arm's `Δ` stays above zero.
+- **`Resolved at build (2026-11-27)`: which days the placebo and overlap rules read.** A
+  placebo day must be one of the population's own out-of-window days. So a shifted day that is an
+  own-arm window day, has no defined return, or falls outside the population's dates is dropped.
+  "A window day of the other arm" and "a `TOM` window" mean any such window, counted or not.
+- **`Resolved at build (2026-11-27)`: forward robustness.** GL, GP and GV run on `FORWARD` by the
+  same rules. An arm still at `STILL-OPEN` enters the forward Holm family with p = 1.
 
 **`Resolved at draft`: the `TOM` placebo shift.** Ten sessions earlier puts the `TOM` placebo near
 the middle of month m. The shift is fixed here and never varied.
