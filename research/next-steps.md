@@ -1582,7 +1582,12 @@ Pre-registrations had their path strings updated too, with no change of substanc
 
 The first run on 2026-11-14 printed `UNDERPOWERED` on every graded object: the test window holds 9
 independent breach episodes against a floor of 10 ([entry](current.md#2026-11-14--tail_breach-tail-breaches-run-at-a-steady-rate-and-vol-state-does-not-forecast-them)).
-`study_review` grading is still owed. The study was registered (accepted by default 2026-11-14). It counts
+
+`study_review` graded the 2026-11-27 re-run on the same day. Both analysts agree on every verdict, and
+`UNDERPOWERED` stands. One check is filed from it: the report's dropped-row counts fall short of the
+SPY session count, by 5 rows on Y5 and 1 on Y1.
+
+The study was registered (accepted by default 2026-11-14). It counts
 the sessions in 2024, 2025 and 2026 on which SPY fell more than twice the one-day move the prior
 close's VIX implied. It then asks whether four VIX readings at that close forecast a breach in the
 next five sessions ([pre-registration](pre-registrations/f1_selection/regime/tail_breach.md)).

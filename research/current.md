@@ -459,6 +459,9 @@ from the catalog:
   tab. It is a designed refusal, not a crash.
 - `hedge_timing` matters most: `H3-GAP: CONTRARY` is the support for the §4 gap-up
   prohibition.
+- **`tail_breach` is now graded** (next-steps 2.26). Both analysts agree on every verdict and
+  `UNDERPOWERED` stands. The validator noted that the printed drop counts do not sum to the
+  SPY session count. That check is filed in next-steps.
 - **A slip to know about.** This session ran `make study-record` with no study name. It
   appended the suite's current reports for 62 other studies to `research/study-results/`.
   The appends are verbatim and append-only, and were left uncommitted for the suite's owner.
