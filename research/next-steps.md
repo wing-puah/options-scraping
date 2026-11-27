@@ -548,14 +548,19 @@ Decisions owed. None of these is a study.
     (post-run review under `vol_managed_spy`). Their printed verdicts stand until this is checked.
 
 <a id="exit-mark-clock"></a>
-22. **OPEN 2026-11-28 — check the exit-side junk-quote mark for two clocks in one exit.** The shared
-    rule in `scripts/backtest/simulate.py` (`junk_day_mark`) marks a junk-wide exit leg at that
-    day's `Latest`, even outside the closing bid and ask. The other leg can sit at its closing mid.
-    Check how many closed rows in the main book exit on a `Latest` outside that day's closing quote.
-    Then the operator rules on whether exit marks should be capped to the closing quote; that needs
-    a re-price. Evidence:
-    [`current.md`](current.md#2026-11-27--four-mechanical-rules-off-the-picks-none-ships)
-    (post-run review under `vol_expansion_long_vol`). The test
+22. **OPEN 2026-11-28 — the exit mark can rest on a `Latest` outside the closing quote.** The shared
+    rule in `scripts/backtest/simulate.py` (`junk_day_mark`) marks a junk-wide leg at that day's
+    `Latest` when it traded, even outside the closing bid and ask. The exit fill is the same daily
+    mark the stop and target rules scan. A post-hoc census (unregistered) found 7.5% of closed
+    Results rows and 7.1% of Proxy tweak rows exit on such a leg, and the tier means move by 0.002
+    R or less. About 3% of rows would change exit day or reason. It is immaterial for headline
+    means and material for single-row reads.
+
+    The operator rules: keep the rule, cap exit and path marks to the closing quote, or move to a
+    relative-width junk test. Any change needs a re-price (`--redo`) of the v4 book and a suite
+    re-run. Evidence:
+    [`current.md`](current.md#exit-marks-on-a-print-outside-the-closing-quote-common-mean-unmoved).
+    The test
     `test_known_limitation_exit_marks_a_junk_wide_quote_at_latest_outside_bid_ask` pins today's behaviour.
     Also: the study await gates should check that a cached file reaches the fill and exit dates.
 

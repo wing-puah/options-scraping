@@ -444,6 +444,24 @@ Owed, the operator's call: the registration says a `SUPPORTED` whose VOL-SCALED 
 
 The three operator calls and the rerun are next-steps item 20 in [`next-steps.md`](next-steps.md).
 
+### Exit marks on a print outside the closing quote: common, mean unmoved
+
+Post-hoc and unregistered: a read-only census, no study was run and nothing was re-simulated. On the v4 book about 7% of closed rows have an exit leg marked at a `Latest` outside that day's closing bid and ask. The tier means do not move. Single rows move by up to about 0.4 R, so it is immaterial for headline means and material for single-row reads and small samples such as `vol_expansion_long_vol` `ARM BP` (two such marks in 28 trades).
+
+| Tier | Recorded mean R | Exit-day cap | Full-path cap | Rows with an outside exit leg | Rows whose exit would change |
+|---|---|---|---|---|---|
+| Results, exact | -0.0202 | -0.0209 | -0.0196 | 79 of 1,051 (7.5%) | 31 |
+| Proxy, tweak | -0.0670 | -0.0653 | -0.0649 | 70 of 990 (7.1%) | 30 |
+
+- About 3.2% of all path leg-days are marked that way, and the stop and target rules scan those same marks. Errors run both ways, and no closed row's R changes sign.
+- On an affected row the mean absolute change is 0.093 R (Results) and 0.134 R (Proxy). About half of the changed exits are `dollar_stop` fires, mostly pushed later.
+- Rows still open at the data end are worse: 11.2% (Results) and 8.0% (Proxy).
+- Who they are: 88% of the outside legs have a bid of $20 or more, with a median relative spread of 5.3%. They are expensive, mostly in-the-money legs that the absolute width cap calls junk, not broken quotes. Side observation, not a recommendation: a relative-width cap would remove most of them.
+- `spy_put_write`: 0 of 2,310 target-cell exit legs are outside the quote, the hold cells settle at intrinsic, and the primary cell's cycle-mean R recomputes to +0.0194 unchanged. Its `NULL` cannot move.
+- Method: every leg's daily mark was re-derived from the cache with production's own functions. It matched the recorded marks on all but 14 rows per tab. The exit scan replay matched the recorded exit on all but 2 Results rows and 1 Proxy row. The capped figures are a recompute on stored marks.
+
+The operator rules; nothing was changed. See next-steps item 22.
+
 ## 2026-11-27 — four mechanical rules off the picks: none ships
 
 Nothing ships. Two rules have a verdict and neither clears its bar. Two have no
@@ -549,7 +567,7 @@ The put backspread's `CONTRARY` rests on two off-clock exit marks. It reads `NUL
 
 An independent review re-priced all 608 headline trades (84 onset, 524 calm) from the raw cache files with separate code. There were 0 mismatches, and the statistics and PBO 0.5723 reproduce. Calm weeks are defined looking back only, so there is no lookahead.
 
-Two `ARM BP` exit marks are intraday `Latest` prints outside that day's closing bid and ask. Both sit on legs whose quote was wider than the junk rule's $2 cap. The trade's other leg was marked at its closing mid, so one exit mixes two clocks. Both marks go against `ARM BP`.
+Two `ARM BP` exit marks are intraday `Latest` prints outside that day's closing bid and ask. Both sit on legs whose quote was wider than twice the legacy Cboe width for that bid (about $2 for a bid of $20 or more), so the junk rule marked them at `Latest`. The trade's other leg was marked at its closing mid, so one exit mixes two clocks. Both marks go against `ARM BP`.
 
 - Onset 2025-03-31, exit 2025-04-08: the long 533 put was marked at 34.00. The closing bid was 41.18, and 34.00 is below intrinsic.
 - Onset 2025-02-24, exit 2025-03-04: the short 594 put was marked at 21.00. The closing ask was 19.87.
@@ -568,7 +586,7 @@ Two `ARM BP` exit marks are intraday `Latest` prints outside that day's closing 
 - One calm `ARM BP` entry (2026-07-06) dropped as `no_entry_quote`. Its cache file `SPY_20260821_710.00P.csv` ends 2026-06-12. The await gate does not check that a file reaches the fill and exit dates, so "fetch plan 0" does not prove full coverage. One trade of 175 is affected.
 - `backtests/study_output/vol_expansion_long_vol-latest.txt` predates the print-order change. Its numbers are unaffected.
 
-The off-clock exit mark comes from the shared junk-quote rule in `scripts/backtest/simulate.py`. The entry side already rejects a `Latest` that does not share a clock with the other legs. The exit side does not. Deep in-the-money legs on big-move days are wide, so the main backtest book's exit marks may carry the same two-clock marks. The book was not checked. Changing the rule is the operator's call and needs a re-price: next-steps item 22.
+The off-clock exit mark comes from the shared junk-quote rule in `scripts/backtest/simulate.py`. A quote is junk if the bid is 0 or less, if ask minus bid exceeds the mid, or if ask minus bid exceeds twice the legacy Cboe width for that bid ($0.50 under $2, $0.80 under $5, $1.00 under $10, $1.60 under $20, $2.00 at $20 and above). Since 2026-10-23 an entry never uses `Latest`: a junk bought leg with a bid fills at the closing mid, a junk sold leg at its bid, and a bought leg with no bid is refused. There is no separate exit pricing. The exit fill is the same daily mark the stop and target rules scan, and `junk_day_mark` gives a junk leg that day's `Latest` when it traded. Deep in-the-money legs on big-move days are wide, so the main book may carry the same marks. The main-book census below measured it. Changing the rule is the operator's call and needs a re-price: next-steps item 22.
 
 ### What this adds to the programme's picture
 
