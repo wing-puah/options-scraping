@@ -539,6 +539,13 @@ Decisions owed. None of these is a study.
     `python3 -m scripts.backtest_study run calendar_drift --refresh`. The runner
     passes `--` through, so the flag goes without it.
 
+<a id="drawdown-power-check"></a>
+21. **OPEN 2026-11-28 — check the power of the drawdown-difference bootstrap in `trend_overlay`
+    and `multi_asset_trend`.** With few drawdown episodes its p-value has a floor above the Holm
+    thresholds, so the test may be unable to pass. Evidence:
+    [`current.md`](current.md#2026-11-28--two-more-shares-only-rules-volatility-scaling-is-null-dips-pay-a-risk-premium)
+    (post-run review under `vol_managed_spy`). Their printed verdicts stand until this is checked.
+
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14
 

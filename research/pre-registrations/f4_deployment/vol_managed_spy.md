@@ -1,7 +1,7 @@
 ## vol_managed_spy — does cutting SPY exposure when volatility is high beat simply holding less SPY?
 
 <!-- outcome:start -->
-> Latest outcome: `>>> vol_managed_spy HEADLINE (VOL-21-12 vs MIX, holdout 2010-01 to 2026-08, 5 bp): NULL <<<` — neither statistic passes Holm (holdout `dSharpe +0.012 [-0.135, +0.149] p 0.4732`, `dMDD +0.053 [-0.021, +0.081] p 0.0816`); discovery `dSharpe +0.112`, `dMDD +0.100`; ARM R `NO-ALPHA alpha +0.008 [-0.008, +0.022] beta 0.68`; in-sample PBO `0.630`; forward `STILL-OPEN (0 forward months of 36)` — era current (yfinance closes to 2026-09-22, discovery 1993-05 to 2009-12, holdout 2010-01 to 2026-08), run 2026-11-27 · [record](../../study-results/f4_deployment/vol_managed_spy.md)
+> Latest outcome: `>>> vol_managed_spy HEADLINE (VOL-21-12 vs MIX, holdout 2010-01 to 2026-08, 5 bp): NULL <<<` — neither statistic passes Holm (holdout `dSharpe +0.012 [-0.135, +0.149] p 0.4732`, `dMDD +0.053 [-0.021, +0.081] p 0.0816`); discovery `dSharpe +0.112`, `dMDD +0.100`; ARM R `NO-ALPHA alpha +0.008 [-0.008, +0.022] beta 0.68`; in-sample PBO `0.630`; forward `STILL-OPEN (0 forward months of 36)` — era current (yfinance closes to 2026-09-22, discovery 1993-05 to 2009-12, holdout 2010-01 to 2026-08), run 2026-11-27. The drawdown half was untestable at this holdout length (post-run review). · [record](../../study-results/f4_deployment/vol_managed_spy.md)
 <!-- outcome:end -->
 
 _Registered 2026-11-27._

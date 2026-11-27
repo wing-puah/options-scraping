@@ -382,6 +382,18 @@ The headline cell is `VOL-21-12` against `MIX`, a constant SPY and T-bill mix at
 - Against plain SPY the cell gave up 3.19 points of CAGR for a 0.091 smaller drawdown. This is printed only.
 - The forward read is `STILL-OPEN` from 2026-12 and needs 36 months.
 
+Post-run review (unregistered, by an independent reader who rebuilt the numbers from the cached prices):
+
+- The review matched every headline figure and found no lookahead. The `NULL` mapping is correct.
+- The drawdown half was untestable at this holdout length. It does not show "no drawdown benefit".
+- A planted perfect effect, the rule in cash through every SPY trough, gave a bootstrap p of about 0.039. That is above both Holm thresholds, 0.0125 and 0.025.
+- The cause is 3 drawdown episodes in 200 months.
+- The Sharpe test is honestly sized. It rejects 1.3% to 2.8% of no-effect draws at a nominal 5%, so it is not anti-conservative like the `spy_dip_forward` bootstrap.
+- It is underpowered. 80% power needs a true Sharpe difference near 0.25, about twice the discovery estimate. `NULL` here means "could not see one", not "no effect".
+- On simulated markets with clustered volatility and no edge, the rule still cuts the mean drawdown by +0.020 to +0.025 while its Sharpe falls. A shallower drawdown is a real property of the rule, paid for in growth, not alpha.
+- The holdout's +0.053 is about twice that no-edge level and cannot be told apart from it. The rule gave up 1.19 points of CAGR against the matched mix.
+- `trend_overlay` and `multi_asset_trend` grade a drawdown difference with the same bootstrap bar. Their drawdown tests may share this power limit. This has not been checked, and their verdicts stand as printed. See [next-steps item 21](next-steps.md#drawdown-power-check).
+
 This is a second shares rule that cuts drawdown only by holding less. [`multi_asset_trend`](#2026-11-27--four-mechanical-rules-off-the-picks-none-ships) showed the same shape.
 
 ### `spy_dip_forward`: the dip entry pays more and hurts more

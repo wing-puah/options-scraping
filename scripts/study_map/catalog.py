@@ -1419,7 +1419,8 @@ STUDIES: dict[str, Study] = {
                 "PBO (12 cells, S=16, in-sample): 0.630 <<<`; post-publication `dSharpe +0.025 "
                 "[-0.161, +0.198] dMDD +0.050 [-0.011, +0.085] alpha +0.011 [-0.009, +0.027]`; "
                 "FORWARD `STILL-OPEN (0 forward months of 36)`. Neither statistic passes Holm, "
-                "so no gain counts. Nothing ships.",
+                "so no gain counts. The drawdown half was untestable at this holdout length "
+                "(post-run review, unregistered). Nothing ships.",
     ),
     "ruin_bound": Study(
         family="deployment", state="open",

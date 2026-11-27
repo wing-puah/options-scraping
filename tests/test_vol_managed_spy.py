@@ -530,3 +530,35 @@ def test_other_era_refuses_with_exit_2(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert ">>> vol_managed_spy HEADLINE (VOL-21-12 vs MIX, holdout 2010-01 to 2026-08, 5 bp): " \
            "REFUSED (era) <<<" in out
+
+
+# ── weight-to-month pairing ──────────────────────────────────────────────────
+
+def test_month_weight_is_the_weight_executed_on_the_months_first_session():
+    # Calm and volatile months alternate, so the weight decided at one month-end differs
+    # clearly from its neighbours. A one-month shift in the pairing would change the result.
+    dates = _weekdays("2019-12-02", "2021-06-30")
+    n = len(dates)
+    month_no = np.array([int(d[:4]) * 12 + int(d[5:7]) for d in dates])
+    vol = np.where(month_no % 2 == 0, 0.02, 0.002)
+    adj = 100 * np.exp(np.cumsum(np.random.default_rng(3).normal(0.0003, vol)))
+    tb = np.full(n, 0.0001)
+    tb[0] = np.nan
+    P = M.Panel(dates, adj, adj.copy(), np.zeros(n), np.zeros(n, dtype=int), tb)
+    me = M.month_end_idx(P.dates)
+    j0 = next(j for j, t in enumerate(me) if t >= 21)
+    tab = M.decision_table(P, me, j0, M.HEADLINE)
+    ks = sorted(tab)
+    cv = M.simulate(P, tab, "x")
+    grid = M.month_grid(P, ks[0])
+    w = M.month_weights(cv, grid)
+    checked = 0
+    for i, (a, _b) in enumerate(grid.spans):
+        if a not in tab:
+            continue
+        assert P.dates[a - 1][:7] != P.dates[a][:7]       # a is a month's first session
+        assert w[i] == tab[a].w                           # decided at the prior month's last close
+        checked += 1
+    assert checked >= 12
+    assert max(abs(w[i + 1] - w[i]) for i in range(len(w) - 1)) > 0.2
+    assert not np.allclose(w[1:], w[:-1])
