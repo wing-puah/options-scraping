@@ -1444,6 +1444,15 @@ STUDIES: dict[str, Study] = {
                 "so no gain counts. The drawdown half was untestable at this holdout length "
                 "(post-run review, unregistered). Nothing ships.",
     ),
+    "tier_contrast_forward": Study(
+        family="deployment", state="open",
+        question="On signal dates after 2026-11-27, do Tier A and Tier B plays earn more R "
+                 "per position than Tier C plays (one date-clustered contrast on the same "
+                 "dates, v4, forward only)?",
+        verdict="Registered and built 2026-11-28, forward-only. `STILL-OPEN`: it fires once "
+                "each arm holds 377 closed positions on 120 signal dates inside the complete "
+                "prefix. No tier statistic prints before then. Nothing ships under any outcome.",
+    ),
     "ruin_bound": Study(
         family="deployment", state="open",
         question="The operator will accept a deeper drawdown for more return if a guardrail "
