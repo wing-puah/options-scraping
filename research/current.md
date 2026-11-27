@@ -459,12 +459,33 @@ from the catalog:
   tab. It is a designed refusal, not a crash.
 - `hedge_timing` matters most: `H3-GAP: CONTRARY` is the support for the §4 gap-up
   prohibition.
-- **`tail_breach` is now graded** (next-steps 2.26). Both analysts agree on every verdict and
-  `UNDERPOWERED` stands. The validator noted that the printed drop counts do not sum to the
-  SPY session count. That check is filed in next-steps.
 - **A slip to know about.** This session ran `make study-record` with no study name. It
   appended the suite's current reports for 62 other studies to `research/study-results/`.
   The appends are verbatim and append-only, and were left uncommitted for the suite's owner.
+
+### Gradings closed 2026-11-27
+
+Four owed `study_review` gradings ran on the suite's 2026-11-27 reports (next-steps 2.26 to
+2.29). No verdict moved. The files are `backtests/study_output/<study>-review-*-latest.md`.
+
+| Study | Verdict that stands | Analysts |
+|---|---|---|
+| `tail_breach` | `UNDERPOWERED` | agree on every verdict |
+| `tail_breach_intraday` | PA `NO-FORECAST`, PB `UNDERPOWERED` | agree on every verdict |
+| `tail_rebound` | every arm `NO-EDGE` | agree on every verdict |
+| `tail_rebound_etf` | every co-primary `NO-EDGE` | agree on every verdict |
+
+Three things the validators could not settle, none of which touches a verdict:
+
+- **Zero forward rows.** One analyst writes `NOT MET` and the other `NOT EVALUABLE` for a
+  forward floor with no rows. Ruling: both mean `STILL-OPEN`, the word the reports print.
+- **Two provenance blocks.** The runner's header lists five export files these studies do
+  not read. The study's own block lists the real inputs. This is next-steps 2.17, still open.
+- **Gates that print a bare `pass`.** `tail_breach_intraday` GX does not show its two
+  sub-checks, so a grader cannot confirm them from the report.
+
+One arithmetic check is filed: `tail_breach`'s printed drop counts fall short of the SPY
+session count, by 5 rows on Y5 and 1 on Y1.
 
 ## 2026-11-26 — seal lifted; suite re-run on the unsealed dates (44 of 63 studies)
 

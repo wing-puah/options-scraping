@@ -1612,7 +1612,7 @@ How to resume:
 
 The first run on 2026-11-14 printed `NO-FORECAST` for intraday 2σ breaches, with the power gate met.
 It printed `UNDERPOWERED` for 5% falls within five sessions: 3 test episodes against a floor of 10.
-The forward reads print `STILL-OPEN` ([entry](current.md#2026-11-14--tail_breach_intraday-intraday-breaches-not-forecastable-5-falls-too-rare)). `study_review` grading is still owed. The operator asked for it after
+The forward reads print `STILL-OPEN` ([entry](current.md#2026-11-14--tail_breach_intraday-intraday-breaches-not-forecastable-5-falls-too-rare)). `study_review` graded the 2026-11-27 re-run that day; the verdicts stand ([log](current.md#gradings-closed-2026-11-27)). The operator asked for it after
 `tail_breach`: the same four VIX readings, on SPY's intraday low and on a 5% move
 ([pre-registration](pre-registrations/f1_selection/regime/tail_breach_intraday.md)). The operator
 chose B down only, over five sessions. A fresh second reader found no leakage; its fixes are in.
@@ -1637,7 +1637,7 @@ The first run on 2026-11-15 printed `NO-EDGE` on `A21`, `B21` and the four secon
 intraday 2σ breach or a completed 5% fall, SPY's next one, four or twelve weeks did not detectably
 beat a usual span, from 1993 on. The forward reads print `STILL-OPEN`
 ([entry](current.md#2026-11-15--tail_rebound-no-rebound-edge-after-spy-tail-falls-1993-on)).
-`study_review` grading is still owed. The operator asked for it after `tail_breach_intraday`
+`study_review` graded the 2026-11-27 re-run that day; the verdicts stand ([log](current.md#gradings-closed-2026-11-27)). The operator asked for it after `tail_breach_intraday`
 ([pre-registration](pre-registrations/f1_selection/regime/tail_rebound.md)). A fresh second reader
 found four blockers; all are folded in.
 
@@ -1663,7 +1663,7 @@ After an intraday 2σ VXN breach or a completed 5% fall, neither ETF's next mont
 usual month, nor SPY's return on the same dates. Seven secondaries print `NO-EDGE` and `SMH-A63`
 prints `UNDERPOWERED`. The forward reads print `STILL-OPEN`
 ([entry](current.md#2026-11-15--tail_rebound_etf-no-rebound-edge-on-qqq-or-smh-either)).
-`study_review` grading is still owed. A fresh second reader found two blockers and ten fixes; all
+`study_review` graded the 2026-11-27 re-run that day; the verdicts stand ([log](current.md#gradings-closed-2026-11-27)). A fresh second reader found two blockers and ten fixes; all
 are folded in ([pre-registration](pre-registrations/f1_selection/regime/tail_rebound_etf.md)).
 
 | Design choice | Default |
