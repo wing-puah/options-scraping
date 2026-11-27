@@ -251,6 +251,23 @@ prints a word other than `STILL-OPEN` for it.
   folded in above: the beta-adjusted outcome, the narrower split guard, the frozen in-sample
   set, LIVE-only forward rows and the `IN-SAMPLE-ONLY` word.
 
+### Resolved at build (2026-11-27)
+
+A counts-only plumbing check ran after the commit of this file and before the first run. It
+printed row counts and no outcome value.
+
+| Cell, v4 in-sample rows holding `bres21` | Rows |
+|---|---|
+| BULL, `above` | 1,310 |
+| BEAR, `below` | 483 |
+| BULL, `below` | 50 |
+| BEAR, `above` | 27 |
+
+- The label agrees with the own-trend flag on 1,793 of 1,870 BULL and BEAR rows.
+- BEAR in `above` holds 27 rows against D's floor of 50. D will print `UNDERPOWERED` on v4.
+- The floor is not changed. Lowering it after seeing the counts would be fitting the gate.
+- D-raw and D-twin still print. They show the label and the flag side by side, ungraded.
+
 ## Dependencies
 
 - `scripts/backtest_study/f1_selection/regime/market_read.py`: `parse_label`, `lag_bin`,
