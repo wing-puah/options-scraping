@@ -1859,6 +1859,39 @@ Open:
 - To be tested, not registered: does the E-VOL tag mark larger moves on LIVE labels? S's own
   interval on v4 sat just above zero, and v3 did not replicate it.
 
+### 2.34 Partial bars still enter the option cache from the journal — OPEN, filed 2026-11-27
+
+The backtest no longer prices a partial session bar (commit 49ea5c9). The journal's greeks
+fetch still runs intraday and writes into the same cache folder. The studies read that cache
+directly, without the 16:15 ET cutoff. So a study and the backtest can disagree on a contract
+the journal touched mid-session. On 2026-11-27, 3,744 files were stripped by hand; see the
+[entry](current.md#2026-11-27--re-price-partial-bar-strip-and-the-full-suite-on-the-unsealed-dates).
+
+Two fixes, either one closes it:
+
+- The journal strips the partial bar before it writes, and keeps the intraday row in memory.
+  This is a production-tier change.
+- The study readers apply `history.bar_cutoff`. `harness.py` is frozen, so this route cannot
+  cover every reader.
+
+Until then, a study gate failing on marks after a journal run points here first.
+
+### 2.35 The proxy's stale check misses a nearer strike — OPEN, filed 2026-11-27
+
+`--reprice-stale` re-prices a finished proxy row only when a leg file the row already holds
+changes. A substituted leg is chosen from the strikes that are fresh at pricing time. A later
+fetch can fill a nearer strike, and the stored row then disagrees with any rebuild. Three rows
+needed a forced `--redo` on 2026-11-27: MU 08-14, MU 09-15 and AMZN 11-25. The study gates
+(`narrow_to_fit` GN3, `exit_mark_clock` G-REPRO) caught all three.
+
+The fix is to watch every strike the substitution walk could pick, not only the chosen one.
+
+### 2.36 The FOMC minutes calendar needs a top-up every six weeks — standing, filed 2026-11-27
+
+Minutes dates are entered only once released. `macro_event_study` refuses with `G0 REFUSAL`
+when the book outruns the last entry. On 2026-11-27 the Sep and Oct 2026 minutes (Oct 7,
+Nov 18) were added from the Fed's calendar pages. The next ones fall about 2026-12-30.
+
 ## 3. Standing rules — settled, do not re-open
 
 One line each, with the evidence.
