@@ -444,8 +444,14 @@ Decisions owed. None of these is a study.
     change which pairs exist after outcomes have printed, so it would need
     its own build ruling and a re-run.
 
-18. **PROPOSAL 2026-11-06 — awaiting the operator. Nothing is registered or
-    built; the name `vol_expansion_long_vol` is a placeholder.** The question is
+18. **REGISTERED 2026-11-27 as
+    [`vol_expansion_long_vol`](pre-registrations/f3_structure/vol_expansion_long_vol.md),
+    accepted on the defaults below. Built; the first run prints
+    `NOT BUILT — AWAITING SCRAPE`. The registered $1 strike walk needs 449
+    contracts the cache lacks. Running `fetch_vol_expansion_legs.py` is the
+    operator's call
+    ([entry](current.md#2026-11-27--four-mechanical-rules-off-the-picks-none-ships)).**
+    The text below is the 2026-11-06 proposal, kept as written. The question is
     whether long straddles and ratio backspreads earn a net return after an
     expanding-vol label that calm weeks do not. Evidence and literature:
     [`current.md`](current.md#2026-11-06--long-straddles-and-backspreads-after-a-vol-expansion-untested-one-spy-study-proposed).

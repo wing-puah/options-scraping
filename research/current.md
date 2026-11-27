@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-27: four mechanical rules that use no picks were registered, built and run; `multi_asset_trend` prints `PBO-VETO`, `spy_put_write` prints `NULL`, and the other two have no verdict yet**
+([entry](#2026-11-27--four-mechanical-rules-off-the-picks-none-ships)).
+
 **2026-11-27: `ticker_regime_move` prints D `UNDERPOWERED` and S `NULL` on v4 and v3; the per-ticker regime label almost always restates the ticker's own trend, and its vol tag does not clear the bar**
 ([entry](#2026-11-27--ticker_regime_move-the-per-ticker-regime-label-restates-the-trend-flag)).
 
@@ -342,6 +345,100 @@ blocks any work; each has its full entry in an archive volume.
   stayed blocked at R2.
 
 ---
+
+## 2026-11-27 — four mechanical rules off the picks: none ships
+
+Nothing ships. Two rules have a verdict and neither clears its bar. Two have no
+verdict yet: one waits for a price bar and one waits for a leg fetch.
+
+The operator asked for fresh mechanisms that use neither the picks nor the flow
+layer. The four were chosen on 2026-11-27 and accepted on their defaults. Each
+registration passed a fresh second reader before any outcome existed.
+
+| Study | Rule | Verdict |
+|---|---|---|
+| [`multi_asset_trend`](study-results/f4_deployment/multi_asset_trend.md) | monthly 12-month trend on nine ETFs | `PBO-VETO` |
+| [`spy_put_write`](study-results/f3_structure/spy_put_write.md) | weekly SPY put credit spread | `NULL`, `ARM H` `NO-ALPHA` |
+| [`calendar_drift`](study-results/f1_selection/signal/calendar_drift.md) | pre-FOMC day and turn of the month on SPY | none: refused at `GE` |
+| [`vol_expansion_long_vol`](study-results/f3_structure/vol_expansion_long_vol.md) | SPY straddle and 1x2 after an `E-VOL` onset | `NOT BUILT — AWAITING SCRAPE` |
+
+### Why these four
+
+The option cache covers 2022 to 2026, which is one bull tape. Every study on it
+is short of power, and a gain there reads as beta. So two of the four are graded
+on long price histories, where shares are an acceptable result.
+
+The sibling desk in `agent-trading` was read first. It holds 87 research notes
+and 45 rejections, across credit spreads, condors, strangles, covered calls and
+debit spreads. It runs no strategy today. One of its lessons is reused here:
+split any apparent edge into beta and residual before accepting it.
+
+### `multi_asset_trend`: the drawdown cut is real, the selection is not
+
+The headline cell is `TB-12-EW` against `EW-9`, at 5 bp a side.
+
+| Window | Sharpe | Max drawdown | CAGR |
+|---|---|---|---|
+| Discovery, 2007-03 to 2016-12 | 0.638 vs 0.484 | 10.1% vs 33.1% | 4.95% vs 5.70% |
+| Holdout, 2017-01 to 2026-08 | 0.950 vs 0.763 | 6.9% vs 20.0% | 8.55% vs 10.59% |
+
+- The holdout drawdown difference counts: +0.131, CI [+0.021, +0.235].
+- The holdout Sharpe difference does not: +0.187, CI [−0.165, +0.491].
+- In-sample PBO is 0.746, above the 0.50 veto line. The verdict is `PBO-VETO`.
+- The rule gave up about 2 points of CAGR a year in the holdout. Beta is 0.45.
+- Each window holds exactly two benchmark drawdowns, which is the floor.
+- The options arm priced 36 of 191 trades. It is descriptive and too thin to read.
+- The forward read starts 2026-12 and needs 36 months.
+
+One build ruling needs the operator's eye. Gate GB refused on DBC's adjustment
+ratio, which jumped 5.34% on 2024-12-23. The dividend feed lists a distribution
+that implies the same jump. The ruling passes a jump above 5% only when the feed
+implies it within 0.1 points. The stricter choice is to leave the study `REFUSED`.
+
+### `spy_put_write`: a beta trade with nothing left over
+
+The window is signal weeks 2022-01-31 to 2026-10-26. The primary cell priced 232
+trades on 55 monthly cycles.
+
+- `ARM Z` is `NULL`: cycle-mean R +0.019, CI [−0.072, +0.095].
+- Dropping 2024's cycles turns the mean to −0.004.
+- `ARM H` is `NO-ALPHA`: alpha −0.034 a month, CI [−0.069, +0.000]. Beta is 4.49.
+- PBO is 0.829. No other cell shows an edge.
+- One lot never fits the $1,000 stop. The median max loss is $4,398.
+
+The sample leans favourable. Thirteen 2026 weeks are unpriced, mostly the October
+and November expiries. On those weeks SPY fell 2.4% from fill to expiry. On the
+30 priced 2026 weeks it rose 1.1%.
+
+`index_vrp` closed short index vol as a hedge. This study closes the other half:
+on these quotes the put spread does not pay beyond its beta.
+
+### `calendar_drift`: built, no verdict
+
+Gate `GE` requires SPY closes through the registration date, 2026-11-27. The
+fetch ended at 2026-11-25, so the run refused before any return was computed.
+The rerun is owed after the 2026-11-27 close settles. A run after the first
+December session keeps one more day in the `TOM` sample.
+
+`config/fomc-history.yml` holds 234 scheduled decision days from 1994 to 2023-05.
+It was committed before any price was downloaded. 2020 is the one year with seven.
+
+### `vol_expansion_long_vol`: built, awaits a fetch
+
+This is next-steps item 18, now registered. Gate GL passed: both label tables
+give the same 23 onsets where they overlap. The window holds 28 onsets and 175
+calm weeks.
+
+The registered strike walk uses a $1 step, and the cache mostly holds a $5 grid.
+So 449 contracts are missing and no P&L was computed. The fetcher is
+`fetch_vol_expansion_legs.py`. Running it is the operator's call.
+
+### What this adds to the programme's picture
+
+- Shares-based trend is the one rule here with a measured benefit, and it is a
+  drawdown benefit paid for in return.
+- Selling SPY puts adds leverage to SPY and nothing else.
+- The move to mechanical rules still has no rule that beats holding the index.
 
 ## 2026-11-27 — ticker_regime_move: the per-ticker regime label restates the trend flag
 
