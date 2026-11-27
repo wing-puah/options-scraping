@@ -61,3 +61,24 @@ Two gate refusals came before the graded run. Each had a cause that was not an o
 Both rulings sit beside their rules in the [registration](../../pre-registrations/f4_deployment/multi_asset_trend.md).
 
 One smoke run at 50 bootstrap draws followed the GB ruling and came before the graded run. It found two code defects. The buy-and-hold SPY benchmark printed no time in market in the holdout. One options trade with the same strike on both legs was priced as a vertical. Both were fixed. No gate, cell, bar, seed or verdict rule changed after the smoke run, and the graded run is the one recorded above.
+
+## era v4 · inputs e7318a6 · sha 0c46dfd — recorded 2026-11-28
+<!-- key era=v4 sha=0c46dfd inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 16:53)
+run         2026-11-28 01:01:32 · git 0c46dfd (main, working tree clean) · exit 0 · 5.8s
+command     python -m scripts.backtest_study.f4_deployment.multi_asset_trend
+excerpt     verdict
+
+```
+VERDICT
+>>> multi_asset_trend HEADLINE (TB-12-EW vs EW-9, holdout 2017-01 to 2026-08, 5 bp): PBO-VETO <<<
+>>> multi_asset_trend DISCOVERY (2007-03 to 2016-12): dSharpe +0.154 [-0.396, +0.619] dMDD +0.231 [-0.009, +0.408] dCAGR -0.76 points alpha +0.019 be…
+>>> multi_asset_trend HOLDOUT (2017-01 to 2026-08): dSharpe +0.187 [-0.165, +0.491] dMDD +0.131 [+0.021, +0.235] dCAGR -2.04 points alpha +0.022 beta…
+>>> multi_asset_trend PBO (12 cells, S=16, in-sample): 0.746 <<<
+>>> multi_asset_trend OPTIONS ARM (descriptive, not graded): 36/191 trades priced <<<
+>>> multi_asset_trend FORWARD (TB-12-EW vs EW-9 from 2026-12, 36-month minimum): STILL-OPEN (0 forward months of 36) <<<
+  A statistic counts when its holdout CI lower bound is above 0 and its discovery point estimate is above 0.
+  Nothing ships from this study (multi_asset_trend.md).
+```
+
