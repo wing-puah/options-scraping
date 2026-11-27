@@ -600,6 +600,14 @@ Decisions owed. None of these is a study.
     manifest hash in the report header. This is a tooling item. Evidence:
     [`current.md`](current.md#spy_put_write-a-beta-trade-with-nothing-left-over).
 
+<a id="tier-contrast-forward"></a>
+25. **OPEN 2026-11-28 — the v4 tier gate has no graded A/B-versus-C contrast.** `v4_bridge`
+    prints `LADDER UNVALIDATED`, and `regime_map` tests cells against zero. The tier means are
+    now printed, so an in-sample contrast would be graded after a look. The clean test is a
+    forward-only registration on rows dated after 2026-11-27. First check whether an existing
+    forward read already covers it. Evidence:
+    [`current.md`](current.md#regime_map-against-uninformative-labels-the-cells-show-the-tier-not-the-regime).
+
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14
 
