@@ -73,3 +73,25 @@ VERDICT
   Nothing ships from this study (state_map.md).
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:20:30 · git f04686e (main, working tree clean) · exit 0 · 8.3s
+command     python -m scripts.backtest_study.f1_selection.regime.state_map
+excerpt     verdict
+
+```
+VERDICT
+  >>> state_map Q2 READ (state variables before E-DD8 onsets, 10-session lead, test 2016-01-01 to 2026-09-22): COINCIDENT <<<
+  >>> state_map Q2 CANDIDATES (Holm m=9): C1 COINCIDENT C2 COINCIDENT C3 COINCIDENT C4 COINCIDENT C5 NO-FORECAST C6 NO-FORECAST C7 NO-FORECAST C8 NO-…
+  >>> state_map Q3 READ (B10: SPY 10 sessions after a mech BEAR onset vs other days, test 2016-01-01 to 2026-09-22): NULL <<<
+  >>> state_map Q3 CELLS (Holm m=6): B5 NULL B10 NULL B21 NULL V5 NULL V10 NULL V21 NULL <<<
+  >>> state_map PBO: Q2 0.395 Q3 0.603 <<<
+  >>> state_map Q4 (SPY put spread on Q3 signals, 2022 on): DESCRIPTIVE <<<
+  >>> state_map FORWARD (episodes and onsets after 2026-11-20): Q2 STILL-OPEN Q3 STILL-OPEN <<<
+  LEADS needs the lead lift's CI above 0, a Holm p below 0.05, a positive discovery lift and PBO <= 0.50.
+  Nothing ships from this study (state_map.md).
+```
+

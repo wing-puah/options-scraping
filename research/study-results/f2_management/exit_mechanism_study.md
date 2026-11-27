@@ -183,3 +183,23 @@ excerpt     tail
          +2520  2026-08-13 SPCX  bull_call_spread   time_exit($-180 d33) → profit_target($+2340 d37)
 ```
 
+
+## era v4 · inputs e7318a6 · sha 49ea5c9 — recorded 2026-11-27
+<!-- key era=v4 sha=49ea5c9 inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 13:47:35 · git 49ea5c9 (main, working tree clean) · exit 0 · 1.9s
+command     python -m scripts.backtest_study.f2_management.exit_mechanism_study --side debit
+excerpt     tail
+
+```
+    per-month Δ vs prod: 2024-01:-347  2024-02:+893  2024-03:+877  2024-04:+422  2024-05:-102  2024-06:-1262  2024-07:-833  2024-08:-730  2024-09:-27…
+    biggest movers (115 rows changed):
+         -1651  2026-07-14 BE    bear_put_spread    time_exit($+413 d34) → dollar_stop($-1238 d38)
+         -1244  2024-03-14 IWM   bear_put_spread    time_exit($+513 d33) → time_exit($-731 d37)
+         -1201  2026-01-14 TSM   bear_put_spread    time_exit($+376 d15) → stop_loss($-825 d17)
+         +1324  2026-08-19 SMH   bear_put_spread    time_exit($-808 d15) → time_exit($+516 d18)
+         +1440  2026-09-10 SPY   bear_put_spread    time_exit($+168 d37) → profit_target($+1608 d40)
+         +2520  2026-08-13 SPCX  bull_call_spread   time_exit($-180 d33) → profit_target($+2340 d37)
+```
+

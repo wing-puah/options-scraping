@@ -155,3 +155,19 @@ VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
   VERDICT: ORDERING-IS-NOISE — no arm separates from the O4 band. The adverse-ordering read from account_sim was an ARTIFACT of which picks the cap h…
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:42:58 · git f04686e (main, working tree clean) · exit 0 · 6.1s
+command     python -m scripts.backtest_study.f4_deployment.selection_order
+excerpt     verdict
+
+```
+VERDICT (PRIMARY dense episodes — grammar worded in the pre-registration)
+  arms powered (G0):  O1, O2, O3, O1b
+  arms clearing all seven: O3
+  VERDICT: ORDERING-MATTERS — O3 clears all seven. CANDIDATE, NOT a ship: queues an independent-window confirmation, after which the ordering may be …
+```
+

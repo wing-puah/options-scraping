@@ -72,3 +72,22 @@ VERDICT: NOT BUILT — AWAITING SCRAPE
     3. re-run this study; a fetch can expose nearer strikes, so steps 1-3 repeat until nothing awaits
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:19:06 · git f04686e (main, working tree clean) · exit 0 · 7.9s
+command     python -m scripts.backtest_study.f1_selection.benchmark.spy_benchmark
+excerpt     verdict
+
+```
+VERDICT: NOT BUILT — AWAITING SCRAPE
+  The census is the recorded result. No outcome was computed: no SPY
+  wrap was priced or replayed.
+  Operator-run steps, in order (none runs from here):
+    1. python3 scripts/collector/study_legs/f1_selection/fetch_mechanical_legs.py --arms SPY --no-v3 --dry-run   (approve the count, then --limit N)
+    2. python3 scripts/backup_research_caches.py push
+    3. re-run this study; a fetch can expose nearer strikes, so steps 1-3 repeat until nothing awaits
+```
+

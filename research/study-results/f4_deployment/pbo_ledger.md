@@ -44,3 +44,23 @@ excerpt     tail
   smaller than the count. Nothing in this report is a shippable rule.
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:45:58 · git f04686e (main, working tree clean) · exit 0 · 202.1s
+command     python -m scripts.backtest_study.f4_deployment.pbo_ledger
+excerpt     tail
+
+```
+  PRIMARY | ledger + ticker-cap + F3   N=62  PBO[total] 70.4%  PBO[maxdd] 1.8%  PBO[meanR] 51.1%  PBO[bar] 44.7%
+  SECONDARY | ledger                   N=51  PBO[total] 53.8%  PBO[maxdd] 0.3%  PBO[meanR] 42.6%  PBO[bar] 16.6%
+  SECONDARY | ledger + ticker-cap      N=59  PBO[total] 49.5%  PBO[maxdd] 0.5%  PBO[meanR] 27.2%  PBO[bar] 18.2%
+  SECONDARY | ledger + ticker-cap + F3 N=63  PBO[total] 51.1%  PBO[maxdd] 0.5%  PBO[meanR] 26.1%  PBO[bar] 20.2%
+  Caveats: one market path; CSCV assumes the S blocks are exchangeable,
+  which serial dependence in open positions strains; many configurations
+  differ by one knob, so their series are correlated and the effective N is
+  smaller than the count. Nothing in this report is a shippable rule.
+```
+

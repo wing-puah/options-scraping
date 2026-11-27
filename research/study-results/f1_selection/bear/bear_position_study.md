@@ -174,3 +174,22 @@ DECISION (pre-registered rule, addendum 13)
     VERDICT: NO ACTION
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:18:38 · git f04686e (main, working tree clean) · exit 0 · 25.9s
+command     python -m scripts.backtest_study.f1_selection.bear.bear_position_study
+excerpt     verdict
+
+```
+DECISION (pre-registered rule, addendum 13)
+    DEMOTE requires all three:
+      [PASS]  ex-window mean E < 0            (-0.089)
+      [FAIL]  bootstrap 95% CI upper < 0      ([-0.182, +0.011])
+      [FAIL]  both time halves negative       (early -0.344, late +0.110)
+    CONSTRAIN candidates (n>=30, both halves positive, EX-W): NONE
+    VERDICT: NO ACTION
+```
+

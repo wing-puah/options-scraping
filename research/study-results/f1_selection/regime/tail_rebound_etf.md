@@ -48,3 +48,26 @@ VERDICT
   Nothing ships from this study (tail_rebound_etf.md).
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:20:52 · git f04686e (main, working tree clean) · exit 0 · 4.2s
+command     python -m scripts.backtest_study.f1_selection.regime.tail_rebound_etf
+excerpt     verdict
+
+```
+VERDICT
+  sample to 2026-11-15; 10000 cluster draws, seed 20261115
+  >>> tail_rebound_etf QQQ-A21 (QQQ 21-session total return after an intraday 2x-VXN breach, first of each episode, vs unconditional, 2001 on): NO-ED…
+  >>> tail_rebound_etf QQQ-B21 (QQQ 21-session total return after a completed 5% fall, first of each episode, vs unconditional, 1999 on): NO-EDGE <<<
+  >>> tail_rebound_etf SMH-A21 (SMH 21-session total return after an intraday 2x-VXN breach, first of each episode, vs unconditional, 2001 on): NO-ED…
+  >>> tail_rebound_etf SMH-B21 (SMH 21-session total return after a completed 5% fall, first of each episode, vs unconditional, 2000 on): NO-EDGE <<<
+  >>> tail_rebound_etf SECONDARY (h = 5 and 63, Holm m=8): QQQ-A5 NO-EDGE QQQ-A63 NO-EDGE QQQ-B5 NO-EDGE QQQ-B63 NO-EDGE SMH-A5 NO-EDGE SMH-A63 UNDER…
+  >>> tail_rebound_etf FORWARD (entries after the registration date): QQQ-A21 STILL-OPEN QQQ-B21 STILL-OPEN SMH-A21 STILL-OPEN SMH-B21 STILL-OPEN <<<
+  REBOUND needs the 95% cluster-bootstrap CI on the excess wholly above 0 and a Holm p
+  below 0.05 (co-primaries m=4; secondaries m=8); CONTINUATION the mirror. It prices no option.
+  Nothing ships from this study (tail_rebound_etf.md).
+```
+

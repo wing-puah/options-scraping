@@ -83,3 +83,22 @@ VERDICT
   Nothing ships from this study. A forward SUPPORTED lets the operator consider a deployment-rules change.
 ```
 
+
+## era v4 · inputs e7318a6 · sha 49ea5c9 — recorded 2026-11-27
+<!-- key era=v4 sha=49ea5c9 inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:15:54 · git 49ea5c9 (main, working tree dirty) · exit 0 · 1.8s
+command     python -m scripts.backtest_study.f1_selection.regime.dip_buy
+excerpt     verdict
+
+```
+VERDICT
+  In-sample v4 and v3: post hoc context only. They carry no verdict.
+  forward below arm: 14 of 30 dates, 27 of 60 positions
+  forward above arm: 19 of 30 dates, 57 of 60 positions
+  >>> dip_buy PRIMARY (forward, Tier A+B, below - above): STILL-OPEN <<<
+  The verdict of record is the first run printing a token other than STILL-OPEN; later runs are descriptive (dip_buy.md).
+  Nothing ships from this study. A forward SUPPORTED lets the operator consider a deployment-rules change.
+```
+

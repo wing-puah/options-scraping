@@ -50,3 +50,19 @@ VERDICT — forward episodes only (OD4)
   FORWARD EARLY READ (declared secondary, floor 2 episodes): STILL-OPEN — 0 forward episodes graded
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:45:55 · git f04686e (main, working tree clean) · exit 0 · 1.2s
+command     python -m scripts.backtest_study.f5_hedging.index_bear_hedge
+excerpt     verdict
+
+```
+VERDICT — forward episodes only (OD4)
+  forward E-DD5 episodes with peak after 2026-10-09: 0; buffer closed: 0; SPY data to 2026-11-25
+  FORWARD VERDICT (headline, floor 5 episodes): STILL-OPEN — 0 forward episodes graded; no forward episode has closed its buffer
+  FORWARD EARLY READ (declared secondary, floor 2 episodes): STILL-OPEN — 0 forward episodes graded
+```
+

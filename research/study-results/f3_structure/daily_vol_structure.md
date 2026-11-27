@@ -99,3 +99,45 @@ VERDICT
   trades -> backtests/study_output/daily_vol_structure-trades.csv
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:38:10 · git f04686e (main, working tree clean) · exit 0 · 75.0s
+command     python -m scripts.backtest_study.f3_structure.daily_vol_structure
+excerpt     verdict
+
+```
+VERDICT
+  Pays every day: none
+  Moves with a known feature: none
+  LIVE read, its own forward test: none
+  cells (144): CANDIDATE 0  CONTRARY 0  NULL 144  UNDERPOWERED 0
+  unconditional (20 sides): CANDIDATE 0  CONTRARY 1  NULL 19  UNDERPOWERED 0
+  analysis cells (108): RETRO-ONLY, not tallied
+>>> daily_vol_structure UNCONDITIONAL QQQ T30 S long: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL QQQ T30 RC back: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL QQQ T30 RC front: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL QQQ T30 RP back: CONTRARY <<<
+>>> daily_vol_structure UNCONDITIONAL QQQ T30 RP front: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL QQQ T7 S long: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL QQQ T7 RC back: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL QQQ T7 RC front: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL QQQ T7 RP back: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL QQQ T7 RP front: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL SMH T30 S long: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL SMH T30 RC back: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL SMH T30 RC front: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL SMH T30 RP back: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL SMH T30 RP front: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL SMH T7 S long: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL SMH T7 RC back: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL SMH T7 RC front: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL SMH T7 RP back: NULL <<<
+>>> daily_vol_structure UNCONDITIONAL SMH T7 RP front: NULL <<<
+  FORWARD  no CANDIDATE, so nothing to grade
+  Nothing ships from this study. A CANDIDATE earns only a forward grade.
+  trades -> backtests/study_output/daily_vol_structure-trades.csv
+```
+

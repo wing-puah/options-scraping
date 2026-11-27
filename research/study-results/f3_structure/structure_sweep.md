@@ -27,3 +27,26 @@ VERDICT
   Nothing ships whatever this prints; a CANDIDATE earns a forward registration.
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:40:50 · git f04686e (main, working tree clean) · exit 0 · 57.4s
+command     python -m scripts.backtest_study.f3_structure.structure_sweep
+excerpt     verdict
+
+```
+VERDICT
+  ARM F flipped                S1 n=266/81d  dR +0.097 [-0.017, +0.215]  Holm p 0.633  S2 n=202  -> NULL
+  ARM T type swap              S1 n= 34/28d  dR -0.076 [-0.459, +0.388]  Holm p 1.000  S2 n=260  -> NULL
+  ARM C short iron condor      S1 n= 27/23d  dR +0.052 [-0.653, +0.465]  Holm p 1.000  S2 n=238  -> NULL
+  ARM B short iron butterfly   S1 n= 52/35d  dR +0.791 [-0.101, +1.852]  Holm p 0.633  S2 n=283  -> NULL
+  ARM D long straddle          S1 n= 83/44d  dR -0.004 [-0.180, +0.177]  Holm p 1.000  S2 n=269  -> NULL
+  ARM G long strangle          S1 n= 64/38d  dR +0.027 [-0.212, +0.280]  Holm p 1.000  S2 n=274  -> NULL
+  ARM K long ATM call calendar S1 n= 46/32d  dR -0.077 [-0.398, +0.205]  Holm p 1.000  S2 n=266  -> NULL
+  PBO 0.180 (threshold < 0.5)   Holm family 7 arm(s), alpha 0.05
+>>> structure_sweep WIDE-NET-NULL <<<
+  Nothing ships whatever this prints; a CANDIDATE earns a forward registration.
+```
+

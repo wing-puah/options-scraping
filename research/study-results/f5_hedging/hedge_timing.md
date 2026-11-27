@@ -214,3 +214,36 @@ VERDICT (pre-registered grammar, pre-registrations/f5_hedging/hedge_timing.md)
   4-5-day streak rule is not testable at this book's emission density.
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:45:46 · git f04686e (main, working tree clean) · exit 0 · 6.9s
+command     python -m scripts.backtest_study.f5_hedging.hedge_timing
+excerpt     verdict
+
+```
+VERDICT (pre-registered grammar, pre-registrations/f5_hedging/hedge_timing.md)
+  ARM H1-CHOP        : NULL
+  ARM H3-CHOP        : NULL
+  ARM H4-CHOP        : NULL
+  ARM H2-CHOP        : NULL   (control, not a headline)
+  ARM H1-GAP         : NULL
+  ARM H3-GAP         : NULL
+  ARM H4-GAP         : NULL
+  ARM H2-GAP         : UNSTABLE   (control, not a headline)
+  ARM H1-DECLINE     : UNSTABLE
+  ARM H3-DECLINE     : NULL
+  ARM H4-DECLINE     : NULL
+  ARM H2-DECLINE     : NULL   (control, not a headline)
+  headline tests: 9 (3 families x H1/H3/H4, fixed at registration)
+  TIMING-CANDIDATE survivors: 0  (~0.45 expected by chance at 5%)
+  Sensitivities and secondaries carry NO verdict and may never promote one.
+  NOTHING SHIPS FROM THIS STUDY UNDER ANY OUTCOME. A TIMING-CANDIDATE queues an
+  independent-window confirmation; a CONTRARY drafts a deployment-rules §4
+  prohibition and HOLDS it for the operator; an all-NULL/UNDERPOWERED read adds
+  one subtraction sentence to §4 plus the standing census finding that the
+  4-5-day streak rule is not testable at this book's emission density.
+```
+

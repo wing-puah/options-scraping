@@ -73,3 +73,24 @@ VERDICT: NOT BUILT — AWAITING SCRAPE
   It does not run beside another option-cache writer: one writer.
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:20:09 · git f04686e (main, working tree clean) · exit 0 · 8.8s
+command     python -m scripts.backtest_study.f1_selection.regime.selloff_put_diagonal
+excerpt     verdict
+
+```
+VERDICT: NOT BUILT — AWAITING SCRAPE
+  PRIMARY: NOT BUILT — AWAITING SCRAPE — 110 primary trades await a fetch.
+  No outcome was computed for any arm: no R, no P&L, no CI.
+  Operator-run steps, in order (none runs from here):
+    1. python3 scripts/collector/study_legs/f1_selection/fetch_selloff_put_diagonal_legs.py --dry-run   (then --limit N)
+    2. python3 scripts/backup_research_caches.py push
+    3. re-run this study; a fetch can expose a nearer strike or prove an
+       expiry unlisted, so steps 1-3 repeat until no primary trade awaits
+  It does not run beside another option-cache writer: one writer.
+```
+

@@ -151,3 +151,23 @@ VERDICTS (worded in the pre-registration; nothing here is a ship)
   No annualised figure, Sharpe, or time-to-recover is printed above, by design.
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:21:37 · git f04686e (main, working tree clean) · exit 0 · 21.0s
+command     python -m scripts.backtest_study.f1_selection.signal.emission_timing
+excerpt     verdict
+
+```
+VERDICTS (worded in the pre-registration; nothing here is a ship)
+  ARM P: NULL (no persistence effect) — no cell separates repeats from firsts
+  ARM L: STALE-ENTRY-PENALTY (CANDIDATE, NOT A SHIP) — a lag reliably loses under the full
+      conjunction; proposes a candidate INTAKE rule (fill same session), queued for an
+      independent-window confirmation
+  Worst-decile reads are FORBIDDEN as criteria by the registration (the 2026-08-13
+  nine-date decile wall) and are not computed anywhere in this study.
+  No annualised figure, Sharpe, or time-to-recover is printed above, by design.
+```
+

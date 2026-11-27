@@ -274,3 +274,45 @@ VERDICT SUMMARY — every cell in the frozen grid, regardless of outcome
   printed anywhere above, by design.
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:22:59 · git f04686e (main, working tree clean) · exit 0 · 16.0s
+command     python -m scripts.backtest_study.f1_selection.signal.trigger_entry
+excerpt     verdict
+
+```
+VERDICT SUMMARY — every cell in the frozen grid, regardless of outcome
+  arm  cell        entered  dates    DeltaR  verdict
+  T    N=1             907    280    0.0391  CONFOUND-EXPLAINED
+  T    N=3            1057    290    0.0165  NULL
+  T    N=5            1127    299    0.0017  NULL
+  tally: {'CONFOUND-EXPLAINED': 1, 'NULL': 2}
+  Verdict grammar (registration §"Verdicts, worded now"), EXHAUSTIVE and
+  evaluated in this order, first match wins:
+    UNDERPOWERED       a floor was not met; census published, nothing read.
+    LATE-ENTRY         DeltaR <= 0 AND the E2-shape census reproduces at shipped
+                       pricing: the signal works (the trigger sorts winners from
+                       losers) but the confirmed entry comes AFTER the move it
+                       selects on — the confirmation costs what it is worth.
+    CONTRARY           CI excludes zero with DeltaR < 0 and no reproducing
+                       census: the trigger is actively misleading. Fed to the
+                       PROMPT-ROBUSTNESS list.
+    CONFOUND-EXPLAINED criteria 1-7 clear, criterion 8 fails: the gain lives
+                       outside the conformity bands, i.e. it is the day-0 move
+                       `next_day_move` ARM C already owns.
+    LAG-EXPLAINED      all eight clear but L-SEP fails: ARM L reproduces it with
+                       no gate at all, so it is about WHEN, not WHICH.
+    CANDIDATE          all eight clear AND L-SEP holds. An INTAKE proposal,
+                       NEVER an exit rule and NEVER a ship: it becomes a written
+                       proposal with its own rollback trigger and an
+                       independent-window confirmation first.
+    NULL               powered, nothing above matched. Recorded.
+  ARM L, ARM C and ARM D carry no verdict word of their own; the E2-shape census
+  carries none at all. R is the unit of every conclusion; NO dollar figure is
+  quoted across arms, and no annualised figure, Sharpe or time-to-recover is
+  printed anywhere above, by design.
+```
+

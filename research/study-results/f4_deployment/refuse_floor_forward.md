@@ -43,3 +43,23 @@ CLOSE
   Nothing in this report is a shippable rule.
 ```
 
+
+## era v4 · inputs e7318a6 · sha 49ea5c9 — recorded 2026-11-27
+<!-- key era=v4 sha=49ea5c9 inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:15:34 · git 49ea5c9 (main, working tree clean) · exit 0 · 9.3s
+command     python -m scripts.backtest_study.f4_deployment.refuse_floor_forward
+excerpt     tail
+
+```
+  b264cfd holdout_seal: accept by default, seal from 2026-09-23, build the guard
+CLOSE
+  (R, F2, $500): STILL-OPEN
+  (R, F3, $500): AWAITING SCRAPE
+  declared secondary (R, F3, $500) + 20% net floor: AWAITING SCRAPE
+  gates: G2-G5 PASS  FW2 PASS  FW4 PASS  GN5 FIRES
+  look logged to research/study-results/f4_deployment/refuse_floor_forward-looks.jsonl
+  Nothing in this report is a shippable rule.
+```
+

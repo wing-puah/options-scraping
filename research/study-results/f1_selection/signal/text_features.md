@@ -235,3 +235,56 @@ VERDICT — registration grammar (UNDERPOWERED / NULL / CANDIDATE, catch-all NO 
     - invalidation_level [T3 vs T1] in bear_put_spread/C (ARM A (deterministic text features), dR=+0.3030)
 ```
 
+
+## era v4 · inputs e7318a6 · sha 49ea5c9 — recorded 2026-11-27
+<!-- key era=v4 sha=49ea5c9 inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:16:11 · git 49ea5c9 (main, working tree dirty) · exit 0 · 101.3s
+command     python -m scripts.backtest_study.f1_selection.signal.text_features
+excerpt     verdict  (40 of 67 block lines; 27 not quoted)
+tally       NULL 16, UNDERPOWERED 9, CANDIDATE 7, NOT EVALUABLE 1  (33 of 67 lines carried a token)
+
+```
+VERDICT — registration grammar (UNDERPOWERED / NULL / CANDIDATE, catch-all NO PRE-REGISTERED VERDICT MATCHES)
+  ARM A (deterministic text features):
+    invalidation_type            UNDERPOWERED   cells=17 powered=0
+    invalidation_inside_strikes  UNDERPOWERED   cells=12 powered=0
+    trigger_conditional          NULL           cells=17 powered=1
+    invalidation_level           CANDIDATE      cells=17 powered=4
+        CANDIDATE cell bear_put_spread/C [T3 vs T1]: dR= 0.2924 CI[ 0.1479, 0.4372] n=249/235 dates=166/166
+        criteria: 1 CI=PASS  2 LOO=PASS  3 windows=PASS  3b ex-BOTH=PASS  4 year-sign=PASS  5 both-tiers=PASS  6 floor=PASS  BH q=0.10=PASS
+    trigger_level                CANDIDATE      cells=17 powered=4
+        CANDIDATE cell bear_put_spread/C [T3 vs T1]: dR= 0.2881 CI[ 0.1427, 0.4352] n=244/243 dates=165/171
+        criteria: 1 CI=PASS  2 LOO=PASS  3 windows=PASS  3b ex-BOTH=PASS  4 year-sign=PASS  5 both-tiers=PASS  6 floor=PASS  BH q=0.10=PASS
+    numeric_specificity          NULL           cells=17 powered=4
+    thesis_len                   CANDIDATE      cells=17 powered=3
+        CANDIDATE cell bull_call_spread/B [T3 vs T1]: dR= 0.3023 CI[ 0.0620, 0.5371] n=78/226 dates=56/100
+        criteria: 1 CI=PASS  2 LOO=PASS  3 windows=PASS  3b ex-BOTH=PASS  4 year-sign=PASS  5 both-tiers=PASS  6 floor=PASS  BH q=0.10=PASS
+    alt_ratio                    NULL           cells=17 powered=3
+    hallucination_rate           UNDERPOWERED   cells=17 powered=0
+  ARM B (blind taxonomy labels):
+    thesis_type                  NULL           cells=80 powered=3
+    evidence_quality             UNDERPOWERED   cells=16 powered=0
+    confidence_language          NULL           cells=15 powered=1
+    one_sided                    UNDERPOWERED   cells=16 powered=0
+    invalidation_concreteness    UNDERPOWERED   cells=16 powered=0
+  ARM C (gate arms):
+    invalidation_type            NULL           arms=2 powered=2
+    invalidation_inside_strikes  NULL           arms=2 powered=2
+    trigger_conditional          NULL           arms=2 powered=1
+    invalidation_level           NULL           arms=2 powered=2
+    trigger_level                NULL           arms=2 powered=2
+    numeric_specificity          NULL           arms=2 powered=2
+    thesis_len                   NULL           arms=2 powered=2
+    alt_ratio                    NULL           arms=2 powered=2
+    hallucination_rate           NULL           arms=2 powered=2
+    thesis_type                  NULL           arms=10 powered=8
+    evidence_quality             UNDERPOWERED   arms=2 powered=0
+    confidence_language          NULL           arms=2 powered=2
+    one_sided                    UNDERPOWERED   arms=2 powered=0
+    invalidation_concreteness    UNDERPOWERED   arms=2 powered=0
+--- PROMPT-ROBUSTNESS FINDINGS ----------------------------------------------
+  (text predicts failure independent of the numeric columns; feeds `prompt_eval`'s
+```
+

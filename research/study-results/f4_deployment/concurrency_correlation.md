@@ -156,3 +156,31 @@ VERDICT
 >>> NOISE — all 12 powered arms sit inside ARM N's band. Neither the SIZE of the open book nor its internal similarity degrades per-position outcome …
 ```
 
+
+## era v4 · inputs e7318a6 · sha f04686e — recorded 2026-11-27
+<!-- key era=v4 sha=f04686e inputs=e7318a6 -->
+
+population  1,211 results · 2,289 proxy · 3,826 analysis · 878 spy_vix_daily_full · 704 BaselineDaily  (inputs dated 2026-11-26 12:31 … 2026-11-27 12:12)
+run         2026-11-27 14:42:28 · git f04686e (main, working tree clean) · exit 0 · 29.1s
+command     python -m scripts.backtest_study.f4_deployment.concurrency_correlation
+excerpt     verdict
+
+```
+VERDICT
+  arms run (PRIMARY): 13   powered past X1: 13   clearing X2/X3/X6/X7: 0
+    C ceiling 5                  gain +0.0600 R   criteria met --6-
+    C ceiling 8                  gain -0.0017 R   criteria met ----
+    C ceiling 12                 gain -0.0076 R   criteria met ----
+    C ceiling 20                 gain -0.0006 R   criteria met ----
+    K 2 / same-direction         gain +0.0508 R   criteria met --6-
+    K 3 / same-direction         gain +0.0483 R   criteria met --6-
+    K 5 / same-direction         gain +0.0474 R   criteria met --6-
+    K 2 / same-direction-and-sector gain -0.0507 R   criteria met ----
+    K 3 / same-direction-and-sector gain -0.0414 R   criteria met ----
+    K 5 / same-direction-and-sector gain -0.0142 R   criteria met ----
+    K 2 / same-underlying        gain -0.0208 R   criteria met ----
+    K 3 / same-underlying        gain -0.0181 R   criteria met ----
+    K 5 / same-underlying        gain +0.0043 R   criteria met ----
+>>> NOISE — all 13 powered arms sit inside ARM N's band. Neither the SIZE of the open book nor its internal similarity degrades per-position outcome …
+```
+
