@@ -530,7 +530,15 @@ Capping exit marks to the closing quote changes one live token on the v4 book: `
 
 - `focus_list` (`FOCUS-BEATS-CARD`) was not recomputed. Its stored report ran 2026-11-26, before the 11-27 re-price, and it was not in the 11-27 suite's re-run set (see that entry). Today's exports give +0.1199, on 193 dates and 318 positions. The report has +0.126, on 190 dates and 310 positions.
 - `bear_position_study` (`NO ACTION`) was bounded by arithmetic, not run. Capping cannot make DEMOTE fire: the late half is +0.110 on about 400 rows, and capping moves it by about 0.014 per row at most.
-- Not checked: `text_features` (3 in-sample candidates picked from many), `hedge_timing` (zero survivors), and `ruin_bound`, whose N250-F2 G-C is a near tie that could flip. `ruin_bound` is the next one to check.
+- Not checked: `text_features` (3 in-sample candidates picked from many) and `hedge_timing` (zero survivors).
+- `ruin_bound`, checked in a second pass: the cell `N250-F2` holds under both caps, and the guard label does not.
+  - The recorded token is `SAFEST ELIGIBLE CELL: N250-F2 G-C`. Under (a) it reads `N250-F2 G-none`. Under (b) it stays `G-C`.
+  - The four guard cells of `N250-F2` share one realized walk of 173 positions. Their p95 drawdowns differ by about a dollar in the resample.
+  - Under (a) the capped exit timing moves the block length from 60 to 65 sessions. The four cells then tie exactly, and the tie-break picks `G-none`.
+  - So the guard label is a tie-break, not evidence for one guard. It already read `G-none` on 2026-10-26.
+  - At the $1,000 stop the answer stays `NO CELL MEETS THE BOUNDS` in all three runs.
+- `focus_list`, on today's exports only: the token is `FOCUS-BEATS-CARD` from recorded R and under both caps. The gain is +0.1199 recorded, +0.1248 under (a) and +0.1295 under (b). This is not the report of record.
+- `pbo_ledger` could not be reproduced to printed precision on today's exports, so no sensitivity is reported for the account-sizing headline.
 - No graded v4 A/B-versus-C tier contrast exists (`v4_bridge` prints `LADDER UNVALIDATED`), so the Tier C cells in `regime_map` stand in as the tier-gate evidence on v4.
 
 These are unregistered sensitivities. The registered verdicts stand. O3 should bear no weight until the exit-mark rule is ruled on (next-steps item 22).
