@@ -557,7 +557,7 @@ Decisions owed. None of these is a study.
     means and material for single-row reads.
 
     The cap changes one live token (`selection_order` O3,
-    via one NVDA stop), and leaves `emission_timing` ARM L and the `regime_map` tallies in place; so
+    via one NVDA stop), and leaves `emission_timing` ARM L and the `regime_map` tallies in place. So
     the ruling matters for candidates resting on thin margins, not for the tier means. `ruin_bound`
     was checked too: the cell `N250-F2` holds, and its guard label is a tie-break.
 
