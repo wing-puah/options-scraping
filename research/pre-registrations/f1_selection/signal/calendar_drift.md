@@ -1,6 +1,7 @@
 ## calendar_drift — do the pre-FOMC drift and the turn of the month still pay on SPY after publication?
 
 <!-- outcome:start -->
+> Latest outcome: not run.
 <!-- outcome:end -->
 
 _Registered 2026-11-27._
@@ -8,8 +9,8 @@ _Registered 2026-11-27._
 **STATUS: REGISTERED 2026-11-27 on the design the operator approved.** Every detail the operator
 did not fix is the drafter's most conservative conventional choice, tagged `Resolved at draft`
 beside the rule. No return inside or outside either window had been computed by the drafter
-before this file was written. A fresh second reader checks it before its first outcome and before
-it is committed.
+before this file was written. A fresh second reader checked it on 2026-11-27, before its first
+outcome. Its changes are tagged `Resolved at second read (2026-11-27)`.
 
 ## The question
 
@@ -56,7 +57,10 @@ Both windows are fixed by the papers, so the study has no free parameter.
 
 ### The FOMC calendar
 
-- **Decision day.** The last day of a scheduled FOMC meeting, the day the statement is released.
+- **Decision day.** The last day of a scheduled FOMC meeting. From 1999 on, the statement is
+  released that day. Before mid-1999 the Fed issued a statement only when policy changed; a
+  scheduled meeting with no statement is still a decision day. `Resolved at second read
+  (2026-11-27)`.
 - **2023-06 on.** The `fomc` entries of `config/macro-events.yml`, read through
   `scripts/backtest_study/lib/macro_calendar.py`. Entries marked `unscheduled: true` are dropped.
 - **Before 2023-06.** A new file, `config/fomc-history.yml`, hand-transcribed at build time from
@@ -96,6 +100,12 @@ return and sell at the close of the last.
   reaction from the release to the 4pm close. That adds noise and, if the reaction is negative on
   average, bias against `PF`. Statement times also moved, from 2:15pm to 2pm, in 2013.
 - **A decision day must be a session.** Gate GF refuses if any decision day is not a SPY session.
+- **`Resolved at second read (2026-11-27)`: an undefined return voids the event.** An event with
+  any window return undefined is not counted, and its window days are in neither set. The first
+  `TOM` turn (L = 1993-01-29, SPY's first session) is one such event.
+- **`Resolved at second read (2026-11-27)`: unscheduled market closures.** The calendar is the
+  sessions in the file. A window that spans an unscheduled closure (2001-09, Hurricane Sandy in
+  2012-10) holds a return over the closed days. This is accepted, not corrected.
 
 ### Cost
 
@@ -161,6 +171,10 @@ session. So each cycle holds one window and the out-of-window days before it.
   either arm.
 - **Open events.** A `FORWARD` event whose last session is past the last session in the data is
   open. It waits for the next run.
+- **`Resolved at second read (2026-11-27)`: the `PF` forward horizon.** `PF`'s `FORWARD`
+  population ends at the `fomc` `verified_through` date of `config/macro-events.yml`, now
+  2027-12-31. Later sessions are in neither set for `PF` until that file is extended. Without this,
+  missing decision days would be counted as ordinary days. The report prints the horizon.
 - **The first forward events.** The `TOM` turn into December 2026 buys at the close of 2026-11-27
   and is the first `FORWARD` `TOM` event. The 2026-12-09 decision is the first `FORWARD` `PF`
   event.
@@ -172,24 +186,27 @@ session. So each cycle holds one window and the out-of-window days before it.
 
 ### What the papers report
 
-These are the drafter's recollection of each paper's headline. The builder checks them against the
-papers and corrects the wording, not the design, under a `Resolved at build (date)` tag.
+These were written from the drafter's memory. The second reader checked the Lucca-Moench and
+McConnell-Xu rows against the papers' abstracts and a Fed presentation on 2026-11-27, and
+corrected the McConnell-Xu row. The Lakonishok-Smidt row is unchecked. The builder may correct
+wording, not the design, under a `Resolved at build (date)` tag.
 
 | Paper | Reported headline |
 |---|---|
 | Lucca and Moench (2015) | The S&P 500 rose about 49 bps on average in the 24 hours before scheduled FOMC announcements, 1994 to 2011 |
 | Lucca and Moench (2015) | That drift accounts for a large share, reported as about 80%, of the period's annual realized excess stock return |
-| McConnell and Xu (2008) | From 1926 to 2005, the positive US market return accrued in the turn-of-month interval; the rest of the month averaged about zero |
+| McConnell and Xu (2008) | From 1926 to 2005, the US value-weighted market averaged 0.15% a day over the four turn-of-month days and about zero (−0.001% a day) over the other days |
 | Lakonishok and Smidt (1988) | Over 90 years of the Dow, returns around the turn of the month are well above other days |
 
 ### Later work the drafter knows
 
-- **Decay of `PF`.** Kurov, Wolfe and Gilbert (2021, Finance Research Letters) report that the
-  pre-FOMC drift largely disappeared after the original sample. The drafter expects `PF` to print
-  `NULL` more likely than not.
-- **The FOMC cycle.** Cieslak, Morse and Vissing-Jorgensen (2019, Journal of Finance) report high
-  returns in alternate weeks of the FOMC cycle. The placebo windows below may land in such weeks.
-  A placebo failure on `PF` may then reflect that cycle, not a fault in the method.
+- **Decay of `PF`.** Kurov, Wolfe and Gilbert (2021, Finance Research Letters, vol. 40) extend
+  the sample to 2019. They report that the pre-FOMC drift essentially disappeared after 2015. The
+  drafter expects `PF` to print `NULL` more likely than not.
+- **The FOMC cycle.** Cieslak, Morse and Vissing-Jorgensen (2019, Journal of Finance) report that
+  since 1994 the equity premium was earned in even weeks of the FOMC cycle: weeks 0, 2, 4 and 6.
+  Week 0 is days −1 to +3 around the decision; week 1 is days 4 to 8. Odd-week returns were
+  around zero or negative. The `PF` placebo below is placed in week 1 for this reason.
 - **`TOM`.** The drafter has no firm prior on post-2008 decay of the turn-of-month effect.
 
 ### What earlier work in this repo showed
@@ -231,7 +248,8 @@ These count calendar events, not returns. No price was read.
 | `PF` | arm | Net excess on decision days, `GRADED` | Co-primary, Holm m = 2 with `TOM` |
 | `TOM` | arm | Net excess on turn-of-month days, `GRADED` | Co-primary, Holm m = 2 with `PF` |
 | Out-of-window days | control | Every other session in the same population | The reference each excess is measured from |
-| `PF-PLACEBO`, `TOM-PLACEBO` | control | The same window shifted 10 sessions earlier | Gate GP |
+| `PF-PLACEBO` | control | The `PF` window shifted 6 sessions later | Gate GP |
+| `TOM-PLACEBO` | control | The `TOM` window shifted 10 sessions earlier | Gate GP |
 | `FORWARD` | population scope | `PF` and `TOM` on events after `REGISTERED` | Forward verdicts |
 | `PRIOR` | population scope | `PF` and `TOM` before publication | Printed only |
 
@@ -333,16 +351,24 @@ any return.
 
 - **GL, leave-one-year-out.** Drop each calendar year of the population in turn and recompute `Δ`.
   GL passes when every one of these estimates is above zero.
-- **GP, placebo.** Shift every window of the arm 10 sessions earlier on the calendar, keeping its
-  length and cost. Compare those days with the arm's own out-of-window days, less the placebo days.
-  GP passes when the placebo's 95% CI, from the same bootstrap on its own cycles, contains zero.
+- **GP, placebo.** Shift every window of the arm on the calendar, keeping its length and cost:
+  `PF` 6 sessions later, `TOM` 10 sessions earlier. A placebo day that is a window day of the other
+  arm leaves the placebo set and stays an out-of-window day. Compare the placebo days with the
+  arm's own out-of-window days, less the placebo days. GP passes when the placebo's 95% CI, from
+  the same bootstrap on its own cycles, contains zero.
 - **GV, overlap.** An overlap is a decision day that is one of a `TOM` window's four sessions.
-  Remove every overlapping event from the arm, with all its window days, from both sets. GV passes
-  when the arm's `Δ` stays above zero.
+  Remove every overlapping event from the arm. Its window days leave the in-window set and do not
+  join the out-of-window set. GV passes when the arm's `Δ` stays above zero.
 
-**`Resolved at draft`: the placebo shift.** Ten sessions earlier puts the `TOM` placebo near the
-middle of month m. It puts the `PF` placebo about two weeks before the decision, never on another
-decision day. The shift is fixed here and never varied.
+**`Resolved at draft`: the `TOM` placebo shift.** Ten sessions earlier puts the `TOM` placebo near
+the middle of month m. The shift is fixed here and never varied.
+
+**`Resolved at second read (2026-11-27)`: the `PF` placebo shift.** The draft shifted `PF` 10
+sessions earlier too. Day −10 falls in week 4 or 6 of the previous FOMC cycle for most meeting
+gaps, so a real cycle effect could fail GP. Six sessions after the decision is the middle of week
+1, an odd week, for every gap. It is never another decision day. The other-arm rule keeps a real
+`TOM` effect, or a real `PF` effect, out of the other arm's placebo. The shift is fixed here and
+never varied.
 
 **`Resolved at draft`: how overlap is handled.** The headline keeps overlapping events in both arms.
 Each arm is its own question, and a trader following one rule holds through the overlap. GV checks
@@ -383,8 +409,9 @@ No result here makes a candidate rule on its own.
 
 **`FORWARD`.** The same tokens and Holm family on `FORWARD` events, against `FORWARD`'s own
 out-of-window days. `STILL-OPEN` takes the place of `UNDERPOWERED` until the arm meets GN's forward
-floor. At about 8 meetings and 12 month turns a year, `TOM` reaches 40 events around early 2030 and
-`PF` around late 2031. Each run before then prints the forward census. The verdict of record is the
+floor. `TOM` has about 12 month turns a year and reaches 40 events around early 2030. `PF` has
+about 8 meetings a year and reaches 40 around late 2031. Each run before then prints the forward
+census. The verdict of record is the
 first forward run that prints a token other than `STILL-OPEN`.
 
 **`PRIOR`.** No token. The report prints `PRIOR (pre-publication, not graded)` beside its lines.
@@ -401,7 +428,8 @@ first forward run that prints a token other than `STILL-OPEN`.
 
 - Fixed here: both windows, the scheduled-only FOMC rule, the cancelled-meeting rule, the price
   basis, the 2 bps per side cost, the graded start dates, the statistic, the cycle bootstrap, the
-  seed, the 10,000 draws, the floor of 40 events and its year spans, the 10-session placebo shift,
+  seed, the 10,000 draws, the floor of 40 events and its year spans, the placebo shifts (`PF` 6
+  sessions later, `TOM` 10 earlier),
   the overlap rule, the Holm family and the verdict words.
 - No other window, shift, cost, start date, instrument or reference is graded.
 - The `PRIOR` years are never graded and never move a verdict.

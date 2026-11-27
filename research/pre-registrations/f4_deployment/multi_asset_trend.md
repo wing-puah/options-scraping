@@ -1,6 +1,7 @@
 ## multi_asset_trend — does monthly trend across nine ETFs beat holding all nine?
 
 <!-- outcome:start -->
+> Latest outcome: not run.
 <!-- outcome:end -->
 
 _Registered 2026-11-27._
@@ -10,7 +11,7 @@ filled the gaps the design left with the most conservative conventional choice, 
 `Resolved at draft (2026-11-27)` beside its rule. No return, Sharpe ratio, drawdown, turnover or
 coverage figure for any rule, cell or benchmark below was computed before this file was written.
 A fresh second reader is owed before the first run and before the commit
-([README](README.md#the-second-reader-before-every-new-registration-freezes)).
+([README](../README.md#the-second-reader-before-every-new-registration-freezes)).
 
 ## The question
 
@@ -24,14 +25,18 @@ The published claim:
   Financial Economics* 104(2). An asset's own 12-month excess return predicts its next month's
   return, across equity indices, bonds, commodities and currencies. A diversified portfolio of
   these trend bets earned a positive return with low beta, and did best in extreme markets.
+  Their portfolio goes long or short each futures contract and scales each bet by its own
+  volatility.
 - Faber, M. (2007), "A Quantitative Approach to Tactical Asset Allocation", *Journal of Wealth
   Management* 9(4). Five asset classes, each held only while above its 10-month moving average,
   checked once a month. The equal-weight timed portfolio kept about the return of holding all
   five, at a lower volatility and a much smaller drawdown.
 
-[`trend_overlay`](trend_overlay.md) tested one asset, the S&P 500. This study tests the claim in
-its published form: many asset classes, each switched to T-bills on its own trend. Diversity of
-assets is where both papers found most of the benefit.
+[`trend_overlay`](trend_overlay.md) tested one asset, the S&P 500. This study tests the claim
+across many asset classes, each switched to T-bills on its own trend. Diversity of assets is where
+both papers found most of the benefit. The long-or-T-bills form is Faber's. It is not the
+Moskowitz, Ooi and Pedersen portfolio, which also shorts and scales by volatility. This study does
+neither, so it borrows their signal, not their portfolio.
 
 What each headline word would mean:
 
@@ -173,6 +178,10 @@ Each cell is one lookback, one trend rule and one weighting.
   module finds the date from the data and prints it.
 - **The first month is short by one session.** The curves start at the first execution close,
   so that month runs from it to the month's last close. Every cell and benchmark is treated alike.
+  It is graded as discovery's first month and counts toward the GN month floor.
+- **Each window stands alone.** A window's statistics, episodes and bootstrap read only that
+  window's monthly returns. Its equity is rebased to 1.0 at the window's start, and the running
+  peak for MDD starts at that 1.0. The simulation itself runs once, without a restart.
 - **The in-sample cut.** Every series is cut at 2026-09-22 (`IN_SAMPLE_END`) before anything is
   computed. Only complete calendar months are graded, so the holdout ends with 2026-08.
 - `Resolved at draft (2026-11-27)`: closes after 2026-09-22 were seen in the 2026-11-21 bear
@@ -221,7 +230,8 @@ Each cell is one lookback, one trend rule and one weighting.
   resampler, imported unchanged.
 - `scripts/backtest_study/lib/pbo.py::cscv`, with a Sharpe metric defined in the module.
 - `scripts/backtest_study/lib/era.py::SEAL_START`, printed in the header.
-- The options arm only: `scripts/backtest/simulate.py::_close_mid`, the cached files in
+- The options arm only: `scripts/backtest/simulate.py::entry_day_fill`, `_close_mid` and
+  `_is_junk_quote`, the cached files in
   `backtests/option_history_cache/`, and `commission_per_contract` in `config/backtest.yml`, all
   read unchanged.
 
@@ -308,23 +318,35 @@ place? It is printed so a later study can be designed on real quotes. It grades 
 - **Strikes.** The long call is the cached strike nearest the unadjusted SPY close on the entry
   day. The short call is the cached strike nearest 1.05 × that close. A tie takes the lower strike
   for the long call and the higher strike for the short call.
-- **Entry price.** Each leg at its entry-day closing mid, `simulate._close_mid`. Debit = long mid
-  − short mid.
-- **Exit.** At the next execution session, whatever the trend, at both legs' closing mids on that
-  day. If the sleeve is still IN, a new vertical opens at the same close.
+- **Entry price.** Each leg off its own entry-day closing quote, through production's
+  `simulate.entry_day_fill`: the long call as a bought leg, the short call as a sold leg. A
+  normal two-sided quote fills at its closing mid (`_close_mid`). A junk quote
+  (`_is_junk_quote`) follows production: a sold leg fills at its bid, or 0 with no bid; a bought
+  leg with a bid fills at its mid; a bought leg with no bid is refused. Debit = long fill − short
+  fill.
+- **Exit.** At the next execution session, whatever the trend, each leg at its closing mid on that
+  day (`_close_mid`). If the sleeve is still IN, a new vertical opens at the same close.
 - **Cost.** `commission_per_contract` from `config/backtest.yml` (0.65 today), per leg per
-  contract, at entry and at exit. No slippage.
-- **Priced.** A trade is priced when both legs have a two-sided closing quote on the entry day and
-  on the exit day. Otherwise it is unpriced. No strike, expiry or price is substituted.
+  contract, at entry and at exit, so 2.60 per vertical. No slippage, as `_cost_knobs` reads
+  `slippage_frac_of_spread: 0`. Return on debit and P&L are net of commission.
+- **Priced.** A trade is priced when `entry_day_fill` prices both legs on the entry day, the
+  debit is above 0, and both legs have a two-sided, non-junk closing quote on the exit day.
+  Otherwise it is unpriced. No strike, expiry, price, carried mark or `Latest` print is
+  substituted, so every price sits on one closing clock.
 - **No fetch.** A contract with no cached file is unpriced. The arm never calls the network.
-- **Cut.** No entry or exit after 2026-09-22.
+- **Cut.** No entry or exit after 2026-09-22. A vertical whose exit would fall after the cut is
+  not wanted. It is left out of both coverage counts and printed as a count of open trades.
 - **Printed.** Coverage as trades priced / trades wanted, over the full in-sample window and over
   months from the first cached SPY expiry. Per priced trade: return on debit and the SPY
   adjusted return over the same span. In total: mean return on debit, hit rate, and P&L per one
   vertical.
-- `Resolved at draft (2026-11-27)`: the design said "closing mid for both legs". So a two-sided
-  junk quote also fills at its mid on both legs, unlike production's sold-leg rule. The arm is
-  descriptive, so this is stated rather than fixed.
+- **Cache bias.** The cache was filled for the book's plays, so the strikes and expiries on file
+  are not a random sample. This is one more reason the arm grades nothing.
+- `Resolved at draft (2026-11-27)`, by the second reader: the draft filled a junk sold leg at its mid. That
+  departed from the standing entry rulings (2026-09-24 junk quote, 2026-10-23 one clock), which
+  fill a junk sold leg at its bid. The entry now calls `entry_day_fill` unchanged. Production
+  marks a junk exit-day quote at a `Latest` print or a carried mark, which share no clock with the
+  other leg. So a junk exit quote leaves the trade unpriced instead.
 
 ## How it is judged
 
@@ -339,6 +361,11 @@ place? It is printed so a later study can be designed on real quotes. It grades 
 - **Sensitivities.** Blocks of 6 and 24 months, printed only.
 - `Resolved at draft (2026-11-27)`: a 12-month block keeps a year of serial dependence, which the
   12-month lookback creates. It is also the shortest block that keeps most drawdowns whole.
+- **What the `ΔMDD` interval means.** A resampled path re-orders the months that happened. A
+  drawdown longer than one block is cut at block joins, and the circular wrap joins the window's
+  last month to its first. So the interval measures the noise in one drawdown figure. It is not
+  centred on the observed `ΔMDD`, and the verdict reads its 2.5th percentile, as in
+  `trend_overlay`.
 
 ### When a statistic counts
 
@@ -363,8 +390,11 @@ A statistic is **clearly worse** when its holdout CI upper bound is below 0.
   excess month is not a true row for any cell here.
 - **Metric.** The Sharpe ratio of the rows given: `√12 ×` mean / sample standard deviation. A zero
   standard deviation gives NaN, which `cscv` ranks worst.
-- **The bar.** Above **0.50** is a veto: no gain is claimed. 0.25 to 0.50 prints "selection
-  fragile". At most 0.25 prints nothing extra.
+- **The bar.** Above **0.50** is a veto: no gain is claimed. Above 0.25 and at most 0.50 prints
+  "selection fragile". At most 0.25 prints nothing extra.
+- **The noise baseline.** With 12 cells, an in-sample best cell that lands at random out of
+  sample gives a PBO near 0.50. So close variants of one idea sit near the veto line by
+  construction, and the veto is a coin-flip under pure noise.
 - **Printed only.** A discovery-window PBO, on the same rule, and `n_at_zero` beside each value.
 - **What PBO means here.** The headline cell was fixed before any run. PBO asks whether the cell
   that looks best in one half of the months tends to rank below the median in the other half. A
@@ -388,8 +418,9 @@ Jensen alpha and beta against `EW-9`. Per-sleeve time IN prints for the headline
 - `Resolved at draft (2026-11-27)`: 5% rather than `trend_overlay`'s 2%, because some of these
   ETFs pay large annual or year-end distributions. A refusal here is settled by a
   `Resolved at build` ruling, never by loosening the bound silently.
-- **GX, no lookahead.** The weights earning session `k`'s return read no close after the latest
-  decision close at or before `k − 2`. `tests/test_multi_asset_trend.py` changes every later close
+- **GX, no lookahead.** The target weights and states behind session `k`'s return read no close
+  after the latest decision close at or before `k − 2`. Drift between executions moves weights
+  with realised prices only, so it is not a signal. `tests/test_multi_asset_trend.py` changes every later close
   and requires identical weights. Each run also recomputes 24 evenly spaced decisions on series
   cut at that decision close, and stops on any difference.
 - **GX and the calendar.** The test also checks that the last row of a cut series is never a
@@ -405,6 +436,9 @@ Jensen alpha and beta against `EW-9`. Per-sleeve time IN prints for the headline
 - **Why these floors.** 96 months at a 12-month block is 8 blocks. With fewer, the interval
   mostly reflects which few years were drawn. A drawdown statistic from one episode is that one
   event, and no bootstrap can separate the rule from it.
+- **The month floor is a backstop.** With the expected first month 2007-03, discovery holds 118
+  months and the holdout 116, both from the calendar alone. The month floor binds only if the
+  first common decision falls after 2008-12. The episode floor is the live one.
 
 ## Verdicts, worded now
 
@@ -426,7 +460,13 @@ The rows are complete and mutually exclusive: each case meets exactly one first 
 
 - `ΔCAGR`, alpha and beta print beside the word. They never change it.
 - **`DRAWDOWN-ONLY` with a clearly worse Sharpe** keeps its word. The Sharpe CI beside it shows
-  the cost.
+  the cost. The report adds "Sharpe clearly worse" beside the word.
+- **`SHARPE-ONLY` with a clearly worse `ΔMDD`** keeps its word the same way, with "drawdown
+  clearly worse" beside it.
+- **Windows that disagree.** A holdout CI lower bound above 0 with a discovery point estimate at
+  or below 0 does not count. If nothing else applies, the word is `NULL`, and the report adds
+  "holdout gain, discovery sign disagrees".
+- **"Clearly worse" reads the holdout only.** It has no discovery clause.
 - **Grid cells** print the word they would get by the same rows, marked "grid, not graded".
 - **Sensitivities** print the headline word they would give, marked "printed only".
 - **The other benchmarks** print the headline cell's deltas against `SPY` and `60-40`, with no
