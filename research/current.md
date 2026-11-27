@@ -30,6 +30,9 @@ on the operator*, items 16 and 17:
 **2026-11-27: four mechanical rules that use no picks were registered, built and run; `multi_asset_trend` prints `PBO-VETO`, `spy_put_write` prints `NULL`, and the other two have no verdict yet**
 ([entry](#2026-11-27--four-mechanical-rules-off-the-picks-none-ships)).
 
+**2026-11-27: the full suite re-ran on a repaired book; all 61 studies pass their self-checks, `selection_order` O3 prints an in-sample `CANDIDATE`, and five studies still wait on option legs**
+([entry](#2026-11-27--re-price-partial-bar-strip-and-the-full-suite-on-the-unsealed-dates)).
+
 **2026-11-27: `ticker_regime_move` prints D `UNDERPOWERED` and S `NULL` on v4 and v3; the per-ticker regime label almost always restates the ticker's own trend, and its vol tag does not clear the bar**
 ([entry](#2026-11-27--ticker_regime_move-the-per-ticker-regime-label-restates-the-trend-flag)).
 
@@ -439,6 +442,122 @@ So 449 contracts are missing and no P&L was computed. The fetcher is
   drawdown benefit paid for in return.
 - Selling SPY puts adds leverage to SPY and nothing else.
 - The move to mechanical rules still has no rule that beats holding the index.
+
+## 2026-11-27 — re-price, partial-bar strip, and the full suite on the unsealed dates
+
+**The suite now runs clean on a repaired book, and the picks still show no edge.** All 61 studies
+exit 0 and pass their own self-checks. `prompt_eval`, `book` and `focus_list` were not re-run.
+One new in-sample `CANDIDATE` printed (`selection_order` O3). The reason for one retired rule
+weakened (`bear_position_study`). Five studies still wait on option legs.
+
+### What was wrong with the book
+
+- **Partial bars priced as closes.** A cache file fetched during the US session ends in a
+  partial bar for that day. The backtest priced it as a close. Commit 49ea5c9 judges sessions in
+  ET and treats a bar as final only after 16:15 ET.
+- **3,744 cache files still held such a bar.** The studies read the cache directly, so they
+  disagreed with the fixed backtest. The bars were stripped in place. The originals are in
+  `backtests/run_logs/partial_bar_originals-20261127.tar.gz` and in the 10:00 cache push.
+- **Rows priced before a refetch.** Re-pricing one date refetched contracts that rows on other
+  dates share. Those rows went stale.
+
+### What was re-priced
+
+| Step | Rows |
+|---|---|
+| `--redo` on BacktestResults | 37 dates |
+| `--redo` on BacktestProxy | 24 dates |
+| Cache-only stale re-price after the strip | 12 results rows; 9 proxy rows replaced, 3 added |
+| Forced cache-only proxy `--redo` | 2026-08-14, 09-15, 11-25 |
+
+The self-check gates now pass, with none loosened:
+
+| Gate | Result |
+|---|---|
+| `narrow_to_fit` GN3 | 591 of 591 rows reproduce |
+| `hedge_structure` R2 | 2,073 of 2,073 reconstruct |
+| `exit_mechanism_study` calibration, debit | 0 HARD of 930 |
+| `exit_mechanism_study` calibration, credit | 0 HARD of 281 |
+| `exit_mark_clock` G-REPRO | 137 of 137 and 7 of 7 |
+
+Three gaps were found and filed:
+
+- The journal still writes partial bars into the cache ([next-steps 2.34](next-steps.md#234-partial-bars-still-enter-the-option-cache-from-the-journal--open-filed-2026-11-27)).
+- The proxy's stale check misses a nearer strike ([2.35](next-steps.md#235-the-proxys-stale-check-misses-a-nearer-strike--open-filed-2026-11-27)).
+- `macro_event_study` refused on a short FOMC minutes calendar until two 2026 dates were
+  added ([2.36](next-steps.md#236-the-fomc-minutes-calendar-needs-a-top-up-every-six-weeks--standing-filed-2026-11-27)).
+
+### Verdicts that moved
+
+Compared with the pre-unseal reports and the first post-unseal pass. Causes: F is forward data
+and a larger book; R is today's re-price and strip.
+
+| Study | Before | Now | Cause |
+|---|---|---|---|
+| `selection_order` | `ORDERING-IS-NOISE` | `ORDERING-MATTERS — O3 clears all seven. CANDIDATE, NOT a ship` | F |
+| `bear_position_study` | `DEMOTE TO VETO` | `NO ACTION` | F |
+| `regime_map` | 3 `REPLICATED` cells | 2; A x below-SMA dropped | F |
+| `hedge_timing` | H1-DECLINE `TIMING-CANDIDATE` | `TIMING-CANDIDATE survivors: 0` | F, R |
+| `text_features` | 2 `CANDIDATE` | 3: `thesis_len` added | R |
+| `volume_signal` | `LIQUIDITY-PROXY` | `NULL — the volume column is CLOSED` | F |
+| `adaptive_ladder` forward | `STILL-OPEN` | `NULL` | F |
+| `spy_benchmark` | `DOES-NOT-BEAT` | `NOT BUILT — AWAITING SCRAPE` | F |
+| `selloff_put_diagonal` | `NO-EDGE (PROVISIONAL)` | `NOT BUILT — AWAITING SCRAPE` | F |
+| `staged_exit` | one `REACTIVE-AGAIN` cell | none | R |
+| `ruin_bound` | `N250-F2 G-none` | `N250-F2 G-C`, a near tie | R |
+| `portfolio_delta` | crashed on a missing delta | `NOISE` | fix 5e94277 |
+
+Notes on the table:
+
+- **`selection_order`:** the paired gain is +0.0744 [+0.0018, +0.1516]. The CI floor sits near
+  zero. It passes criterion 7 because the random band's 95th percentile fell
+  further than the arm did:
+
+  | | Arm | Band p95 |
+  |---|---|---|
+  | First pass | +0.0829 | +0.0854 |
+  | Now | +0.0744 | +0.0696 |
+- **`bear_position_study`:** the ex-window mean is now -0.089 [-0.182, +0.011]. It was -0.306.
+- **`thesis_len`:** the cell is `bull_call_spread` Tier B, dR +0.302 [+0.062, +0.537]. It is
+  in-sample, picked from many, and needs PBO and a forward grade.
+
+`hedge_sizing`, `exit_from_text` and `ladder_overlay` moved at cell level only. Every other
+study's verdict tokens held.
+
+### The dip-date cell
+
+| Read | A x below-SMA, in-sample | A x BEAR, forward |
+|---|---|---|
+| 2026-10-26 | +0.333, adjusted p 0.029 | n=0 |
+| 2026-11-26 | +0.270, adjusted p 0.076 | n=19, -0.591 |
+| 2026-11-27 | +0.270 [+0.054, +0.498], adjusted p 0.054, `NULL` | n=20 on 12 dates, -0.603 [-0.690, -0.522], `STILL-OPEN` |
+
+The cell still misses its threshold. The card now stages dip-date size and never goes full size
+at once (operator ruling 2026-11-26, commit 943f8dc).
+
+### `bear_arm`
+
+`REVERT CONDITION FIRED` still prints, on condition (c). The 2026 year delta is now -0.0056,
+against +0.0050 before the unseal. The rule it guards has been off since 2026-08-24.
+
+### Still waiting on legs
+
+Each fetch exposes the next strikes, so fetch and re-run alternate. Three rounds ran on
+2026-11-27; the counts below are after round 2. Most of the rest are unlisted on Barchart.
+
+| Study | Verdict | Waiting, first pass → now |
+|---|---|---|
+| `mechanical_baseline` | `NOT BUILT — AWAITING SCRAPE` | 84 → 6 primary trades |
+| `mechanical_benchmark` | `NOT BUILT — AWAITING SCRAPE` | v4 M2 38 → 13, M1 6 → 3, M2L 2 → 1 |
+| `spy_benchmark` | `NOT BUILT — AWAITING SCRAPE` | 179 → 35 pairs |
+| `narrow_to_fit` F3 | `AWAITING SCRAPE` | unpriced 42% → 20%, bar 10% |
+| `refuse_floor_forward` F3 | `AWAITING SCRAPE` | unpriced 85% → 43%, bar 10% |
+
+The substitute pool for `narrow_to_fit` is exhausted: the last pass fetched 0 of 1. Its F3
+cells cannot grade on this book. `daily_vol_structure` fetches forward legs only once a
+`CANDIDATE` prints, so none was fetched.
+
+---
 
 ## 2026-11-27 — ticker_regime_move: the per-ticker regime label restates the trend flag
 
