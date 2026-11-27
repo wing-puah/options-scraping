@@ -577,6 +577,22 @@ STUDIES: dict[str, Study] = {
                 "STILL-OPEN <<<`. Headline mean R `+0.004` (K-BEAR), `+0.118` (K-EVOL), CALM "
                 "`+0.175`; the gain over calm days is negative for both. Nothing ships.",
     ),
+    "ticker_regime_move": Study(
+        family="selection", state="null",
+        question="Each play row carries its own regime label (the model's read of that ticker). "
+                 "Does it forecast the ticker's own stock move: BULL against BEAR on the 21-session "
+                 "beta-adjusted return inside own-trend strata (D), and E-VOL against other vol "
+                 "tokens on the 10-session move scaled by trailing realised vol (S)? Stock closes "
+                 "only.",
+        verdict="Accepted by default and first run 2026-11-27 (era v4, bare exports; 2,923 rows on "
+                "303 dates in 34 blocks): `>>> ticker_regime_move D (BULL - BEAR, 21d beta-adjusted return, own-trend strata, v4 in-sample): UNDERPOWERED <<<`, `>>> ticker_regime_move S (E-VOL - other vol, scaled 10d move, v4 in-sample): NULL <<<`, `>>> ticker_regime_move READ (D): UNDERPOWERED <<<`, `>>> ticker_regime_move FORWARD (LIVE signal dates after 2026-11-27): D STILL-OPEN, S STILL-OPEN <<<`. D cannot be graded because "
+                "the label almost always restates the ticker's own 50-close trend flag: `above "
+                "BULL 1310r/34b BEAR 27r/18b diff +4.19 (under floor); below BULL 50r/19b BEAR "
+                "483r/34b diff +2.72`. Unstratified, the label shows nothing: `D-raw  -0.51 "
+                "[-2.67, +1.68]  p=0.6684`. S: `S      +0.102 [+0.010, +0.203]  p=0.0286  E-VOL "
+                "731r/34b  other-vol 1647r/34b  Holm adj p 0.0572`. `--era v3` prints the same "
+                "four words (`S      +0.118 [-0.056, +0.310]  p=0.1808`). Nothing ships.",
+    ),
     "tail_breach_intraday": Study(
         family="selection", state="open",
         question="Does SPY's intraday low breach twice its VIX-implied move, or fall 5% below a close "

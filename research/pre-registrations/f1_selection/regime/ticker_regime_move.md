@@ -1,7 +1,16 @@
 ## ticker_regime_move — does a play's own regime label forecast that ticker's stock move?
 
 <!-- outcome:start -->
-> Latest outcome: not run.
+> Latest outcome: v4, first run 2026-11-27 · [record](../../../study-results/f1_selection/regime/ticker_regime_move.md).
+>
+> ```
+> >>> ticker_regime_move D (BULL - BEAR, 21d beta-adjusted return, own-trend strata, v4 in-sample): UNDERPOWERED <<<
+> >>> ticker_regime_move S (E-VOL - other vol, scaled 10d move, v4 in-sample): NULL <<<
+> >>> ticker_regime_move READ (D): UNDERPOWERED <<<
+> >>> ticker_regime_move FORWARD (LIVE signal dates after 2026-11-27): D STILL-OPEN, S STILL-OPEN <<<
+> ```
+>
+> v3, the replication, prints the same four words.
 <!-- outcome:end -->
 
 _Registered 2026-11-27._

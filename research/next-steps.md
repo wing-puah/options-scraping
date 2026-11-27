@@ -1838,6 +1838,21 @@ Three traps from 2026-11-21:
 - The price cache for SPY reaches 2026-11-20. Calm weeks need closes through the exit date.
 
 <a id="s3"></a>
+### 2.33 `ticker_regime_move` — RUN 2026-11-27: D `UNDERPOWERED`, S `NULL`; forward `STILL-OPEN`
+
+The study was registered, built and run on 2026-11-27. The per-ticker regime label almost
+always restates the ticker's own trend flag, so the direction test cannot be graded. The vol
+tag misses the family bar. See the
+[entry in current.md](current.md#2026-11-27--ticker_regime_move-the-per-ticker-regime-label-restates-the-trend-flag)
+and the [record](study-results/f1_selection/regime/ticker_regime_move.md).
+
+Open:
+
+- The forward read. It needs LIVE labels after 2026-11-27, and S needs 12 blocks, about a year.
+- `study_review ticker_regime_move` grading is owed.
+- To be tested, not registered: does the E-VOL tag mark larger moves on LIVE labels? S's own
+  interval on v4 sat just above zero, and v3 did not replicate it.
+
 ## 3. Standing rules — settled, do not re-open
 
 One line each, with the evidence.

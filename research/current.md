@@ -27,6 +27,9 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
+**2026-11-27: `ticker_regime_move` prints D `UNDERPOWERED` and S `NULL` on v4 and v3; the per-ticker regime label almost always restates the ticker's own trend, and its vol tag does not clear the bar**
+([entry](#2026-11-27--ticker_regime_move-the-per-ticker-regime-label-restates-the-trend-flag)).
+
 **2026-11-21: `trend_overlay` prints `NO-DRAWDOWN-BENEFIT` in discovery and holdout; Faber's 10-month rule roughly halved the S&P 500's worst drawdown for about 1.5 points of CAGR a year, but the bootstrap lower bound sits just below zero, and the book's net-cap switch is underpowered**
 ([entry](#2026-11-21--trend_overlay-a-slow-trend-rule-roughly-halves-drawdown-but-not-clear-of-noise)).
 
@@ -339,6 +342,112 @@ blocks any work; each has its full entry in an archive volume.
   stayed blocked at R2.
 
 ---
+
+## 2026-11-27 — ticker_regime_move: the per-ticker regime label restates the trend flag
+
+**The play's own regime label cannot be shown to forecast the ticker's stock move.** The
+direction test prints `UNDERPOWERED` and the size test prints `NULL`, on v4 and on v3. Nothing
+ships, and nothing changes on the deploy card.
+
+_Report: `backtests/study_output/ticker_regime_move-v4-20261127.txt` · record:
+[`ticker_regime_move.md`](study-results/f1_selection/regime/ticker_regime_move.md) ·
+registration:
+[`ticker_regime_move.md`](pre-registrations/f1_selection/regime/ticker_regime_move.md) · code
+3d2cae8._
+
+The operator asked for a movement test by regime or signal, on stock prices where the option
+route had nothing left. The market-level label was already closed by `market_read`,
+`state_map` and `direction_hit`. The per-ticker label had never been tested.
+
+```
+>>> ticker_regime_move D (BULL - BEAR, 21d beta-adjusted return, own-trend strata, v4 in-sample): UNDERPOWERED <<<
+>>> ticker_regime_move S (E-VOL - other vol, scaled 10d move, v4 in-sample): NULL <<<
+>>> ticker_regime_move READ (D): UNDERPOWERED <<<
+>>> ticker_regime_move FORWARD (LIVE signal dates after 2026-11-27): D STILL-OPEN, S STILL-OPEN <<<
+```
+
+### What was tested
+
+- **D, direction.** BULL-labelled tickers against BEAR-labelled ones, on the 21-session
+  return net of beta to SPY. It is read inside own-trend strata, so the label must add to a
+  50-close trend flag.
+- **S, size.** E-VOL-labelled tickers against other vol tokens, on the 10-session absolute
+  move over trailing realised vol.
+- Stock closes only. No option price, tier or R is read.
+
+### Results
+
+| Era | Rows / dates | D [95% CI] | D word | S [95% CI] | Holm adj p | S word |
+|---|---|---|---|---|---|---|
+| v4 | 2,923 / 303 | +3.77 pp [+0.66, +6.38] | `UNDERPOWERED` | +0.102 [+0.010, +0.203] | 0.0572 | `NULL` |
+| v3 | 1,314 / 141 | -1.00 pp [-5.45, +2.20] | `UNDERPOWERED` | +0.118 [-0.056, +0.310] | 0.3616 | `NULL` |
+
+**D is ungradable because the label and the trend flag almost never disagree.**
+
+| v4 cell | Rows |
+|---|---|
+| BULL, above own trend | 1,310 |
+| BEAR, below own trend | 483 |
+| BULL, below own trend | 50 |
+| BEAR, above own trend | 27 |
+
+- The floor is 50 rows per cell, and BEAR above trend holds 27. The floor was fixed before
+  any outcome and was not lowered.
+- So D's point estimate rests on 77 disagreeing rows. Do not read it as an edge. v3 has the
+  opposite sign.
+- Without the strata the label shows nothing on v4: D-raw is -0.51 pp [-2.67, +1.68].
+- On v3 both D-raw (-2.06 pp) and the trend flag itself (-2.47 pp) lean the wrong way. Names
+  in an uptrend did slightly worse. These lines are printed, not graded.
+
+**S is `NULL` by the registered family rule.** Its own interval on v4 sits just above zero
+(raw p 0.0286). D enters the Holm family at p = 1, so S needed p under 0.025. v3 does not
+replicate it. The effect is also small: E-VOL names moved about a tenth more than their
+trailing vol implied.
+
+### What it means
+
+- The per-ticker label is a restatement of the ticker's trend. It carries no separate
+  information that this data can detect.
+- Do not size or pick on the per-ticker direction label.
+- The E-VOL tag is a weak lead at most. It is in-sample and mostly on backfilled labels. It
+  waits on the forward read, which uses LIVE labels only.
+- The `signal` column cannot be tested as a category: 2,907 of 2,923 rows are tagged `FLOW`.
+
+### Limits
+
+- 2,442 of 2,923 v4 rows carry RETRO labels. The model may have known the path.
+- 366 rows left for a missing bar inside the 21-session window, about one in eight.
+- The LIVE cut has 3 blocks. Its lines are noise and are not read.
+
+### Second reader
+
+A fresh reader checked the registration before any outcome. Five rulings were folded in:
+the beta-adjusted outcome, a split guard that keeps real crashes, a frozen in-sample set,
+LIVE-only forward rows, and the `IN-SAMPLE-ONLY` word in place of an in-sample `SUPPORTED`.
+
+### Also seen today: the `night3-suite` re-run
+
+Another session re-ran the suite on 2026-11-27 (61 studies, `financed_spread` still running
+at 16:45). This session only read its reports. It did not update `catalog.py` or
+`study-map.md` for those studies; that pass is owed by the suite's owner.
+
+Among the 21 regime, signal and ticker studies, 17 print the catalog's words. Four differ
+from the catalog:
+
+| Study | Catalog | Today's report |
+|---|---|---|
+| `regime_map` | A x below-SMA replicated | `B x RM-RVOL=C-VOL POSITIVE` replicates instead; NEGATIVE cells 1 → 8 |
+| `hedge_timing` | `VERDICT H3-GAP: CONTRARY` | `VERDICT H3-GAP: NULL` |
+| `adaptive_ladder` | `ADAPTS` | `NULL`, as already logged on 11-26 |
+| `macro_event_study` | `SURVIVAL-ARTIFACT` | `G0 REFUSAL`, exit 4: the macro calendar no longer covers the book |
+
+- `exit_mark_clock` exited rc=4 on `G-REPRO: 5/6 = 83.3% (bar 98%) FAIL` on the SECONDARY
+  tab. It is a designed refusal, not a crash.
+- `hedge_timing` matters most: `H3-GAP: CONTRARY` is the support for the §4 gap-up
+  prohibition.
+- **A slip to know about.** This session ran `make study-record` with no study name. It
+  appended the suite's current reports for 62 other studies to `research/study-results/`.
+  The appends are verbatim and append-only, and were left uncommitted for the suite's owner.
 
 ## 2026-11-26 — seal lifted; suite re-run on the unsealed dates (44 of 63 studies)
 
