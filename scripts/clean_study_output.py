@@ -86,6 +86,12 @@ CODE_INPUTS = {
     "focus_list-forward-read.json":
         "focus_list's one-shot forward read; deleting it lets the read run a "
         "second time, which the registration forbids",
+    "tier_contrast_forward-forward-read.json":
+        "tier_contrast_forward's one-shot forward read; deleting it lets the "
+        "read run a second time, which the registration forbids",
+    "tier_contrast_forward-looks.jsonl":
+        "tier_contrast_forward's look log; deleting it hides earlier peeks "
+        "at the forward counts",
 }
 
 # Citations look like `backtests/study_output/<file>` in the tuning write-ups.

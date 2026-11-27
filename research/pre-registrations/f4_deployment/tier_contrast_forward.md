@@ -1,7 +1,7 @@
 ## tier_contrast_forward — does the tier gate select, on dates no one has seen
 
 <!-- outcome:start -->
-> Latest outcome: not yet run; the module is not built.
+> Latest outcome: built 2026-11-28; first run `STILL-OPEN`. No forward row has loaded yet, so both arms hold 0 closed positions — 2026-11-28 · [record](../../study-results/f4_deployment/tier_contrast_forward.md).
 <!-- outcome:end -->
 
 _Registered 2026-11-28._
