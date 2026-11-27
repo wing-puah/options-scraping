@@ -1263,18 +1263,22 @@ STUDIES: dict[str, Study] = {
                 "uncached, so none of their trades is priced. Nothing ships.",
     ),
     "vol_expansion_long_vol": Study(
-        family="structure", state="open",
+        family="structure", state="null",
         question="After a SPY E-VOL onset, does a long ATM straddle or a 1x2 backspread, bought "
                  "at the next close and sold five sessions later, make money net of commission, "
                  "and more than the same structure opened on a calm week?",
-        verdict="Accepted on the defaults 2026-11-27; built and first run 2026-11-27 (in-sample "
-                "onset dates 2022-03-01 to 2026-09-22). Not yet graded: `NOT BUILT — AWAITING "
-                "SCRAPE — 498 headline arm-entries (onsets and ARM C) await a fetch.` and `No "
-                "outcome was computed for any arm: no R, no P&L, no CI.` GE and GL pass (`GL "
-                "PASS: 23 onsets on D 2023-06-15 -> 2026-09-22, identical in both tables`). The "
-                "strikes walk a fixed $1 grid the SPY cache mostly lacks: `fetch plan: primary "
-                "(headline onsets + ARM C) 449 unique uncached contracts; all cells 489`. The fetch "
-                "is the operator's call. Nothing ships.",
+        verdict="Accepted on the defaults 2026-11-27 and first graded the same day (in-sample "
+                "onset dates 2022-03-01 to 2026-09-22; 28 onsets, 175 calm weeks; headline cell "
+                "5-session hold, monthly ~30 DTE; about 486 SPY contracts fetched from Barchart): "
+                "ARM S `NULL (half-width 0.102)`, ARM BC `NULL (half-width 0.067)` and "
+                "ARM BP `CONTRARY`, each carrying `VIX direction after 23 in-window onsets "
+                "was printed before registration`. `ARM S: n 28  meanR -0.018 CI95 [-0.095, "
+                "+0.108]`; `ARM BC: n 28  meanR +0.009 CI95 [-0.057, +0.077]`; `ARM BP: n 28  "
+                "meanR -0.043 CI95 [-0.072, -0.015] (half-width 0.028)  p 0.0034  Holm p "
+                "0.0102`; gain vs calm weeks -0.039 CI95 [-0.069, -0.008], Holm p 0.0456. "
+                "`PBO 0.572  (bars promotion)`. `FORWARD (onsets from 2026-11-27): ARM S "
+                "STILL-OPEN ARM BC STILL-OPEN ARM BP STILL-OPEN`, with no onset yet. `Nothing "
+                "ships from this study.`",
     ),
 
     # ④ deployment

@@ -446,10 +446,10 @@ Decisions owed. None of these is a study.
 
 18. **REGISTERED 2026-11-27 as
     [`vol_expansion_long_vol`](pre-registrations/f3_structure/vol_expansion_long_vol.md),
-    accepted on the defaults below. Built; the first run prints
-    `NOT BUILT — AWAITING SCRAPE`. The registered $1 strike walk needs 449
-    contracts the cache lacks. Running `fetch_vol_expansion_legs.py` is the
-    operator's call
+    accepted on the defaults below. RUN 2026-11-27 on in-sample onsets
+    2022-03-01 to 2026-09-22: `ARM S` `NULL`, `ARM BC` `NULL`, `ARM BP`
+    `CONTRARY` (`meanR -0.043 CI95 [-0.072, -0.015]`), PBO 0.572. Forward is
+    `STILL-OPEN` with no onset yet. Nothing ships
     ([entry](current.md#2026-11-27--four-mechanical-rules-off-the-picks-none-ships)).**
     The text below is the 2026-11-06 proposal, kept as written. The question is
     whether long straddles and ratio backspreads earn a net return after an

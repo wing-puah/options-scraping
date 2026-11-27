@@ -1,7 +1,7 @@
 ## vol_expansion_long_vol — after a SPY E-VOL onset, do a long straddle or a 1x2 backspread pay, and more than on calm weeks?
 
 <!-- outcome:start -->
-> Latest outcome: `NOT BUILT — AWAITING SCRAPE` on all three arms on the first run, 2026-11-27, onset dates 2022-03-01 to 2026-09-22. GE and GL passed; 498 headline arm-entries await a fetch of 449 contracts. PBO `not computed`; forward `STILL-OPEN`. Nothing ships · [record](../../study-results/f3_structure/vol_expansion_long_vol.md).
+> Latest outcome: `ARM S` `NULL`, `ARM BC` `NULL`, `ARM BP` `CONTRARY` on the first run, 2026-11-27, in-sample onset dates 2022-03-01 to 2026-09-22 (28 onsets, 175 calm weeks). `ARM BP: n 28  meanR -0.043 CI95 [-0.072, -0.015]`, `Holm p 0.0102`; `PBO 0.572`; forward `STILL-OPEN` with no onset yet. Each verdict line carries `VIX direction after 23 in-window onsets was printed before registration`. Nothing ships · [record](../../study-results/f3_structure/vol_expansion_long_vol.md).
 <!-- outcome:end -->
 
 _Registered 2026-11-27._

@@ -27,7 +27,7 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
-**2026-11-27: four mechanical rules that use no picks were registered, built and run; `multi_asset_trend` prints `PBO-VETO`, `spy_put_write` prints `NULL`, and the other two have no verdict yet**
+**2026-11-27: four mechanical rules that use no picks were registered, built and run; `multi_asset_trend` prints `PBO-VETO`, `spy_put_write` prints `NULL`, `vol_expansion_long_vol` prints `NULL` and `CONTRARY`, and `calendar_drift` has no verdict yet**
 ([entry](#2026-11-27--four-mechanical-rules-off-the-picks-none-ships)).
 
 **2026-11-27: the full suite re-ran on a repaired book; all 61 studies pass their self-checks, `selection_order` O3 prints an in-sample `CANDIDATE`, and five studies still wait on option legs**
@@ -363,7 +363,7 @@ registration passed a fresh second reader before any outcome existed.
 | [`multi_asset_trend`](study-results/f4_deployment/multi_asset_trend.md) | monthly 12-month trend on nine ETFs | `PBO-VETO` |
 | [`spy_put_write`](study-results/f3_structure/spy_put_write.md) | weekly SPY put credit spread | `NULL`, `ARM H` `NO-ALPHA` |
 | [`calendar_drift`](study-results/f1_selection/signal/calendar_drift.md) | pre-FOMC day and turn of the month on SPY | none: refused at `GE` |
-| [`vol_expansion_long_vol`](study-results/f3_structure/vol_expansion_long_vol.md) | SPY straddle and 1x2 after an `E-VOL` onset | `NOT BUILT — AWAITING SCRAPE` |
+| [`vol_expansion_long_vol`](study-results/f3_structure/vol_expansion_long_vol.md) | SPY straddle and 1x2 after an `E-VOL` onset | `NULL` straddle and call backspread, `CONTRARY` put backspread |
 
 ### Why these four
 
@@ -426,15 +426,27 @@ December session keeps one more day in the `TOM` sample.
 `config/fomc-history.yml` holds 234 scheduled decision days from 1994 to 2023-05.
 It was committed before any price was downloaded. 2020 is the one year with seven.
 
-### `vol_expansion_long_vol`: built, awaits a fetch
+### `vol_expansion_long_vol`: the put backspread lost, the other two are noise
 
-This is next-steps item 18, now registered. Gate GL passed: both label tables
-give the same 23 onsets where they overlap. The window holds 28 onsets and 175
-calm weeks.
+The long straddle and the call backspread print `NULL`. The put backspread prints `CONTRARY`: it lost money after a SPY `E-VOL` onset. Nothing ships.
 
-The registered strike walk uses a $1 step, and the cache mostly holds a $5 grid.
-So 449 contracts are missing and no P&L was computed. The fetcher is
-`fetch_vol_expansion_legs.py`. Running it is the operator's call.
+The window is in-sample onset dates 2022-03-01 to 2026-09-22: 28 onsets and 175 calm weeks. The headline cell is a 5-session hold on a monthly expiry near 30 DTE. All 12 cells priced 28 of 28 onsets. One calm-week put-backspread entry dropped as `no_entry_quote`, so that control has n 174.
+
+| Arm | n | meanR | CI95 | Gain vs calm weeks | Verdict |
+|---|---|---|---|---|---|
+| `ARM S`, long ATM straddle | 28 | -0.018 | [-0.095, +0.108] | -0.006 [-0.087, +0.122] | `NULL` |
+| `ARM BC`, call 1x2 backspread | 28 | +0.009 | [-0.057, +0.077] | +0.023 [-0.047, +0.094] | `NULL` |
+| `ARM BP`, put 1x2 backspread | 28 | -0.043 | [-0.072, -0.015] | -0.039 [-0.069, -0.008] | `CONTRARY` |
+
+- `ARM BP` clears Holm correction: p 0.0102 on the arm, 0.0456 on the gain.
+- PBO over the 12 cells is 0.572, above the 0.50 bar. It bars promotion of all three arms.
+- The forward read starts with onsets from 2026-11-27. None has occurred, so all three arms are `STILL-OPEN`.
+- Every verdict line carries the disclosure that VIX direction after 23 in-window onsets was printed before registration.
+- The fetch took about 486 SPY contracts from Barchart over six rounds on 2026-11-27.
+- A `CONTRARY` long-straddle result is no evidence for selling straddles, because no short side is graded.
+- The backspread result says nothing about tail loss beyond five sessions or about margin.
+
+This closes next-steps item 18 as run. Only the forward read remains.
 
 ### What this adds to the programme's picture
 
