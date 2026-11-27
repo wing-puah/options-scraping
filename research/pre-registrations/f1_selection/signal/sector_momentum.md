@@ -1,7 +1,7 @@
 ## sector_momentum — does holding the three strongest SPDR sectors beat holding all nine?
 
 <!-- outcome:start -->
-> Latest outcome: `>>> sector_momentum HEADLINE (12-1-T3 vs EW-9, pooled 2000-01 to 2026-08, 5 bp): UNDERPOWERED-BY-DESIGN (could not see one: delta80 above REF) <<<` (`XS +0.19% [-2.20%, +2.62%] p 0.8676`). The test could not see one: `delta80 0.0450 vs REF 0.030`; it never means no effect. Halves `-0.75%` and `+1.08%`; GK passed at block 6; PBO `0.656`; forward `STILL-OPEN` — window POOLED 2000-01 to 2026-08, yfinance closes to 2026-11-25, run 2026-11-28 on a dirty tree (descriptive until a clean rerun) · [record](../../../study-results/f1_selection/signal/sector_momentum.md)
+> Latest outcome: `>>> sector_momentum HEADLINE (12-1-T3 vs EW-9, pooled 2000-01 to 2026-08, 5 bp): UNDERPOWERED-BY-DESIGN (could not see one: delta80 above REF) <<<` (`XS +0.19% [-2.20%, +2.62%] p 0.8676`). The test could not see one: `delta80 0.0450 vs REF 0.030`; it never means no effect. Halves `-0.75%` and `+1.08%`; GK passed at block 6; PBO `0.656`; forward `STILL-OPEN` — window POOLED 2000-01 to 2026-08, yfinance closes to 2026-11-25, run of record 2026-11-28 from a clean tree at `cfe1d51` · [record](../../../study-results/f1_selection/signal/sector_momentum.md)
 <!-- outcome:end -->
 
 _Registered 2026-11-28._

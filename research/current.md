@@ -27,7 +27,7 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
-**2026-11-27: four mechanical rules that use no picks were registered, built and run; `multi_asset_trend` prints `PBO-VETO`, `spy_put_write` prints `NULL`, `vol_expansion_long_vol` prints `NULL` and `CONTRARY`, and `calendar_drift` has no verdict yet. Two more shares-only rules ran after: `vol_managed_spy` prints `NULL`, and `spy_dip_forward` prints P `SUPPORTED`, filed as risk premium, not timing**
+**2026-11-27: four mechanical rules that use no picks were registered, built and run; `multi_asset_trend` prints `PBO-VETO`, `spy_put_write` prints `NULL`, `vol_expansion_long_vol` prints `NULL` and `CONTRARY`, and `calendar_drift` has no verdict yet. Two more shares-only rules ran after: `vol_managed_spy` prints `NULL`, and `spy_dip_forward` prints P `SUPPORTED`, filed as risk premium, not timing. A third, `sector_momentum`, prints `UNDERPOWERED-BY-DESIGN`**
 ([entry](#2026-11-27--four-mechanical-rules-off-the-picks-none-ships); [two more](#2026-11-28--two-more-shares-only-rules-volatility-scaling-is-null-dips-pay-a-risk-premium)).
 
 **2026-11-27: the full suite re-ran on a repaired book; all 61 studies pass their self-checks, `selection_order` O3 prints an in-sample `CANDIDATE`, and five studies still wait on option legs**
@@ -480,6 +480,48 @@ Limits:
 - The reproductions and the static comparators are exact.
 
 This answers [next-steps item 21](next-steps.md#drawdown-power-check). A drawdown-difference test belongs against a static mix at the rule's own average exposure, as `vol_managed_spy` did with `MIX`: [item 23](next-steps.md#drawdown-vs-static-mix).
+
+### `sector_momentum`: could not see one
+
+Nothing ships. Holding the top three SPDR sectors by 12-1 momentum, rebalanced monthly, did not visibly beat holding all nine in equal weight, and the test could only have seen a large gain. This is a third shares-only rule in this entry, run on 2026-11-28 on closes to 2026-11-25.
+
+The registration is [`sector_momentum.md`](pre-registrations/f1_selection/signal/sector_momentum.md). Both arms are fully invested, so a difference cannot come from holding less. The verdict line reads `>>> sector_momentum HEADLINE (12-1-T3 vs EW-9, pooled 2000-01 to 2026-08, 5 bp): UNDERPOWERED-BY-DESIGN (could not see one: delta80 above REF) <<<`.
+
+| Read | Result |
+|---|---|
+| Pooled excess, 2000-01 to 2026-08 | +0.19% a year, CI [-2.20%, +2.62%], p 0.8676 |
+| Early half, 2000-01 to 2012-12 | -0.75% |
+| Late half, 2013-01 to 2026-08 | +1.08% |
+| Power (`delta80`) | 4.5% a year; planning reference 3.0% |
+| Calibration (bound 0.075) | 0.070, 0.074, 0.056 |
+| PBO | 0.656 |
+
+- The information ratio is +0.026. The test would usually see a gain of 4.5% a year or more. A true size of 1% to 1.5% a year is more plausible, so the result never means "no effect".
+- The calibration gate passed. Two generators sit just under the bound, and at a 12-month block it would refuse (0.086).
+- Alpha against `EW-9` is +0.91% a year (se 1.24%), with beta 0.908.
+- Turnover is 5.38 a year, against 0.31 for the benchmark. At 15 bp a side the excess is -0.32%.
+- Removing one sector-month (`XLE` 2021-02) turns the excess to -0.38%.
+- Years with a positive excess: 11 of 27, against a null base rate of about 0.48.
+- All three 3-1 formation cells read `CONTRARY` on the grid, which grades nothing. `3-1-T3` is at -2.96%, p 0.0280.
+- Every gate passed. The suite adds 27 tests, and 16 one-step code mutations each fail a named test. A clean-tree rerun reproduced every number.
+
+**What it means.** Momentum among nine sectors shows no visible edge over equal weight after costs, and the test could only have seen a large one. It gives no reason to rank sectors by momentum when choosing an underlying. It gives no reason to avoid doing so either.
+
+The forward read covers 2026-12 to 2029-11 and sunsets 2030-11-30. It reads `STILL-OPEN` with 0 of 36 months complete.
+
+This is the first study built on the 2026-11-28 lessons: a fully invested benchmark, no drawdown test, calibration before any real statistic, power printed with a distinct token, PBO on the graded statistic, and required mutation tests.
+
+#### Grading and post-run review
+
+- The two-analyst grading agrees with the verdict on all 21 criteria.
+- An independent review (unregistered) rebuilt every headline figure in plain pandas. They match.
+- It found no lookahead. With no delay the excess is +0.38%, and with a two-session delay it is +0.42%.
+- The test is about one point liberal. The review ran 2,000 null paths at block 6. Its size there is 0.059, give or take 0.005.
+- So the gate did not pass by luck. The module's 0.070 and 0.074 are about one standard error above the true size.
+- Power at the 3.0% reference is about 0.46 to 0.56. The 80% figure of 4.5% a year reproduces.
+- The registered fallback is the wrong way round. A 12-month block makes the test more liberal, not less. A later registration should fall back to a shorter block.
+- The null generators and the power path had no tests. The current code is right, and tests are being added.
+- A one-month-stale signal gives about +1% in both halves. It was not registered and is not evidence.
 
 ### Also done on 2026-11-27 and 2026-11-28
 
