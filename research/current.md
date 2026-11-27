@@ -433,7 +433,7 @@ LIVE-only forward rows, and the `IN-SAMPLE-ONLY` word in place of an in-sample `
 - **Agreed:** every gate and every in-sample word. D's floor is not met, S's floor is met, S
   misses the Holm bar, and no `SUPPORTED` prints in-sample.
 - **Disagreed, unresolved by the validator:** the two forward floors. With zero forward rows,
-  analyst A wrote NOT EVALUABLE and analyst B wrote NOT MET.
+  analyst A wrote `NOT EVALUABLE` and analyst B wrote `NOT MET`.
 - **Ruling:** this is wording only. The registration prints `STILL-OPEN` until a forward
   floor is met, and both readings give that word. No verdict moves.
 - **Defects:** analyst A dropped a colon in one quote and collapsed spacing in two. Analyst B
