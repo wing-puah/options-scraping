@@ -110,6 +110,11 @@ OPT_LEGS = 2
 
 EXIT_INPUT = era_mod.EXIT_ERA_MISMATCH        # 3
 DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
+# Header provenance the runner reads by ast (docs/architecture.md, study module contract).
+HEADER_ERA = "none (market closes and option quotes only)"
+HEADER_INPUTS = ["backtests/multi_asset_trend/*.csv", "backtests/trend_overlay/IRX.csv",
+                 "config/backtest.yml"]
+HEADER_CACHE = [("SPY", "backtests/option_history_cache/SPY_*.csv")]
 
 SQRT12 = math.sqrt(12.0)
 

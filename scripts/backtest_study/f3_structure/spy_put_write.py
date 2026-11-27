@@ -80,6 +80,12 @@ from scripts.backtest_study.lib import ruin_walk as RW  # noqa: E402
 
 # No export is read, so the era refusals never fire; declared as siblings do.
 DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
+# Header provenance the runner reads by ast (docs/architecture.md, study module contract).
+HEADER_ERA = "none (option cache and market closes only)"
+HEADER_INPUTS = ["backtests/mech_regime/spy_base_rate_daily.csv",
+                 "backtests/mech_regime/spy_vix_daily_full.csv", "config/backtest.yml",
+                 "backtests/option_history_cache/_unlisted.jsonl"]
+HEADER_CACHE = [("SPY", "backtests/option_history_cache/SPY_*.csv")]
 
 REGISTRATION = "research/pre-registrations/f3_structure/spy_put_write.md"
 ACCEPTED = "2026-11-27"

@@ -110,6 +110,10 @@ RULE = "=" * 78
 # Exit 2: any era but `current`. Exit 3: GE, GB or GF.
 EXIT_INPUT = era_mod.EXIT_ERA_MISMATCH
 DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
+# Header provenance the runner reads by ast (docs/architecture.md, study module contract).
+HEADER_ERA = "none (market closes and the FOMC calendar only)"
+HEADER_INPUTS = ["backtests/calendar_drift/SPY.csv", "config/fomc-history.yml",
+                 "config/macro-events.yml"]
 
 
 class Refused(Exception):

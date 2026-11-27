@@ -95,6 +95,8 @@ from __future__ import annotations
 import argparse
 import ast
 import csv
+import fnmatch
+import hashlib
 import importlib
 import os
 import subprocess
@@ -378,18 +380,25 @@ def _git(*args: str) -> str:
         return "?"
 
 
-def _input_inventory(era: str) -> list[str]:
+def _count_rows(p: Path) -> int:
+    with p.open(newline="") as fh:
+        # CSV ROWS minus header — never a line count: daily_price_csv
+        # carries embedded newlines that inflate line counts ~4x (the
+        # `wc -l` defect, current.md §2026-08-14 method note).
+        if p.suffix == ".csv":
+            return max(0, sum(1 for _ in csv.reader(fh)) - 1)
+        # A declared non-CSV input (.yml, .jsonl) has no header row.
+        return sum(1 for _ in fh)
+
+
+def _inventory_rows(rels: list[str]) -> list[str]:
     rows = []
-    for rel in _input_csvs(era):
+    for rel in rels:
         p = ROOT / rel
         if not p.exists():
             rows.append(f"  MISSING  {rel}")
             continue
-        with p.open(newline="") as fh:
-            # CSV ROWS minus header — never a line count: daily_price_csv
-            # carries embedded newlines that inflate line counts ~4x (the
-            # `wc -l` defect, current.md §2026-08-14 method note).
-            n = max(0, sum(1 for _ in csv.reader(fh)) - 1)
+        n = _count_rows(p)
         mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
         # Format is load-bearing: `study_charts.report.parse_provenance` matches
         # `\s+([\d,]+) rows\s+(\S+ \S+)\s+(.+)` against these lines, and
@@ -401,6 +410,70 @@ def _input_inventory(era: str) -> list[str]:
         # load time, before a report exists to record it.
         rows.append(f"  {n:>6,} rows  {mtime}  {rel}")
     return rows
+
+
+def _input_inventory(era: str) -> list[str]:
+    return _inventory_rows(_input_csvs(era))
+
+
+def _declared_attr(module_name: str, attr: str):
+    """The literal value of module-level `attr` in study `module_name`, or None.
+
+    Parsed with `ast`, never imported — the same reason and pattern as
+    `_refusal_codes`. Only the optional `HEADER_*` provenance attributes use it
+    (see docs/architecture.md, "Study module contract"). A value that is not a
+    literal reads as undeclared."""
+    path = study_paths().get(module_name)
+    if path is None or not path.exists():
+        return None
+    for node in ast.parse(path.read_text()).body:
+        if (isinstance(node, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id == attr for t in node.targets)):
+            try:
+                return ast.literal_eval(node.value)
+            except (ValueError, TypeError):
+                return None
+    return None
+
+
+def _declared_inputs(rels: list[str]) -> list[str]:
+    """`HEADER_INPUTS` entries with globs expanded (sorted). A glob with no
+    match stays as its pattern, so it prints MISSING rather than vanishing."""
+    out: list[str] = []
+    for rel in rels:
+        if any(c in rel for c in "*?["):
+            hits = sorted(str(p.relative_to(ROOT)) for p in ROOT.glob(rel) if p.is_file())
+            out.extend(hits or [rel])
+        else:
+            out.append(rel)
+    return out
+
+
+def _cache_lines(entries: list) -> list[str]:
+    """One line per `HEADER_CACHE` `(label, glob)` entry: file count, newest
+    mtime and a short hash of the sorted file NAMES (never contents — about
+    16,000 files must stay fast). A grown cache changes the hash, so a rerun
+    that picks different listed strikes is visible in the report."""
+    lines = []
+    for label, rel in entries:
+        parent, _, pat = rel.rpartition("/")
+        names, newest = [], 0.0
+        try:
+            with os.scandir(ROOT / parent) as it:
+                for e in it:
+                    if e.is_file() and fnmatch.fnmatchcase(e.name, pat):
+                        names.append(e.name)
+                        newest = max(newest, e.stat().st_mtime)
+        except OSError:
+            pass
+        if not names:
+            lines.append(f"  cache     {label}  0 files  newest none  names none  {rel}")
+            continue
+        digest = hashlib.sha1("\n".join(sorted(names)).encode()).hexdigest()[:12]
+        stamp = datetime.fromtimestamp(newest).strftime("%Y-%m-%d %H:%M")
+        lines.append(f"  cache     {label}  {len(names):,} files  newest {stamp}  "
+                     f"names {digest}  {rel}")
+    return lines
 
 
 def _era_line(era: str) -> str:
@@ -435,6 +508,16 @@ def _header(name: str, argv: list[str], module: str | None = None,
     arm downstream (the chart layer reads it off this line)."""
     era = era or era_mod.requested_era()
     dirty = "dirty" if _git("status", "--porcelain") else "clean"
+    # Optional study-declared provenance (ast-read, see `_declared_attr`). A
+    # study that declares nothing gets exactly the default header. The era
+    # line's FIRST WORD is the machine-read token (`study_results.era_token`,
+    # `study_charts.parse_provenance`), so a declared text must open with one.
+    stem = module or name
+    h_era = _declared_attr(stem, "HEADER_ERA")
+    h_inputs = _declared_attr(stem, "HEADER_INPUTS")
+    h_cache = _declared_attr(stem, "HEADER_CACHE")
+    inputs = (_inventory_rows(_declared_inputs(list(h_inputs))) if h_inputs
+              else _input_inventory(era))
     lines = [
         "=" * 78,
         f"STUDY: {name}",
@@ -444,9 +527,10 @@ def _header(name: str, argv: list[str], module: str | None = None,
         f"  git       {_git('rev-parse', '--short', 'HEAD')} "
         f"({_git('rev-parse', '--abbrev-ref', 'HEAD')}, working tree {dirty})",
         f"  python    {sys.version.split()[0]}",
-        f"  era       {_era_line(era)}",
+        f"  era       {h_era if h_era else _era_line(era)}",
         "  inputs:",
-        *_input_inventory(era),
+        *inputs,
+        *(_cache_lines(list(h_cache)) if h_cache else []),
         "=" * 78,
         "",
     ]

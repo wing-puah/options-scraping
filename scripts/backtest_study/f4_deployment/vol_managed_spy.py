@@ -113,6 +113,11 @@ ARM_R_WORDS = ("UNDERPOWERED", "PBO-VETO", "ALPHA", "NEGATIVE-ALPHA", "NO-ALPHA"
 
 EXIT_INPUT = era_mod.EXIT_ERA_MISMATCH        # 3
 DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
+# Header provenance the runner reads by ast (docs/architecture.md, study module contract).
+HEADER_ERA = "none (market closes only)"
+HEADER_INPUTS = ["backtests/vol_managed_spy/SPY.csv", "backtests/vol_managed_spy/IRX.csv",
+                 "backtests/vol_managed_spy/GSPC.csv", "backtests/trend_overlay/IRX.csv",
+                 "backtests/trend_overlay/GSPC.csv"]
 
 SQRT12 = math.sqrt(12.0)
 

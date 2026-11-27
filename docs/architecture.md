@@ -539,6 +539,14 @@ in the family folders concluded.
   counts). Flags: `--date`, `--dry-run`, `--cache-only` (no scraping), `--redo` (re-evaluate
   frozen rows), `--all`, `--era`. A designed refusal is PROMOTED to `-latest.txt`; a genuine
   failure DELETES it, so a study never has a report that no longer reproduces.
+  **Header declarations.** A study that reads market closes or the option cache, not the book
+  exports, may declare module-level literals that the runner reads by `ast` (never imports):
+  `HEADER_ERA` (a string replacing the era line; its FIRST WORD is the machine-read era token,
+  e.g. `none (market closes only)`), `HEADER_INPUTS` (repo-relative paths or globs replacing
+  the default input list; a file that is absent prints `MISSING`) and `HEADER_CACHE`
+  (`[("SPY", "backtests/option_history_cache/SPY_*.csv")]`; prints file count, newest mtime and
+  a hash of the sorted file names, so a grown cache shows in the report). A study declaring
+  none of them prints the default header unchanged.
 - `lib/era.py` — **which export era a study runs on.** The single encoding; read its module
   docstring before touching any input path.
 

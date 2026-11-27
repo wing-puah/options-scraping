@@ -743,3 +743,106 @@ def test_prompt_eval_is_the_one_real_bulk_run_false_tool():
     the constant into something `_bulk_run` cannot see fails here."""
     names = study_runner.discover()
     assert [n for n in names if not study_runner._bulk_run(n)] == ["prompt_eval"]
+
+
+# ───────────────────── optional HEADER_* provenance attributes ──────────────────
+#
+# A study may declare HEADER_ERA / HEADER_INPUTS / HEADER_CACHE (read by `ast`,
+# docs/architecture.md "Study module contract"). One that declares nothing gets
+# exactly the default header.
+
+def _header_fixture(tmp_path, monkeypatch, body: str):
+    (tmp_path / "stub.py").write_text(body)
+    monkeypatch.setattr(study_runner, "ROOT", tmp_path)
+    monkeypatch.setattr(study_runner, "study_paths", lambda: {"stub": tmp_path / "stub.py"})
+    monkeypatch.setattr(study_runner, "module_of", lambda n: f"pkg.{n}")
+    monkeypatch.setattr(study_runner, "_git", lambda *a: "abc1234")
+    monkeypatch.setattr(study_runner, "_era_line", lambda e: "v4 (bare exports)")
+    monkeypatch.setattr(study_runner, "_input_csvs", lambda e: ["book.csv", "gone.csv"])
+    (tmp_path / "book.csv").write_text("a,b\n1,2\n3,4\n")
+
+
+def _no_time(text: str) -> list[str]:
+    return [ln for ln in text.splitlines() if "run at" not in ln]
+
+
+def _strip_mtime(lines: list[str]) -> list[str]:
+    import re
+    return [re.sub(r"\d{4}-\d\d-\d\d \d\d:\d\d", "<mtime>", ln) for ln in lines]
+
+
+def test_header_without_declarations_is_the_default(tmp_path, monkeypatch):
+    _header_fixture(tmp_path, monkeypatch, '"""doc."""\nX = 1\n')
+    got = _strip_mtime(_no_time(study_runner._header("stub", ["--x"], era="current")))
+    assert got == ["=" * 78, "STUDY: stub", "=" * 78,
+                   "  command   python -m pkg.stub --x",
+                   "  git       abc1234 (abc1234, working tree dirty)",
+                   f"  python    {__import__('sys').version.split()[0]}",
+                   "  era       v4 (bare exports)", "  inputs:",
+                   "       2 rows  <mtime>  book.csv", "  MISSING  gone.csv",
+                   "=" * 78]
+
+
+def test_declared_era_and_inputs_replace_the_defaults(tmp_path, monkeypatch):
+    _header_fixture(tmp_path, monkeypatch, (
+        'HEADER_ERA = "none (market closes only)"\n'
+        'HEADER_INPUTS = ["px/SPY.csv", "px/absent.csv", "cfg/*.yml", "cfg/nomatch*.yml"]\n'))
+    (tmp_path / "px").mkdir()
+    (tmp_path / "px" / "SPY.csv").write_text("date,close\n1,2\n")
+    (tmp_path / "cfg").mkdir()
+    (tmp_path / "cfg" / "a.yml").write_text("k: 1\nj: 2\n")
+    text = study_runner._header("stub", [], era="current")
+    assert "  era       none (market closes only)" in text
+    assert "v4 (bare exports)" not in text and "book.csv" not in text
+    assert "       1 rows" in text and "px/SPY.csv" in text
+    assert "       2 rows" in text and "cfg/a.yml" in text      # non-csv: line count
+    assert "  MISSING  px/absent.csv" in text
+    assert "  MISSING  cfg/nomatch*.yml" in text                # unmatched glob does not vanish
+
+
+def test_declared_era_keeps_the_machine_read_token(tmp_path, monkeypatch):
+    """`study_results` keys on the era's first word and the fingerprint on the
+    declared inputs; the charts' provenance parser reads the same line."""
+    from scripts import study_results
+    from scripts.study_charts import report as chart_report
+    from scripts.study_map import summary
+    _header_fixture(tmp_path, monkeypatch, (
+        'HEADER_ERA = "none (market closes only)"\nHEADER_INPUTS = ["px/SPY.csv"]\n'))
+    (tmp_path / "px").mkdir()
+    (tmp_path / "px" / "SPY.csv").write_text("date,close\n1,2\n")
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "stub-latest.txt").write_text(
+        study_runner._header("stub", [], era="current") + "body\n")
+    run = summary.summarize("stub", out)
+    assert study_results.era_token(run) == "none"
+    assert [p for _r, _m, p in run.inputs] == ["px/SPY.csv"]
+    key = study_results.section_key(run)
+    assert key.era == "none" and key.inputs != "none"
+    text = (out / "stub-latest.txt").read_text()
+    rep = chart_report.Report(text, out / "stub-latest.txt")
+    assert chart_report.parse_provenance(rep)["era"] == "none"
+
+
+def test_header_cache_prints_count_newest_and_a_stable_name_hash(tmp_path, monkeypatch):
+    _header_fixture(tmp_path, monkeypatch, (
+        'HEADER_CACHE = [("SPY", "cache/SPY_*.csv"), ("QQQ", "cache/QQQ_*.csv")]\n'))
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    for n in ("SPY_1.csv", "SPY_2.csv", "AAPL_1.csv"):
+        (cache / n).write_text("x\n")
+
+    def lines():
+        return [ln for ln in study_runner._header("stub", [], era="current").splitlines()
+                if ln.startswith("  cache")]
+
+    first = lines()
+    assert lines() == first                                   # stable across calls
+    spy, qqq = first
+    assert "SPY  2 files  newest " in spy and "AAPL" not in spy
+    assert "QQQ  0 files  newest none  names none" in qqq     # empty is printed, not crashed
+    h1 = spy.split("names ")[1].split()[0]
+    assert len(h1) == 12
+    (cache / "SPY_3.csv").write_text("x\n")                   # a gained contract
+    grown = lines()[0]
+    assert "3 files" in grown and grown.split("names ")[1].split()[0] != h1

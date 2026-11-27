@@ -105,6 +105,10 @@ GX_SAMPLES = 60
 
 EXIT_INPUT = era_mod.EXIT_ERA_MISMATCH        # 3
 DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
+# Header provenance the runner reads by ast (docs/architecture.md, study module contract).
+HEADER_ERA = "none (market closes only)"
+HEADER_INPUTS = ["backtests/trend_overlay/GSPC.csv", "backtests/trend_overlay/SPY.csv",
+                 "backtests/trend_overlay/IRX.csv"]
 
 
 class Refused(Exception):

@@ -142,6 +142,11 @@ RULE = "=" * 78
 # Exit 2: any era but `current`. Exit 3: GE, GB, GM, GS, GI or GX.
 EXIT_INPUT = era_mod.EXIT_ERA_MISMATCH
 DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
+# Header provenance the runner reads by ast (docs/architecture.md, study module contract).
+HEADER_ERA = "none (market closes only)"
+HEADER_INPUTS = ["backtests/spy_dip_forward/SPY.csv", "backtests/spy_dip_forward/IRX.csv",
+                 "backtests/trend_overlay/IRX.csv", "backtests/mech_regime/spy_vix_daily_full.csv",
+                 "backtests/mech_regime/spy_base_rate_daily.csv"]
 
 
 class Refused(Exception):

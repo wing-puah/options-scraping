@@ -87,6 +87,13 @@ ACCEPTED = "2026-11-27"
 
 #: GE (inputs) exits 3; GL (label agreement) exits 2. Both are designed refusals.
 DESIGNED_REFUSAL_EXIT_CODES = {2, 3}
+# Header provenance the runner reads by ast (docs/architecture.md, study module contract).
+HEADER_ERA = "none (option cache and market closes only)"
+HEADER_INPUTS = ["backtests/mech_regime/spy_base_rate_daily.csv",
+                 "backtests/mech_regime/spy_vix_daily_full.csv", "backtests/state_map/SPY.csv",
+                 "backtests/regime_watch/history.csv", "backtests/regime_watch/backfilled.csv",
+                 "backtests/option_history_cache/_unlisted.jsonl"]
+HEADER_CACHE = [("SPY", "backtests/option_history_cache/SPY_*.csv")]
 EXIT_GL, EXIT_GE = 2, 3
 
 # ── registered constants (the registration's numbers; never re-chosen) ──────
