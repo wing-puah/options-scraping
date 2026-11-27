@@ -1,6 +1,7 @@
 ## spy_put_write — does a weekly SPY put credit spread pay beyond its SPY beta?
 
 <!-- outcome:start -->
+> Latest outcome: not yet run.
 <!-- outcome:end -->
 
 _Registered 2026-11-27._
@@ -30,12 +31,13 @@ parts apart. `ARM H` can.
 **The literature.**
 
 - Whaley (2002) measured the CBOE BXM buy-write index. It writes a one-month,
-  near-the-money call each month and holds it to expiry. By put-call parity, a
+  at-the-money call each month and holds it to expiry. By put-call parity, a
   covered call and a cash-secured put hold the same payoff, so BXM is the
   put-write's reference.
 - Israelov and Nielsen (2015) split a covered call's return into three parts:
-  equity beta, short volatility, and an equity-timing part. The short-vol part
-  earned a premium. The equity part carried most of the risk. This study
+  equity exposure, short volatility, and an "equity reversal" part. The
+  short-vol part earned a premium. The equity part carried most of the risk.
+  The reversal part added risk with little return. This study
   copies that split: `ARM H` removes the beta and grades what is left.
 
 **Why now.** The operator asked on 2026-11-27 for a test of the textbook
@@ -46,14 +48,18 @@ it. See [How this differs from index_vrp](#how-this-differs-from-index_vrp).
 
 [`index_vrp`](index_vrp.md) sold a monthly SPY iron condor at 0.16 delta. It
 graded one thing: whether the condor lost on the deployed book's worst days.
-It said plainly that it was not a profitability test, and it fitted no beta.
+It said plainly that it was not a profitability test, and it fitted no beta to
+the condor's return.
 This study sells a put spread only, so it is directional. It enters weekly,
 picks strikes by moneyness, and grades net R against zero and against SPY's
 beta. It reads no book. The log recorded "Short index vol is closed for this
 book: it neither pays on these quotes nor hedges the book's worst days"
 ([current.md](../../current.md#2026-10-12--index_vrp-a-short-spy-condor-shares-the-books-bad-months-not-its-bad-days)).
 This registration re-opens only the "pays" half, under a new question: the beta
-split. The operator approved that on 2026-11-27.
+split. That half rested on agent-trading's model-priced rejections and on the
+condor's flat P&L, which `index_vrp` printed as a caveat, not as a graded
+profit test. The operator approved
+the re-opening on 2026-11-27.
 
 ## What this study is not
 
@@ -114,12 +120,20 @@ to have no other writer running: no backtest, no journal, no other
 ### Signal dates and window
 
 - **Signal dates.** The first session of each ISO week in the SPY close table.
-- **In-sample window.** From the first to the last signal date whose primary
-  trade has both legs cached. The build prints both dates. No date is hardcoded
+- **In-sample window.** It starts at the first signal date whose planned
+  expiry is on or after the first cached SPY monthly. It ends at the last
+  signal date before 2026-11-27 whose planned expiry is on or before the last
+  cached SPY put quote date. The build prints both dates. No date is hardcoded
   here.
-- **In-sample end.** Signal dates before 2026-11-27 whose trade exits on or
-  before the last cached quote date. A trade still open at that date is
-  excluded and counted.
+- **One window for every cell.** The planned expiry, not the exit, sets the
+  window, so all twelve cells share the same signal weeks. A signal week with
+  a later planned expiry is excluded and counted.
+
+_Resolved at draft (2026-11-27):_ both ends come from the calendar and the
+cache's date range only. Ending the window on the last week with both legs
+cached would drop uncached weeks from the coverage count. Ending it on each
+trade's exit would keep a target trade that closed early and drop one still
+open, so the outcome would choose the sample.
 - **The market in the window.** The cache starts with 2022 monthly expiries.
   The window therefore holds the 2022 bear market at its start, then a mostly
   rising SPY. In effect it is one bull tape. A positive `ARM Z` without a
@@ -147,8 +161,9 @@ day moves later and leaves fewer than 21 DTE, the trade is refused and counted.
 
 ### Strikes
 
-Spot is `mechanical_benchmark.UniverseSpot` on D: the median `Price~` of cached
-SPY calls that day. Every strike is chosen on D.
+Spot is `mechanical_benchmark.UniverseSpot` on D: the median `Price~` of up to
+five cached SPY calls on D's own rows. Every strike is chosen from D's close,
+never from the fill day's.
 
 | Parameter | Values | Target strike |
 |---|---|---|
@@ -158,10 +173,21 @@ SPY calls that day. Every strike is chosen on D.
 - **The grid.** Each target maps to the nearest strike that is a multiple of $5.
   Ties go to the lower strike.
 - **Walk.** If that strike is skip-listed, the walk steps to the next nearest
-  $5 multiple. A cached strike counts only when it has a row on or before D
-  (`listed_by`).
+  $5 multiple, ties to the lower. A cached strike counts only when it has a row
+  on or before D (`listed_by`). A cached file with no row by D counts as not
+  cached.
 - **Uncached.** If the nearest $5 strike is neither cached nor skip-listed, the
   trade is `UNCACHED`. It is never built on the next cached strike.
+- **Selection print.** SPY's close table covers every signal week, cached or
+  not. For the primary cell the census prints, per year, built against not
+  built: SPY's return from fill day to expiry, and the spread's intrinsic at
+  expiry on the target strikes, in dollars. It carries no verdict. It shows
+  whether the cache's holes sit on calm or violent weeks.
+
+_Resolved at draft (2026-11-27):_ the cache was fetched for past plays and
+other studies, not for this rule, so its holes need not be random. Some
+studies fetched puts around sell-offs. The coverage floors bound how many weeks
+can be missing. The selection print shows which kind are missing.
 - **Collision.** If `K_l` equals `K_s`, the trade is dropped and counted.
 
 _Resolved at draft (2026-11-27):_ "nearest listed" is read as the nearest $5
@@ -193,8 +219,10 @@ history choose the strike.
   one-lot round trip. R is net of commission. Gross prints beside it.
 
 _Resolved at draft (2026-11-27):_ commission is charged at exit on both legs
-even when the spread settles at expiry. Exercise and assignment fees are not
-modelled. Early assignment of the short put is not modelled either.
+even when the spread settles at expiry. Production's `_apply_costs` charges
+both sides on every row, so this matches it. A spread that expires worthless
+pays no exit commission in practice, so the charge errs against the rule.
+Exercise and assignment fees are not modelled. Early assignment of the short put is not modelled either.
 
 ### Exits
 
@@ -208,8 +236,10 @@ modelled. Early assignment of the short put is not modelled either.
 - **Daily marks.** Each leg marks at its closing mid when the quote is two-sided
   and not junk. A junk leg marks by `junk_day_mark`. The spread's mark is
   clamped to the range from 0 to the width.
-- **Target fill.** The target is checked on session t's closing mark. The close
-  fills at session t+1's closing mark, on the same rule as the entry.
+- **Target fill.** The target is checked on each session's closing mark from
+  the session after the fill day. When it fires on session t, the close fills
+  at session t+1's daily mark, as defined above. The entry's junk rules do not
+  apply at exit.
 - **21-DTE fill.** That date is known in advance. The close fills at the
   closing mark of the first session with DTE of 21 or less.
 
@@ -301,37 +331,57 @@ The primary was chosen before any cell was priced.
 
 ### `ARM Z` — net R against zero
 
-- **Statistic.** The mean net R per trade over the in-sample primary trades.
-- **Interval.** A stationary block bootstrap over entry weeks
-  (`lib/ruin_walk.py::stationary_indices`), mean block 8 weeks, 10,000 draws,
-  seed 20261127. CI95 by percentile. Blocks of 4 and 12 weeks print beside it.
-- **Why 8 weeks.** The longest hold is about 52 days, under 8 weeks. Trades
-  entered within one block overlap, so a block keeps them together.
+- **Unit.** One monthly expiry cycle: the mean net R of the in-sample primary
+  trades that share one expiry. The forward read uses the same unit.
+- **Statistic.** The mean of the cycle means.
+- **Interval.** A stationary block bootstrap over the ordered cycles
+  (`lib/ruin_walk.py::stationary_indices`), mean block 3 cycles, 10,000 draws,
+  seed 20261127. CI95 by percentile. Blocks of 2 and 4 cycles print beside it.
+- **Why cycles, and why 3.** Four or five weekly trades share one expiry and
+  most of one path, so they are one bet, not five. Trades on neighbouring
+  expiries also overlap for weeks. A block of 3 cycles, about three months,
+  keeps them together and matches `ARM H`'s month blocks.
+- **Printed beside it, no verdict.** The mean net R per trade, with a
+  stationary bootstrap over signal weeks, mean block 8 weeks.
 
-_Resolved at draft (2026-11-27):_ the bootstrap resamples the ordered sequence
-of signal weeks. A week with no built trade is kept as an empty slot. Each draw
-takes the mean R of the trades it holds.
+_Resolved at draft (2026-11-27):_ a cycle with no priced trade is kept as an
+empty slot in the ordered sequence. Each draw takes the mean of the non-empty
+cycle means it holds. One unit for both reads keeps the in-sample and forward
+grades on the same footing; a per-trade CI would be narrower than the data
+supports.
 
 ### `ARM H` — Jensen alpha against SPY shares
 
 - **The account.** Every in-sample primary trade at one lot, with no cap.
-  Marked to market at each session's close, net of commission at exit.
-- **Monthly return.** Month P&L over a reference capital of $25,000. The
-  capital scales alpha but not its sign or its interval's sign.
+- **Marks.** Mark-to-market on `mtm_curve.book_curves`, net of each position's
+  commission at its exit. Each trade enters it through `mtm_sessions` and
+  `mtm_dollars`: its cumulative dollar P&L at each session's daily mark, as
+  defined under Exits, from the fill day to the exit. A held trade's last value
+  is its settlement intrinsic.
+- **Monthly return.** The book's equity level at the month's last session,
+  minus its level at the previous month's last session, over a fixed reference
+  capital of $25,000 (`account_sim`'s capital). Nothing compounds. A month with
+  no open position returns 0. The capital scales alpha but not its sign or its
+  interval's sign.
 - **Regression.** Monthly account return on SPY's monthly price return, from
   month-end closes in the SPY close table. The intercept is the alpha. The slope
   is the beta, and beta-matched SPY shares are the comparator it defines.
 - **Interval.** `stationary_indices` over months, mean block 3 months, 10,000
   draws, seed 20261127. CI95 by percentile.
-- **Months.** From the first full month after the first fill to the month of
-  the last in-sample exit.
+- **Months.** From the first full month after the first fill to the last full
+  calendar month that ends on or before the last in-sample exit.
+
+_Resolved at draft (2026-11-27):_ the account copies `mechanical_baseline`'s
+`ARM H` basis: one contract, no cap, `book_curves` mark-to-market, commission
+at exit, reference capital, three-month blocks. A partial last month is cut,
+because SPY's return for it would span days the account did not.
 
 _Resolved at draft (2026-11-27):_ returns are raw, with no risk-free rate. No
 dividend series is on disk, so SPY's return leaves out its dividend. This
 follows `mechanical_baseline`'s build ruling.
 
 _Resolved at draft (2026-11-27):_ the regression fits one static beta. The
-equity-timing part that Israelov and Nielsen isolate is not removed. It falls
+equity reversal part that Israelov and Nielsen isolate is not removed. It falls
 into the residual and the alpha.
 
 Printed with `ARM H`: the beta, its CI95, and the beta-matched SPY line's
@@ -351,11 +401,11 @@ same way. None of these carries a verdict.
 
 - **C1 SIGN.** The CI95 excludes zero.
 - **C2 LEAVE-ONE-YEAR-OUT.** Dropping any one calendar year keeps the mean's
-  sign. For `ARM Z` a trade's year is its signal date's year. For `ARM H` the
-  fold is that year's months.
+  sign. For `ARM Z` a cycle's year is its expiry's year. For `ARM H` the fold
+  is that year's months.
 - **C3 STRESS WINDOWS.** The mean keeps its sign with each window below removed.
-  For `ARM Z` a trade is removed when its hold overlaps the window. For `ARM H`
-  the window's months are removed.
+  For `ARM Z` a cycle is removed when any of its trades' holds overlaps the
+  window. For `ARM H` the window's months are removed.
 
 | Window | Dates |
 |---|---|
@@ -365,13 +415,21 @@ same way. None of these carries a verdict.
 | W4 Feb–Apr 2026 | 2026-02-01 → 2026-04-30 |
 
 _Resolved at draft (2026-11-27):_ the stress windows are `index_vrp`'s. C2
-folds by year, not by date. With about 240 weekly trades, one date cannot move
-the mean, so a date fold tests nothing.
+folds by year, not by date or cycle. With about 240 weekly trades on about 55
+cycles, one date or one cycle rarely moves the mean, so a finer fold tests
+little.
 
 - **C4 OVERFITTING.** [PBO by CSCV](#references) across the twelve cells
-  (`lib/pbo.py::cscv`, S = 16). Rows are the in-sample ISO weeks. Each cell's
-  value in a week is its mean net R of trades entered that week, empty when it
-  has none. The head is padded with `pad_head` so 16 blocks divide it.
+  (`lib/pbo.py::cscv`, S = 16). Rows are the in-sample signal weeks, in order,
+  the same rows for every cell. Each cell holds two channels per week: its
+  trade's net R and a count of 1, or 0 and 0 when that week has no priced
+  trade. The metric is `ratio_metric`, the mean net R per trade over the rows
+  given. The head is padded with `pad_head` so 16 blocks divide it.
+
+_Resolved at draft (2026-11-27):_ `cscv` refuses an empty value, so an empty
+week is the zero row of both channels, not a gap. A pad row is true for the
+same reason: no cell had a trade before the first signal week. A cell with no
+trade in a whole half ranks worst there.
 
 _Resolved at draft (2026-11-27):_ PBO is computed only over cells with at
 least 60 priced trades. It needs at least six such cells, the primary among
@@ -386,8 +444,9 @@ them. Otherwise it is "not computable".
    at least 75% of all signal weeks in the window, and at least 50% in every
    calendar year.
 2. **C0b POWER.** Once priced, the primary cell needs at least 120 priced
-   trades for `ARM Z` and at least 24 months for `ARM H`. Entry refusals count
-   against it.
+   trades on at least 24 cycles for `ARM Z`, and at least 24 months for
+   `ARM H`. Entry refusals count against it. The 24 cycles and 24 months are
+   the independent units; 120 trades is not.
 3. **No model price.** Any leg priced by a model raises and stops the run.
 4. **No lookahead.** Spot, expiry and strikes come from D's rows or earlier.
    The fill reads the fill day's close only. Each mark reads its own day. The
@@ -438,7 +497,8 @@ prints.
 
 - `BETA-ONLY` prints the `ARM H` token beside it, so `NEGATIVE-ALPHA` stays
   visible.
-- `NULL` names the first criterion that failed.
+- `NULL` names the first criterion that failed, and prints the `ARM H` token
+  beside it.
 - The other eleven cells print their own `ARM Z` and `ARM H` tokens, labelled
   descriptive. They carry no verdict.
 
@@ -447,8 +507,8 @@ prints.
 The forward read is the grade of record for anything that would trade.
 
 - **Dates.** Signal weeks from 2026-11-27 on, primary cell.
-- **Unit.** Mean net R per monthly expiry cycle: the mean of the weekly trades
-  that share one expiry.
+- **Unit.** Mean net R per monthly expiry cycle, as in `ARM Z`. A forward cycle
+  holds only forward trades.
 - **Statistic.** A [confidence sequence](../../glossary.md#confidence-sequence)
   on that unit, with `refuse_floor_forward`'s constants imported.
 - **Floor.** 30 forward signal weeks with a closed trade, about seven cycles.
@@ -456,7 +516,6 @@ The forward read is the grade of record for anything that would trade.
   `FORWARD-HOLDS` when it clears zero above; `FORWARD-FAILS` when it clears
   zero below.
 - Forward trades are priced only from quotes the cache holds when the read runs.
-
 _Resolved at draft (2026-11-27):_ the unit is one cycle, not one trade. Weekly
 trades on one expiry share most of their path, so a per-trade sequence would
 count one bet four or five times. At seven cycles the sequence is unlikely to
@@ -470,7 +529,8 @@ clear zero. The read is expected to stay `STILL-OPEN` for well over a year.
   own registration and needs a PBO of 0.50 or less here.
 - No strike may be moved onto a cached $1 strike to raise coverage.
 - No stress window or year may be dropped from the window because it lost.
-- `ARM Z` may not be quoted without `ARM H` and the drop census beside it.
+- `ARM Z` may not be quoted without `ARM H`, the drop census and the selection
+  print beside it.
 
 ## What could ship
 
