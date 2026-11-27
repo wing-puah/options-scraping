@@ -508,6 +508,33 @@ Post-hoc and unregistered: a read-only census, no study was run and nothing was 
 
 The operator rules; nothing was changed. See next-steps item 22.
 
+### Capped exit marks and the live candidates: `selection_order` O3 does not survive
+
+Capping exit marks to the closing quote changes one live token on the v4 book: `selection_order` O3 stops being a candidate. `emission_timing` ARM L and the `regime_map` tallies keep their tokens. Post-hoc and unregistered: each study was recomputed twice, and all three reproduced their 2026-11-27 reports byte for byte before any cap. Cap (a) caps only the recorded exit day's mark. Cap (b) caps every daily mark and replays the exits.
+
+| Verdict | Recorded | (a) exit day | (b) every mark | Token under the cap |
+|---|---|---|---|---|
+| `selection_order` O3 paired gain | +0.0744 [+0.0018, +0.1516] | +0.0660 [-0.0081, +0.1452] | +0.0718 [-0.0029, +0.1510] | Fails c1 and c7: `ORDERING-IS-NOISE` |
+| O4 band 95th percentile | +0.0696 (O3 at 98th) | +0.0731 (94th) | +0.0748 (94th) | Moves with it |
+| `emission_timing` L1 minus L0, pooled | -0.0449 [-0.0862, -0.0113] | -0.0420 [-0.0833, -0.0082] | -0.0439 [-0.0851, -0.0104] | Holds: `STALE-ENTRY-PENALTY (CANDIDATE, NOT A SHIP)` |
+| `regime_map` dip cell, A x below-SMA, q | 0.054 | 0.058 | 0.058 | `NULL`, further from passing |
+| `regime_map` A x BEAR, q | 0.044 | 0.046 | 0.046 | `POSITIVE` holds |
+| `regime_map` B x C-VOL, q | 0.028 | 0.037 | 0.019 | `POSITIVE` holds |
+
+- O3's criteria c2 to c6 pass under all three runs.
+- `emission_timing`: the tercile cells that carry the candidate mark change (T1 L3 drops out, T2 L1 comes in).
+- `regime_map`: tallies are unchanged under both caps, and the same 8 Tier C cells stay NEGATIVE. The tally stays POSITIVE 2 and NEGATIVE 8. NULL stays 37 and THIN 29.
+- `regime_map`: on the printed-not-graded gross basis the dip cell loses its `REPLICATED` mark (q 0.044 to 0.053).
+
+**The row that moves O3.** NVDA 2024-11-26 `bull_call_spread` exited on a day-16 `stop_loss`, set off by a short-leg last print of 34.80 above a closing quote of 30.40/33.65. Capped, it stays open to day 86 and earns +0.680 R. The longer hold changes which later trades the delta cap admits, and O3 swaps MSTR 2025-01-16 for TSM 2025-01-22. The candidate rested on an interval floor of +0.0018, and one exit mark removes it.
+
+- `focus_list` (`FOCUS-BEATS-CARD`) was not recomputed. Its stored report ran 2026-11-26, before the 11-27 re-price, and it was not in the 11-27 suite's re-run set (see that entry). Today's exports give +0.1199, on 193 dates and 318 positions. The report has +0.126, on 190 dates and 310 positions.
+- `bear_position_study` (`NO ACTION`) was bounded by arithmetic, not run. Capping cannot make DEMOTE fire: the late half is +0.110 on about 400 rows, and capping moves it by about 0.014 per row at most.
+- Not checked: `text_features` (3 in-sample candidates picked from many), `hedge_timing` (zero survivors), and `ruin_bound`, whose N250-F2 G-C is a near tie that could flip. `ruin_bound` is the next one to check.
+- No graded v4 A/B-versus-C tier contrast exists (`v4_bridge` prints `LADDER UNVALIDATED`), so the Tier C cells in `regime_map` stand in as the tier-gate evidence on v4.
+
+These are unregistered sensitivities. The registered verdicts stand. O3 should bear no weight until the exit-mark rule is ruled on (next-steps item 22).
+
 ## 2026-11-27 — four mechanical rules off the picks: none ships
 
 Nothing ships. Two rules have a verdict and neither clears its bar. Two have no

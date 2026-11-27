@@ -282,7 +282,7 @@ ships, and the thread reopens only on genuinely new dates
 | Study | Verdict | Why | Plan |
 |---|---|---|---|
 | [`account_sim`](study-results/f4_deployment/account_sim.md) | **NOT FEASIBLE AT $25,000 — BLOWUP RISK** | the edge survives the caps and the drawdown does not; feasibility only, nothing ships | [plan](pre-registrations/f4_deployment/account_sim.md) |
-| [`selection_order`](study-results/f4_deployment/selection_order.md) | **ORDERING-MATTERS** on 2026-11-27, where 2026-09-28 read ORDERING-IS-NOISE | O3 is an in-sample candidate that queues an independent-window confirmation; nothing ships | [plan](pre-registrations/f4_deployment/selection_order.md) |
+| [`selection_order`](study-results/f4_deployment/selection_order.md) | **ORDERING-MATTERS** on 2026-11-27, where 2026-09-28 read ORDERING-IS-NOISE | O3 is an in-sample candidate that queues an independent-window confirmation, but with exit marks capped to the closing quote it fails c1 and c7 (unregistered sensitivity, 2026-11-28); nothing ships | [plan](pre-registrations/f4_deployment/selection_order.md) |
 | [`concurrency_correlation`](study-results/f4_deployment/concurrency_correlation.md) | **RESTATEMENT**, where 2026-09-04 read NOISE | one arm now clears the gain and noise criteria, then loses under the delta control, so it restates `portfolio_delta` | [plan](pre-registrations/f4_deployment/concurrency_correlation.md) |
 | [`portfolio_delta`](study-results/f4_deployment/portfolio_delta.md) | **NOISE**; the candidate is gone | the 1.00× ceiling lost criterion 1 alone when its gain halved on a larger dense-episode population | [plan](pre-registrations/f4_deployment/portfolio_delta.md) |
 

@@ -556,6 +556,11 @@ Decisions owed. None of these is a study.
     R or less. About 3% of rows would change exit day or reason. It is immaterial for headline
     means and material for single-row reads.
 
+    The cap changes one live token (`selection_order` O3,
+    via one NVDA stop), and leaves `emission_timing` ARM L and the `regime_map` tallies in place; so
+    the ruling matters for candidates resting on thin margins, not for the tier means. The next
+    candidate to check is `ruin_bound` N250-F2 G-C.
+
     The operator rules: keep the rule, cap exit and path marks to the closing quote, or move to a
     relative-width junk test. Any change needs a re-price (`--redo`) of the v4 book and a suite
     re-run. Evidence:
