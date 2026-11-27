@@ -1302,7 +1302,8 @@ STUDIES: dict[str, Study] = {
                 "0.0102`; gain vs calm weeks -0.039 CI95 [-0.069, -0.008], Holm p 0.0456. "
                 "`PBO 0.572  (bars promotion)`. `FORWARD (onsets from 2026-11-27): ARM S "
                 "STILL-OPEN ARM BC STILL-OPEN ARM BP STILL-OPEN`, with no onset yet. `Nothing "
-                "ships from this study.`",
+                "ships from this study.` Post-run review (unregistered): ARM BP is CONTRARY as "
+                "registered, NULL when two off-clock exit marks are kept inside the closing quote.",
     ),
 
     # ④ deployment

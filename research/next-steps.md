@@ -448,7 +448,8 @@ Decisions owed. None of these is a study.
     [`vol_expansion_long_vol`](pre-registrations/f3_structure/vol_expansion_long_vol.md),
     accepted on the defaults below. RUN 2026-11-27 on in-sample onsets
     2022-03-01 to 2026-09-22: `ARM S` `NULL`, `ARM BC` `NULL`, `ARM BP`
-    `CONTRARY` (`meanR -0.043 CI95 [-0.072, -0.015]`), PBO 0.572. Forward is
+    `CONTRARY` as registered (`meanR -0.043 CI95 [-0.072, -0.015]`; `NULL` when two
+    off-clock exit marks are kept inside the closing quote, post-run review), PBO 0.572. Forward is
     `STILL-OPEN` with no onset yet. Nothing ships
     ([entry](current.md#2026-11-27--four-mechanical-rules-off-the-picks-none-ships)).**
     The text below is the 2026-11-06 proposal, kept as written. The question is
@@ -545,6 +546,18 @@ Decisions owed. None of these is a study.
     thresholds, so the test may be unable to pass. Evidence:
     [`current.md`](current.md#2026-11-28--two-more-shares-only-rules-volatility-scaling-is-null-dips-pay-a-risk-premium)
     (post-run review under `vol_managed_spy`). Their printed verdicts stand until this is checked.
+
+<a id="exit-mark-clock"></a>
+22. **OPEN 2026-11-28 — check the exit-side junk-quote mark for two clocks in one exit.** The shared
+    rule in `scripts/backtest/simulate.py` (`junk_day_mark`) marks a junk-wide exit leg at that
+    day's `Latest`, even outside the closing bid and ask. The other leg can sit at its closing mid.
+    Check how many closed rows in the main book exit on a `Latest` outside that day's closing quote.
+    Then the operator rules on whether exit marks should be capped to the closing quote; that needs
+    a re-price. Evidence:
+    [`current.md`](current.md#2026-11-27--four-mechanical-rules-off-the-picks-none-ships)
+    (post-run review under `vol_expansion_long_vol`). The test
+    `test_known_limitation_exit_marks_a_junk_wide_quote_at_latest_outside_bid_ask` pins today's behaviour.
+    Also: the study await gates should check that a cached file reaches the fill and exit dates.
 
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14

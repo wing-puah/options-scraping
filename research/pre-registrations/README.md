@@ -240,7 +240,7 @@ controls, cells and descriptive cuts under the same letters.
 | [`structure_sweep.md`](f3_structure/structure_sweep.md) | Would another option structure on the same 2026 plays have done better? | registered · accepted by default | not yet run — 2026-10-22 |
 | [`daily_vol_structure.md`](f3_structure/daily_vol_structure.md) | Do daily straddles and 1x2 ratios on QQQ and SMH pay, and do results move with volume or price? | registered · accepted by default | not yet run — 2026-11-06 |
 | [`spy_put_write.md`](f3_structure/spy_put_write.md) | Does a weekly SPY put credit spread pay above zero and beyond its SPY beta? | registered · accepted by default | not yet run — 2026-11-27 |
-| [`vol_expansion_long_vol.md`](f3_structure/vol_expansion_long_vol.md) | Do SPY straddles and 1x2 backspreads pay after an `E-VOL` onset, and more than in calm weeks? | registered · accepted by default | straddle `NULL`, call backspread `NULL`, put backspread `CONTRARY`; in-sample onsets 2022-03-01 to 2026-09-22; first run 2026-11-27 |
+| [`vol_expansion_long_vol.md`](f3_structure/vol_expansion_long_vol.md) | Do SPY straddles and 1x2 backspreads pay after an `E-VOL` onset, and more than in calm weeks? | registered · accepted by default | straddle `NULL`, call backspread `NULL`, put backspread `CONTRARY` as registered, `NULL` with two off-clock exit marks inside the closing quote (post-run review); in-sample onsets 2022-03-01 to 2026-09-22; first run 2026-11-27 |
 
 ## ④ Deployment — `f4_deployment/`
 

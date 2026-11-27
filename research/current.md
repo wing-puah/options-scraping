@@ -458,7 +458,7 @@ registration passed a fresh second reader before any outcome existed.
 | [`multi_asset_trend`](study-results/f4_deployment/multi_asset_trend.md) | monthly 12-month trend on nine ETFs | `PBO-VETO` |
 | [`spy_put_write`](study-results/f3_structure/spy_put_write.md) | weekly SPY put credit spread | `NULL`, `ARM H` `NO-ALPHA` |
 | [`calendar_drift`](study-results/f1_selection/signal/calendar_drift.md) | pre-FOMC day and turn of the month on SPY | none: refused at `GE` |
-| [`vol_expansion_long_vol`](study-results/f3_structure/vol_expansion_long_vol.md) | SPY straddle and 1x2 after an `E-VOL` onset | `NULL` straddle and call backspread, `CONTRARY` put backspread |
+| [`vol_expansion_long_vol`](study-results/f3_structure/vol_expansion_long_vol.md) | SPY straddle and 1x2 after an `E-VOL` onset | `NULL` straddle and call backspread, `CONTRARY` put backspread (`NULL` with two exit marks inside the closing quote) |
 
 ### Why these four
 
@@ -521,7 +521,7 @@ December session keeps one more day in the `TOM` sample.
 `config/fomc-history.yml` holds 234 scheduled decision days from 1994 to 2023-05.
 It was committed before any price was downloaded. 2020 is the one year with seven.
 
-### `vol_expansion_long_vol`: the put backspread lost, the other two are noise
+### `vol_expansion_long_vol`: the put backspread's loss rests on two exit marks; the other two are noise
 
 The long straddle and the call backspread print `NULL`. The put backspread prints `CONTRARY`: it lost money after a SPY `E-VOL` onset. Nothing ships.
 
@@ -542,6 +542,33 @@ The window is in-sample onset dates 2022-03-01 to 2026-09-22: 28 onsets and 175 
 - The backspread result says nothing about tail loss beyond five sessions or about margin.
 
 This closes next-steps item 18 as run. Only the forward read remains.
+
+#### Post-run review (unregistered)
+
+The put backspread's `CONTRARY` rests on two off-clock exit marks. It reads `NULL` when they are kept inside the closing quote. The registered word `CONTRARY` stays the verdict of record, and it must not be cited without this line. Any revisit is a new registration.
+
+An independent review re-priced all 608 headline trades (84 onset, 524 calm) from the raw cache files with separate code. There were 0 mismatches, and the statistics and PBO 0.5723 reproduce. Calm weeks are defined looking back only, so there is no lookahead.
+
+Two `ARM BP` exit marks are intraday `Latest` prints outside that day's closing bid and ask. Both sit on legs whose quote was wider than the junk rule's $2 cap. The trade's other leg was marked at its closing mid, so one exit mixes two clocks. Both marks go against `ARM BP`.
+
+- Onset 2025-03-31, exit 2025-04-08: the long 533 put was marked at 34.00. The closing bid was 41.18, and 34.00 is below intrinsic.
+- Onset 2025-02-24, exit 2025-03-04: the short 594 put was marked at 21.00. The closing ask was 19.87.
+
+| `ARM BP` exit mark | meanR | CI95 | Verdict |
+|---|---|---|---|
+| As run | -0.043 | [-0.072, -0.015] | `CONTRARY` |
+| `Latest` kept inside bid and ask | -0.022 | [-0.067, +0.046] | `NULL` |
+| Liquidation side | -0.022 | [-0.067, +0.046] | `NULL` |
+| Closing mid | -0.014 | [-0.064, +0.068] | `NULL` |
+
+- Under the bid and ask cap the gain against calm weeks is -0.018, Holm p 1.0.
+- `ARM S` and `ARM BC` stay `NULL` under every mark.
+- `ARM BP` lost on 21 of 28 onsets, about $103 a unit over five sessions. That is about 10% of the short put's premium. Calm weeks averaged about $12.5.
+- Twenty-eight calm entries have an `E-VOL` day inside their hold. This understates the `ARM S` and `ARM BC` gains by about 0.012 and 0.028. It does not create `ARM BP`'s result: against truly calm weeks its gain is -0.045, not -0.039.
+- One calm `ARM BP` entry (2026-07-06) dropped as `no_entry_quote`. Its cache file `SPY_20260821_710.00P.csv` ends 2026-06-12. The await gate does not check that a file reaches the fill and exit dates, so "fetch plan 0" does not prove full coverage. One trade of 175 is affected.
+- `backtests/study_output/vol_expansion_long_vol-latest.txt` predates the print-order change. Its numbers are unaffected.
+
+The off-clock exit mark comes from the shared junk-quote rule in `scripts/backtest/simulate.py`. The entry side already rejects a `Latest` that does not share a clock with the other legs. The exit side does not. Deep in-the-money legs on big-move days are wide, so the main backtest book's exit marks may carry the same two-clock marks. The book was not checked. Changing the rule is the operator's call and needs a re-price: next-steps item 22.
 
 ### What this adds to the programme's picture
 

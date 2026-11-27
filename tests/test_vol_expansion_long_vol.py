@@ -529,3 +529,33 @@ def test_outcomes_run_end_to_end_on_synthetic_quotes(tmp_path, monkeypatch, caps
     assert ip > ic
     # 12 onsets and fewer than 60 calm weeks: every arm is UNDERPOWERED
     assert out.count(f": {V.UNDERPOWERED} — ") == 3
+
+
+# ── pinned current behaviour (post-run review, unregistered) ─────────────────
+
+def test_known_limitation_exit_marks_a_junk_wide_quote_at_latest_outside_bid_ask():
+    """PINNED, KNOWN LIMITATION (next-steps item 22). Current behaviour, not a goal.
+
+    On a junk-wide exit quote that traded, the exit mark is that day's `Latest`
+    even when `Latest` lies outside the closing [bid, ask]. The other leg of the
+    same trade is marked at its closing mid, so one exit mixes two clocks. The
+    `vol_expansion_long_vol` `ARM BP` `CONTRARY` verdict rests on two such marks.
+    Changing the rule is the operator's call and needs a re-price."""
+    leg = Leg(1, "SPY", EXP, 500.0, "Put")
+    good = row(20.0, 20.2)
+    wide = row(41.0, 45.0, latest=34.0, volume=7)       # width 4 > the junk cap; Latest < bid
+    ch = FakeChain({(EXP, 500.0, "Put"): {SESS[3]: good, X5: wide}})
+    assert V.exit_mark(ch, leg, X5) == (34.0, "barchart_last")
+    assert 34.0 < float(wide["Bid"])                     # outside the closing quote
+
+
+def test_known_limitation_cached_file_ending_before_fill_drops_as_no_entry_quote():
+    """PINNED (next-steps item 22). A cached series whose rows end before the fill
+    date drops the trade as `no_entry_quote`. The await gate does not check that a
+    file reaches the fill and exit dates, so "fetch plan 0" is not full coverage."""
+    data = {}
+    for opt, k, px in (("Call", 500, 6.0), ("Put", 500, 5.0)):
+        rows_ = {d: row(px - 0.05, px + 0.05) for d in SESS if d < FILL}
+        rows_[FILL - timedelta(days=7)] = row(px - 0.05, px + 0.05)
+        data[(EXP, float(k), opt)] = rows_
+    assert V.price_trade(FakeChain(data), _entry(), "S", 5, SESS, SPOTS) == "no_entry_quote"
