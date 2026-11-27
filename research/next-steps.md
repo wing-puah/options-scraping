@@ -561,9 +561,22 @@ Decisions owed. None of these is a study.
     the ruling matters for candidates resting on thin margins, not for the tier means. The next
     candidate to check is `ruin_bound` N250-F2 G-C.
 
-    The operator rules: keep the rule, cap exit and path marks to the closing quote, or move to a
-    relative-width junk test. Any change needs a re-price (`--redo`) of the v4 book and a suite
-    re-run. Evidence:
+    The operator rules among four options. Any change needs a re-price (`--redo`) of the v4 book and
+    a suite re-run. Figures are tier-mean R change (Results / Proxy), from a post-hoc, unregistered
+    what-if; see
+    [the side-by-side](current.md#the-exit-mark-options-side-by-side-no-option-is-free-and-none-clearly-gives-a-better-mark).
+
+    - **K, keep the rule.** Fixes nothing and costs nothing. 45 and 73 dollar stops stay print-triggered.
+    - **C, cap exit and path marks to the closing quote.** Fixes the print-triggered stops (33 and 65 left) and
+      lets the NVDA row run, which removes `selection_order` O3. Tier mean moves +0.0006 / +0.0021.
+      The change reaches `junk_day_mark` and its callers.
+    - **R10, relative-width junk test at 10%.** Cuts print-triggered stops to 13 and 30 and leaves the NVDA row
+      stopped. It changes the exit of 74 and 89 rows. The tier mean moves
+      +0.0069 / +0.0080. It also changes entry fills. `_is_junk_quote` is imported by about ten research modules. The rescued
+      closing mid is not clearly a better mark than the `Latest` it replaces.
+    - **R10+C, both.** Changes the exit of 79 and 94 rows and lets the NVDA row run. The tier mean moves +0.0054 / +0.0110. It carries both costs.
+
+    Evidence:
     [`current.md`](current.md#exit-marks-on-a-print-outside-the-closing-quote-common-mean-unmoved).
     The test
     `test_known_limitation_exit_marks_a_junk_wide_quote_at_latest_outside_bid_ask` pins today's behaviour.

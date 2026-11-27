@@ -535,6 +535,42 @@ Capping exit marks to the closing quote changes one live token on the v4 book: `
 
 These are unregistered sensitivities. The registered verdicts stand. O3 should bear no weight until the exit-mark rule is ruled on (next-steps item 22).
 
+### The exit-mark options side by side: no option is free, and none clearly gives a better mark
+
+Every option moves the tier mean by 0.011 R or less, and every one changes the exit of 30 to 94 rows per tier. The relative-width rescue (R10) swaps one imperfect mark for a slightly different one, so the data do not show it is a better mark. Post-hoc and unregistered, read-only: a recompute on rebuilt marks with production's own exit scan, not a re-simulation. K reproduces the recorded exit on 1049 of 1051 Results rows. It does so on 987 of 988 Proxy rows.
+
+Variants on the v4 book, closed rows, Results/exact and Proxy/strike_expiry_tweak tiers. K keeps the rule. C caps a `Latest` mark to that day's closing bid and ask. R10 rescues a quote from junk when its relative spread is 10% or less. R5 and R15 use 5% and 15%, and appear in the bullets below.
+
+| Option | Tier mean R change (Results / Proxy) | Rows changing exit | Rows moving over 0.20 R | Print-triggered stops | `Latest` outside quote | NVDA row |
+|---|---|---|---|---|---|---|
+| K | 0 / 0 | 0 / 0 | 0 / 0 | 45 / 73 | 3.2% / 3.2% | stopped, day 16 |
+| C | +0.0006 / +0.0021 | 31 / 30 | 17 / 18 | 33 / 65 | 3.2% / 3.2% | runs, day 86 |
+| R10 | +0.0069 / +0.0080 | 74 / 89 | 37 / 52 | 13 / 30 | 0.9% / 1.0% | stopped, day 16 |
+| R10+C | +0.0054 / +0.0110 | 79 / 94 | 41 / 55 | 13 / 29 | 0.9% / 1.0% | runs, day 86 |
+
+- Print-triggered means the $1,000 stop fired on a day when all-closing-mid marks would not have breached it. The totals are 237 Results and 232 Proxy stops.
+- `Latest` outside quote is the share of path leg-days marked at such a print. The class table shows C unchanged from K. Under R10 the closing-mid share rises from about 68% to about 74-75%.
+- Rows changing the sign of R (Results / Proxy): C 2 / 8.
+- The same count under R10 is 8 / 22.
+- R5 gives +0.0044 / +0.0070 on the tier mean.
+- R15 gives +0.0108 / +0.0053, so the Proxy gain is not monotone in the threshold.
+- The NVDA 2024-11-26 `bull_call_spread` row decided the `selection_order` O3 candidate. K, R5 and R10 leave it stopped on day 16. C, R15 and R10+C let it run to day 86. So O3 depends on whether the cap is applied, and the 10% relative rule alone does not change it.
+
+**Mark quality.** On the 13,088 leg-days R10 rescues, the closing mid is not clearly better than the `Latest` it replaces.
+
+- The spread of the one-day change differs by under 1% (0.1692 for `Latest`, 0.1682 for the mid).
+- The mid is nearer the next session's mid on 50.9% of leg-days.
+- The next mid moves about a third of the way toward `Latest` (slope +0.33, standard error 0.04; +0.31 when `Latest` is outside the quote).
+- Inferred reading: `Latest` is not pure noise, and R10 swaps one imperfect mark for a slightly different one.
+
+**Reach.** C touches `junk_day_mark` and its callers. The R variants change `_is_junk_quote`, which about ten research modules import. They also change entry fills: a sold leg that is junk at entry fills at its bid today, and fills at the closing mid once rescued. Under R10 that is 66 Results and 72 Proxy rows. The rough extra tier-mean effect is +0.004 and +0.010, which the table leaves out.
+
+**Cost.** Every non-K option needs the code change with tests, a `--redo` re-price of the v4 book (snapshot first, AC power, no other writer) and a full suite re-run. v3 is frozen and out of scope.
+
+**Limits.** Entry fills, max loss and costs are held fixed. The figures are one recompute on one era, not a forward test.
+
+No option is recommended here. The operator rules (next-steps item 22).
+
 ## 2026-11-27 — four mechanical rules off the picks: none ships
 
 Nothing ships. Two rules have a verdict and neither clears its bar. Two have no
