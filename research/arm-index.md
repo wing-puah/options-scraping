@@ -1077,6 +1077,60 @@ local to this study. `ARM P` is one of eight owners of that label, and `ARM F` i
   verdict words.
 - `CANDIDATE-FOUND` `WIDE-NET-NULL` (prose) — The study token.
 
+#### `vol_expansion_long_vol`
+
+_Registered in [`pre-registrations/f3_structure/vol_expansion_long_vol.md`](pre-registrations/f3_structure/vol_expansion_long_vol.md) · module `f3_structure/vol_expansion_long_vol.py`_
+
+Accepted on the defaults 2026-11-27. Each structure opens at the close after
+a SPY `E-VOL` onset and closes five sessions later. The unit is
+[R](glossary.md#r), net P&L over the most the unit can lose at expiry. Every
+label is local to this study.
+
+- `ARM S` (arm) — Long ATM straddle, monthly near 30 DTE. Not `index_vrp`'s
+  or `earnings_vol`'s `ARM S`.
+- `ARM BC` (arm) — Call backspread: short 1 ATM call, long 2 calls near
+  spot × 1.05.
+- `ARM BP` (arm) — Put backspread: short 1 ATM put, long 2 puts near
+  spot × 0.95.
+- `ARM C` (control) — The same three structures on calm ISO weeks, columns
+  `C-S`, `C-BC` and `C-BP`. Not any other study's `ARM C`.
+- 12 cells (cell) — Structure × hold × expiry, as tabled in the
+  registration. The PBO grid. Printed only.
+- `FORWARD` (population scope) — The three arms on onsets from 2026-11-27.
+- `C0` `C1` `C2` `C3` `C4` (gate) — Power, sign, leave-one-month-out,
+  sell-off windows cut, PBO. Unrelated to `ARM C`.
+- `GE` `GL` `GX` `GC` (gate) — Inputs, label agreement, no lookahead, the
+  cut.
+- `LONG-VOL-PAYS` `PAYS-NOT-SIGNAL` `CONTRARY` (prose) — Verdict words.
+  `NULL` and `UNDERPOWERED` complete the set.
+
+#### `spy_put_write`
+
+_Registered in [`pre-registrations/f3_structure/spy_put_write.md`](pre-registrations/f3_structure/spy_put_write.md) · module `f3_structure/spy_put_write.py`_
+
+Accepted by the operator 2026-11-27. A SPY put credit spread sold every week
+on cached quotes, graded against zero and against SPY's beta. Every label is
+local to this study.
+
+- `ARM Z` (arm) — The primary cell's mean net R per monthly expiry cycle,
+  against zero. The primary is short at spot, width 10% of spot, held to
+  expiry.
+- `ARM H` (control) — SPY held as shares, beta-matched. Graded by the
+  monthly Jensen alpha of the primary's marked account on SPY's return. Not
+  `mechanical_baseline`'s `ARM H`, though it copies that basis.
+- 12 cells (cell) — Short strike × width × exit. The other eleven print
+  their own `ARM Z` and `ARM H` tokens and feed PBO. No verdict.
+- `$1,000 stop` (descriptive cut) — The primary's line with the operator's
+  stop applied.
+- `C0a` `C0b` (gate) — Coverage from the census, and power once priced.
+- `C1` `C2` `C3` `C4` (criterion) — Sign, leave-one-year-out, stress windows
+  out, PBO.
+- `W1` `W2` `W3` `W4` (population scope) — `index_vrp`'s stress windows.
+- `FORWARD` (population scope) — The primary on signal weeks from
+  2026-11-27.
+- `PUT-WRITE-ALPHA` `BETA-ONLY` `LOSES` `PBO-VETO` (prose) — Study verdict
+  words, beside `NULL`, `UNCOVERED` and `UNDERPOWERED`.
+
 ### ④ Deployment — can I run it
 
 #### `account_sim`

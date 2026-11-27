@@ -1247,6 +1247,35 @@ STUDIES: dict[str, Study] = {
                 "(threshold < 0.5)   Holm family 7 arm(s), alpha 0.05`. `Nothing ships whatever "
                 "this prints; a CANDIDATE earns a forward registration.`",
     ),
+    "spy_put_write": Study(
+        family="structure", state="null",
+        question="Does a mechanical SPY put credit spread, sold every week (short at spot, "
+                 "width 10% of spot, monthly nearest 37 DTE, held to expiry), earn a net "
+                 "return per expiry cycle above zero, and a monthly return that SPY's own beta "
+                 "does not explain?",
+        verdict="Accepted by the operator and first run 2026-11-27 (option cache only, signal "
+                "weeks 2022-01-31 to 2026-10-26): `>>> spy_put_write PRIMARY (at spot   w10% "
+                "hold): NULL <<<  (first failed criterion C1 (ARM Z); ARM H NO-ALPHA)`. `ARM Z "
+                "NULL: cycle-mean R +0.019 CI95 [-0.072, +0.095] on 232 trades, 55 cycles`; "
+                "`ARM H NO-ALPHA: alpha/month -0.03410 CI95 [-0.06864, +0.00043], beta +4.4910 "
+                "CI95 [+3.7564, +5.4183], 54 months`; `C4 PBO 0.829  ·  C0a PASS  ·  FORWARD "
+                "STILL-OPEN`. The October and November 2026 cycles, where SPY fell, are "
+                "uncached, so none of their trades is priced. Nothing ships.",
+    ),
+    "vol_expansion_long_vol": Study(
+        family="structure", state="open",
+        question="After a SPY E-VOL onset, does a long ATM straddle or a 1x2 backspread, bought "
+                 "at the next close and sold five sessions later, make money net of commission, "
+                 "and more than the same structure opened on a calm week?",
+        verdict="Accepted on the defaults 2026-11-27; built and first run 2026-11-27 (in-sample "
+                "onset dates 2022-03-01 to 2026-09-22). Not yet graded: `NOT BUILT — AWAITING "
+                "SCRAPE — 498 headline arm-entries (onsets and ARM C) await a fetch.` and `No "
+                "outcome was computed for any arm: no R, no P&L, no CI.` GE and GL pass (`GL "
+                "PASS: 23 onsets on D 2023-06-15 -> 2026-09-22, identical in both tables`). The "
+                "strikes walk a fixed $1 grid the SPY cache mostly lacks: `fetch plan: primary "
+                "(headline onsets + ARM C) 449 unique uncached contracts; all cells 489`. The fetch "
+                "is the operator's call. Nothing ships.",
+    ),
 
     # ④ deployment
     "account_sim": Study(

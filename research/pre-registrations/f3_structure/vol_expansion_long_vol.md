@@ -1,7 +1,7 @@
 ## vol_expansion_long_vol — after a SPY E-VOL onset, do a long straddle or a 1x2 backspread pay, and more than on calm weeks?
 
 <!-- outcome:start -->
-> Latest outcome: not yet run.
+> Latest outcome: `NOT BUILT — AWAITING SCRAPE` on all three arms on the first run, 2026-11-27, onset dates 2022-03-01 to 2026-09-22. GE and GL passed; 498 headline arm-entries await a fetch of 449 contracts. PBO `not computed`; forward `STILL-OPEN`. Nothing ships · [record](../../study-results/f3_structure/vol_expansion_long_vol.md).
 <!-- outcome:end -->
 
 _Registered 2026-11-27._
@@ -165,6 +165,9 @@ as `no_rearm_history`.
 - **Columns.** `ARM C` prices all three structures at the headline expiry, at both holds. Its columns
   are `C-S`, `C-BC` and `C-BP`.
 
+_Resolved at build (2026-11-27):_ a week whose first session falls before the window start is
+outside the window. So the week of 2022-02-28 has no calm entry.
+
 _Resolved at draft (2026-11-27):_ item 18 names a "calm-week ARM C" and does not define it. The
 definition above mirrors the non-`E-VOL` grid of the 2026-11-06 descriptive count. It is not
 `selloff_put_diagonal.calm_days`, which picks weeks near a 63-session high. That rule would make the
@@ -196,6 +199,9 @@ that grid could put ATM up to $2.50 from spot.
 _Resolved at draft (2026-11-27):_ a failed ATM drops all three arms on that onset. A failed wing drops
 only its own arm.
 
+_Resolved at build (2026-11-27):_ the wing walk runs toward its target as written. If the strike it
+finds is not strictly beyond ATM, the arm drops as `no_listed_strike`. The walk does not step on.
+
 ### Fills, marks and cost
 
 - **Entry fill.** Every leg at `F`'s own closing quote, through `simulate.entry_day_fill(row, q)`
@@ -212,6 +218,12 @@ only its own arm.
 - **Commission.** $0.65 per contract per side, slippage 0. That is $2.60 per straddle and $3.90 per
   1x2, entry and exit together.
 - **Model prices.** None.
+
+_Resolved at build (2026-11-27):_ the date rule decides. A junk row with no bid that did not trade
+can take production's zero-bid ceiling, half its ask, when no lower earlier mark exists. That mark
+comes from the exit session's own quote, so it is kept, not dropped. The daily path for MFE, MAE
+and the stop cell uses the same exit-mark rule. A session where any leg fails it is skipped. Open
+P&L on that path includes the round-trip commission, as R does.
 
 _Resolved at draft (2026-11-27):_ item 18 reads "every leg at the D+1 closing mid". This file uses
 the standing production entry rule instead, which differs on one case only. All legs still fill on
@@ -293,6 +305,9 @@ Every entry that does not price is counted by reason and by arm, and leaves the 
 | ATM IV change | Mean IV of the ATM call and put at the exit minus at `F`, in vol points as cached |
 | Holm | A step-down correction for testing several things at once |
 | PBO / CSCV | The chance that the best cell in one half of the history ranks below the median in the other half. `lib/pbo.py` holds the method |
+
+_Resolved at build (2026-11-27):_ a cached IV of zero or a missing one counts as no IV. That trade
+then prints no implied-move ratio or ATM IV change.
 
 ## Dependencies
 
@@ -569,6 +584,9 @@ A failed run gate refuses the run (non-zero exit).
 _Resolved at draft (2026-11-27):_ GL starts on the production table's eleventh row. From there `D` and
 its 5 re-arm sessions each have a full five-day VIX change in both tables.
 
+_Resolved at build (2026-11-27):_ GE refuses with exit 3 and GL with exit 2. Both are designed
+refusals. GL computes both tables' labels after the same cut, at the in-sample end.
+
 ## Bar for a candidate
 
 No result here makes a rule. A `LONG-VOL-PAYS` files "to be tested" in
@@ -629,6 +647,12 @@ can bias R. The check is one of each word's conditions, tried in the first-match
 - A word that fails only its re-run does not match, and the next word is tried. If the arm ends at
   `NULL`, the reason is "exit-drop sensitive".
 
+_Resolved at build (2026-11-27):_ the `NULL` reasons come from the `PAYS-NOT-SIGNAL` and `CONTRARY`
+attempts, whose sign test passed. When several apply, all print, joined by semicolons. A
+`LONG-VOL-PAYS` that fails only on its gain is no `NULL` reason, since the next word is tried.
+The exit-drop check counts among the "other conditions" of the PBO rule. So an arm prints
+`NOT BUILT` for a cell awaiting a fetch only when its re-run also holds.
+
 ### Printed only, no verdict
 
 - **The 12 cells.** Mean R, its CI and count. The gain where `ARM C` prices, which is the headline
@@ -663,6 +687,9 @@ can bias R. The check is one of each word's conditions, tried in the first-match
 
 _Resolved at draft (2026-11-27):_ the forward floor equals C0, so the forward read can only conclude
 what the in-sample read could.
+
+_Resolved at build (2026-11-27):_ a forward entry needs only its `D + 6` session, since the forward
+read grades the headline cells alone. An entry without one yet is counted as open, not dropped.
 
 ### The banner
 

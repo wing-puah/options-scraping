@@ -24,6 +24,12 @@ the book's own exposure again.
     daily_vol_structure.py  registered 2026-11-06, accepted by default — daily straddles and
                         1x2 ratios on QQQ and SMH, read against a fixed feature list. The
                         analysis page prints RETRO-ONLY. Awaits its leg fetch. Not yet graded.
+    vol_expansion_long_vol.py  registered 2026-11-27, accepted on the defaults — a SPY
+                        straddle and two 1x2 backspreads after each E-VOL onset, against
+                        calm weeks. NOT BUILT — AWAITING SCRAPE on its first run (2026-11-27).
+    spy_put_write.py    NULL (2026-11-27) — a weekly SPY put credit spread on cached quotes:
+                        cycle-mean net R +0.019, CI spans zero; alpha against beta-matched
+                        SPY shares NO-ALPHA, beta about 4.5; PBO 0.829. Nothing ships.
 
 `hedge_structure.py` was here until 2026-09-08 and is now in `../f5_hedging/`,
 with the rest of the hedge programme. So was the DELETED `vol_sleeve.py`, whose
