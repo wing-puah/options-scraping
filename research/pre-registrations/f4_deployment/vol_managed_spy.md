@@ -11,8 +11,10 @@ _Registered 2026-11-27._
 drafter filled the gaps it left with the most conservative conventional choice, each tagged
 `Resolved at draft (2026-11-27)` beside its rule. No return, Sharpe ratio, drawdown, weight or
 turnover figure for any rule, cell or benchmark below was computed before this file was written.
-A fresh second reader is owed before the first run and before the commit
-([README](../README.md#the-second-reader-before-every-new-registration-freezes)).
+A fresh second reader checked it on 2026-11-27, before its first outcome
+([README](../README.md#the-second-reader-before-every-new-registration-freezes)). It found no
+lookahead in the rule. Its changes are tagged `Resolved at second read (2026-11-27)` beside the
+rules they amend.
 
 ## The question
 
@@ -30,16 +32,18 @@ The published claim, and the dispute:
   the US market the managed portfolio had a positive alpha on the unmanaged one. Their version
   levers up in calm months; this study cannot.
 - Cederburg, S., O'Doherty, M. S., Wang, F. and Yan, X. (2020), "On the Performance of
-  Volatility-Managed Portfolios", *Journal of Financial Economics* 138(1). Across 103 factors the
-  regression alphas were real in sample. A real-time investor using them out of sample mostly did
-  no better than the unmanaged factor.
+  Volatility-Managed Portfolios", *Journal of Financial Economics* 138(1). Across 103 equity strategies
+  the regression alphas were real in sample. A real-time investor using them out of sample mostly
+  did no better than the unmanaged strategy.
 - Harvey, C. R., Hoyle, E., Korgaonkar, R., Rattray, S., Sargaison, M. and Van Hemert, O.
   (2018), "The Impact of Volatility Targeting", *Journal of Portfolio Management* 45(1).
   Volatility targeting cut the left tail across assets. It raised the Sharpe ratio mainly for
   equities and credit, where volatility rises as prices fall.
 - Liu, F., Tang, X. and Zhou, G. (2019), "Volatility-Managed Portfolio: Does It Really Work?",
-  *Journal of Portfolio Management* 46(1). The market result leans on a scaling constant fixed
-  with the whole sample. That point is why benchmark `MIX` below is a benchmark and never a rule.
+  *Journal of Portfolio Management* 46(1). The published strategy's scaling constant is fixed
+  with the whole sample, which no real-time investor could do. Without that lookahead, they found
+  the managed market portfolio did not reliably beat the market. That point is why benchmark
+  `MIX` below is a benchmark and never a rule.
 
 So the prior is published and contested. The best-supported part is the tail cut on equities.
 
@@ -152,8 +156,8 @@ in T-bills.
 - **The headline cell is `VOL-21-12`.** It is the only graded cell.
 - `Resolved at draft (2026-11-27)`, why this cell. `VOL` is the form the operator wrote as the
   rule, and the form Harvey et al. test. 21 sessions is Moreira and Muir's one-month window. 0.12
-  is the middle target. It sits below SPY's usual volatility, so the cap neither binds in nearly
-  every month nor in almost none.
+  is the middle target. It sits below SPY's usual volatility. So the rule sits at the cap in calm
+  months and cuts in the others.
 
 ### Benchmarks
 
@@ -161,7 +165,7 @@ in T-bills.
 |---|---|---|
 | `MIX` | A fixed weight `w̄` in SPY, the rest in T-bills, traded back to `w̄` at every execution close at the same 5 bp | The graded comparison |
 | `SPY` | SPY alone, bought once and held | Printed, not graded |
-| `MIX-VOL` | A fixed weight whose daily volatility over the window equals the managed rule's | Printed, not graded |
+| `MIX-VOL` | A fixed weight whose daily volatility over the window equals the managed rule's. Like `w̄`, it is known only at the window's end | Printed, not graded |
 
 - **`w̄`** is the mean of the managed rule's target weights over the executions whose month falls
   in the window graded. Each window, and each cell, gets its own `w̄`.
@@ -175,6 +179,14 @@ in T-bills.
 - **Sharpe against `MIX` and `SPY`.** A constant mix with T-bills has about SPY's own Sharpe ratio,
   less small rebalancing costs. So `ΔSharpe` against either is nearly the same number. `MIX`
   matters for the drawdown and the CAGR.
+- `Resolved at second read (2026-11-27)`, **what each statistic can and cannot show.**
+  - `ΔSharpe` asks whether the timing raised the return per unit of risk. Holding less stock
+    cannot raise it on its own, so this test is meaningful even though `MIX` and `SPY` give it
+    the same number.
+  - `ΔMDD` asks whether the timing cut the worst fall by more than the same average stock held
+    flat. Without `MIX`, holding less stock would pass this test on its own.
+  - Neither shows that the rule earns more than SPY. `ΔCAGR` against `SPY` prints for that, and
+    grades nothing.
 
 ### Windows
 
@@ -247,6 +259,13 @@ in T-bills.
   fast crash such as 2020's can show a fall just under 20%. A 20% line could leave the holdout
   below the episode floor for that reason alone. The drafter set the line from public market
   history, not from this data.
+- `Resolved at second read (2026-11-27)`, **what the line was chosen knowing.** From public index
+  history, a 20% line on month-end closes is expected to give the holdout about one episode, in
+  2022. A 15% line is expected to add 2011 and 2020. So the line was set knowing roughly
+  which side of the 2-episode floor each choice would put the holdout. No count was made on this
+  data. The line feeds only gate GN, the printed episode table and the forward "no forward
+  episode" note. No graded statistic reads it, so it can decide whether the study runs, never
+  which way it comes out.
 
 ## Dependencies
 
@@ -300,8 +319,12 @@ Every check below was made on 2026-11-27, before this file was written.
 - **The cap removes the levered half.** Moreira and Muir's gain comes partly from levering up in
   calm months. Capped at 1.0, the rule can only cut. So any gain must come from the high-volatility
   months alone.
-- **Published-rule decay.** The holdout and the post-publication split measure the rule after it
-  was known. A null may be decay, not a false claim.
+- **Published-rule decay.** The post-publication split and the forward read measure the rule
+  after it was known. A null there may be decay, not a false claim.
+- `Resolved at second read (2026-11-27)`: **the holdout is not out of the paper's sample.**
+  Moreira and Muir's data run to about 2015, so 2010–2015 lies inside their sample, and the
+  headline cell copies their window. The holdout is held out from this study's choices, not from
+  theirs.
 - **Few independent observations.** About 200 holdout months, and the bootstrap block is 12
   months. That is roughly 17 independent blocks. Only a large difference can clear zero.
 - **One asset, one estimator family.** PBO covers the 12 cells, not other estimators such as
@@ -336,9 +359,19 @@ variants of one idea.
 - **Paired moving block bootstrap on monthly returns.** Each draw resamples one window's months
   with `path_bootstrap._resample_indices`. The managed return, `MIX`'s return, SPY's return and
   the T-bill return of a month travel together. The rule is not re-run on the resampled path.
-- **`w̄` is held at the window's observed value** in every draw. `MIX`'s monthly returns come from
-  the daily simulation and are resampled as they are. `Resolved at draft (2026-11-27)`: re-fixing
-  `w̄` per draw would need the daily path, which a monthly resample does not keep.
+- `Resolved at second read (2026-11-27)`: **`MIX` is re-matched in every draw.** Each month
+  carries the target weight of the execution in that month. A draw's mean weight `w̄_b` is the
+  mean of the weights its months carry. In that draw, each month's `MIX` excess return over the
+  T-bill is scaled by `w̄_b / w̄`, and the T-bill return is added back.
+  - **Why.** The draft held `w̄` at the window's observed value in every draw. A draw heavy in
+    high-volatility months then gives `MIX` more stock than the managed rule held in that draw.
+    A calm draw gives it less. The net bias in the `ΔMDD` interval could not be signed in
+    advance, so the draft's interval did not test "same average exposure".
+  - **Exactness.** Over a holding period with no trade, a constant mix's excess return is its
+    weight times SPY's excess return. Over a calendar month it is so to within drift over one
+    session. On the observed path `w̄_b = w̄`, so the scaling changes nothing there.
+  - **What it leaves alone.** A positive scale does not change a Sharpe ratio, so `ΔSharpe` draws
+    are unchanged. Only the `ΔMDD` draws move.
 - **Block 12 months**, 5,000 draws, seed 20261127. Each window uses the same seed.
 - **Per draw:** `ΔSharpe`, `ΔMDD` and `ARM R`'s `alpha`, refitted on the resampled months.
 - **The CI.** The 2.5th and 97.5th percentiles of the draws. The observed value prints beside it.
@@ -352,15 +385,19 @@ variants of one idea.
 ### When a headline statistic counts, with Holm
 
 The two headline statistics, `ΔSharpe` and `ΔMDD`, are one family of two tests. Holm's step-down
-method holds the family error at 0.05, two-sided.
+method holds the one-sided family error at 0.025, the same as 0.05 two-sided.
 
-- **Each statistic's p-value** is the share of holdout draws at or below 0. It is one-sided, in
-  the direction of a benefit.
+- **Each statistic's p-value** is the share of the 5,000 holdout draws at or below 0. It is
+  one-sided, in the direction of a benefit.
 - **Order.** The statistic with the smaller p-value is tested first. A tie tests `ΔSharpe` first.
-- **First test.** Its p-value is below 0.0125. That is the same as its 97.5% interval (1.25th
-  percentile) lying above 0.
-- **Second test.** Run only if the first passed. Its p-value is below 0.025. That is the same as
-  its usual 95% interval lying above 0.
+- **First test.** Its p-value is below 0.0125. This is about the same as its 97.5% interval
+  (lower end at the 1.25th percentile) lying above 0.
+- **Second test.** Run only if the first statistic's p-value passed its threshold, whatever that
+  statistic's discovery sign. Its p-value is below 0.025. This is about the same as its usual
+  95% interval lying above 0.
+- `Resolved at second read (2026-11-27)`: **the p-value rules.** An interpolated percentile and
+  a count of draws can disagree by one draw at the boundary. The thresholds above apply to the
+  p-value. The intervals print beside it.
 - **A statistic counts** when it passes its Holm test and its discovery point estimate is above 0.
   The discovery CI prints but does not gate.
 
@@ -378,6 +415,9 @@ This reads the holdout only, with no Holm step and no discovery clause.
 - **Counts** when its holdout 2.5th percentile is above 0 and its discovery point estimate is
   above 0.
 - **Clearly negative** when its holdout 97.5th percentile is below 0.
+- `Resolved at second read (2026-11-27)`: **`ALPHA` beside a `NULL` headline is no
+  contradiction.** The rule's correlation with SPY is below 1. So `alpha` can be above 0 when the
+  rule's Sharpe ratio is no higher than SPY's.
 
 ### PBO / CSCV
 
@@ -392,6 +432,11 @@ This reads the holdout only, with no Holm step and no discovery clause.
 - **The noise baseline.** With 12 cells, an in-sample best cell that lands at random out of sample
   gives a PBO near 0.50. So the veto is close to a coin-flip under pure noise.
 - **What it never does.** It never selects a cell. The headline was fixed before any run.
+- `Resolved at second read (2026-11-27)`: **a veto on a drawdown gain.** PBO ranks the cells by
+  Sharpe ratio, not by drawdown, as in `multi_asset_trend`. So a veto on a `ΔMDD` gain says the
+  grid's ranking is fragile, not that the drawdown gain is.
+- `Resolved at second read (2026-11-27)`: a PBO that is not finite refuses, as
+  `REFUSED (PBO undefined)`.
 
 ### Everything printed beside the headline
 
@@ -484,9 +529,12 @@ The first matching row wins.
 ### Forward
 
 - **Opens with 2026-12**, the first complete month after registration. `VOL-21-12` against `MIX`
-  at 5 bp. `w̄` is the mean target weight over the forward months.
+  at 5 bp.
 - **Floor, 36 forward months.** The read fires once, on the first run after 2029-11 is complete.
   Until then the forward line prints `STILL-OPEN` with a count of forward months.
+- `Resolved at second read (2026-11-27)`: **the read uses exactly 2026-12 to 2029-11.** A run
+  made later still grades those 36 months and no more, and `w̄` is their mean target weight. So
+  the read's months never depend on the run date.
 - **Sunset, 2030-11-30.** If no run has fired the read by then, the forward line closes as
   `LAPSED`, and nothing is concluded.
 - **Words at the read**, on point estimates over the forward months:
