@@ -392,7 +392,7 @@ Post-run review (unregistered, by an independent reader who rebuilt the numbers 
 - It is underpowered. 80% power needs a true Sharpe difference near 0.25, about twice the discovery estimate. `NULL` here means "could not see one", not "no effect".
 - On simulated markets with clustered volatility and no edge, the rule still cuts the mean drawdown by +0.020 to +0.025 while its Sharpe falls. A shallower drawdown is a real property of the rule, paid for in growth, not alpha.
 - The holdout's +0.053 is about twice that no-edge level and cannot be told apart from it. The rule gave up 1.19 points of CAGR against the matched mix.
-- `trend_overlay` and `multi_asset_trend` grade a drawdown difference with the same bootstrap bar. Their drawdown tests may share this power limit. This has not been checked, and their verdicts stand as printed. See [next-steps item 21](next-steps.md#drawdown-power-check).
+- `trend_overlay` and `multi_asset_trend` grade a drawdown difference with the same bootstrap bar. A later check found no such floor in either. It found that holding less passes both tests, and their verdicts stand as printed. See [the drawdown-test check](#drawdown-tests-on-the-two-trend-studies-holding-less-passes-them).
 
 This is a second shares rule that cuts drawdown only by holding less. [`multi_asset_trend`](#2026-11-27--four-mechanical-rules-off-the-picks-none-ships) showed the same shape.
 
@@ -434,6 +434,52 @@ What it means for the live dip-date sizing rule:
 One build ruling: an episode continues through exactly 5 non-dip sessions, the conservative of two readings (`Resolved at build (2026-11-27)` in the registration).
 
 Owed, the operator's call: the registration says a `SUPPORTED` whose VOL-SCALED CI spans zero files as "risk premium, not timing" in [`deployment-evidence.md`](deployment-evidence.md). That file was left untouched.
+
+### Drawdown tests on the two trend studies: holding less passes them
+
+Both printed verdicts stand. This post-hoc check, not registered, changes how they are worded and never re-grades them.
+
+A static mix that simply holds less passes the same drawdown-difference test in all four windows. So passing it does not show timing skill. Each study tests its rule's maximum drawdown against a fully invested benchmark, and any smaller position cuts that drawdown too.
+
+Each study's own bootstrap was run on a static mix. The mixes are fixed, untimed, and hold cash or T-bills for the rest.
+
+| Study, window | Static mix | Static dMDD | Rule dMDD |
+|---|---|---|---|
+| `trend_overlay`, discovery | 77% SPY, cash | +0.102 [+0.065, +0.115] | +0.273 |
+| `trend_overlay`, holdout | 68% ^GSPC, cash | +0.125 [+0.087, +0.152] | +0.150 |
+| `multi_asset_trend`, discovery | 45% EW-9, T-bills | +0.174 [+0.048, +0.265] | +0.231 |
+| `multi_asset_trend`, holdout | 45% EW-9, T-bills | +0.112 [+0.051, +0.180] | +0.131 |
+
+- The `multi_asset_trend` holdout mix is matched to the rule's beta of 0.45.
+- Holding less explains part of `trend_overlay`'s cut in both windows.
+- In discovery it explains +0.102 of the rule's +0.273.
+- In the holdout it explains +0.125 of the rule's +0.150.
+- The fair wording for `multi_asset_trend` is a shallower drawdown, mostly from holding less. The timing part is not shown.
+
+`multi_asset_trend`, on simulated panels with no edge:
+
+- The mean holdout dMDD is +0.056 to +0.072.
+- Between 13% and 20% of paths reach the real +0.131.
+- The "counts" rule is met in 13% to 16% of no-edge paths, against a nominal 2.5%. The rule is the holdout lower bound above 0 and the discovery point above 0.
+- Power is not the problem. With real trend persistence at a true dMDD near +0.15, the rule counts 77% of the time.
+
+`trend_overlay`, on the same kind of panels:
+
+- `NO-DRAWDOWN-BENEFIT` means "could not see one", not "no benefit".
+- There is no p floor. A planted perfect protection reaches p 0.011 in discovery and 0.0068 in the holdout.
+- The test is still weak. With no edge it passes 0.5% to 1% of the time.
+- With real trend persistence and a true mean dMDD near +0.29, the 1993-2026 window passes about 50% of the time.
+- The 1950-1992 window passes 17.5% of the time at a true +0.19.
+- It passes 9% of the time at a true +0.14.
+- The real 1993-2026 result missed narrowly. The share of draws at or below 0 was 0.029.
+- Its +0.273 sits near the 98th percentile of no-edge paths.
+
+Limits:
+
+- The simulated rates depend on the market models: iid, GJR with mean proportional to variance, a bull and bear regime model, and block or sign-flip transforms of the real nine-ETF panel.
+- The reproductions and the static comparators are exact.
+
+This answers [next-steps item 21](next-steps.md#drawdown-power-check). A drawdown-difference test belongs against a static mix at the rule's own average exposure, as `vol_managed_spy` did with `MIX`: [item 23](next-steps.md#drawdown-vs-static-mix).
 
 ### Also done on 2026-11-27 and 2026-11-28
 
@@ -489,9 +535,11 @@ and 45 rejections, across credit spreads, condors, strangles, covered calls and
 debit spreads. It runs no strategy today. One of its lessons is reused here:
 split any apparent edge into beta and residual before accepting it.
 
-### `multi_asset_trend`: the drawdown cut is real, the selection is not
+### `multi_asset_trend`: a shallower drawdown, mostly from holding less; timing not shown
 
-The headline cell is `TB-12-EW` against `EW-9`, at 5 bp a side.
+The headline cell is `TB-12-EW` against `EW-9`, at 5 bp a side. `EW-9` is the nine ETFs at equal weight, rebalanced at every execution close.
+
+The drawdown cut is not evidence of timing: a static 45% mix gets most of it ([Findings](#drawdown-tests-on-the-two-trend-studies-holding-less-passes-them)). The selection is not shown either.
 
 | Window | Sharpe | Max drawdown | CAGR |
 |---|---|---|---|
@@ -510,6 +558,41 @@ One build ruling needs the operator's eye. Gate GB refused on DBC's adjustment
 ratio, which jumped 5.34% on 2024-12-23. The dividend feed lists a distribution
 that implies the same jump. The ruling passes a jump above 5% only when the feed
 implies it within 0.1 points. The stricter choice is to leave the study `REFUSED`.
+
+#### Post-run review (unregistered)
+
+Every graded figure was rebuilt, and the verdict `PBO-VETO` stands as printed. An independent reader rebuilt them in plain pandas without the module's functions. They match to the printed precision, including the bootstrap intervals and PBO 0.746.
+
+- There is no lookahead. With no execution delay the holdout dMDD is +0.131, and with a two-session delay it is +0.122.
+- PBO ranks the 12 cells by Sharpe, while the counted statistic is drawdown. The veto says the grid's Sharpe ranking is noise. It does not say the drawdown cut is overfit.
+- The headline cell was fixed in advance. All 12 cells have a holdout dMDD lower bound above zero, from +0.021 to +0.043.
+- The benchmark is rebalanced to equal weight at every execution close, as registered. "Buy-and-hold" is the wrong name for it.
+- The stored report predates the commit: a dirty tree and a `<first month>` placeholder in the header. The numbers are unaffected.
+
+DBC ruling:
+
+- The 2024-12-23 jump is a real cash distribution. The raw close fell 5.0% while the adjusted close moved +0.08%.
+- The raw close went from 22.02 to 20.92.
+- The coded check is circular on yfinance data, because yfinance builds the adjusted close from the same dividend feed. It cannot fail.
+- Treating that row as a fake dividend moves the holdout dSharpe by 0.003 and the dMDD by 0.000.
+- A non-circular check is being added to the gate by another agent. The check is that the adjusted return on the ex-date is near zero.
+- Dropping DBC from rule and benchmark gives eight assets, with these holdout figures:
+
+| Measure | Eight assets |
+|---|---|
+| dSharpe | +0.129 [-0.188, +0.415] |
+| dMDD | +0.165 [+0.018, +0.248] |
+| PBO | 0.639 |
+
+- Discovery then holds one drawdown episode, below the floor of two. The eight-asset word would be `UNDERPOWERED`, not `PBO-VETO`.
+- The second discovery episode is only 11.4% deep, so the floor sits on a knife edge.
+
+Options arm:
+
+- The arm has no DTE band. The earliest cached SPY third-Friday expiry is 2022-03-18, so every 2007-2020 entry picks it.
+- Both strikes then collapse. The 136 "strikes coincide" cases are really "no expiry near 65 DTE".
+- Thirteen of the 36 priced trades are verticals of 107 to 472 DTE, pooled into the printed mean.
+- The arm grades nothing. The honest coverage figure is "from the first cached SPY expiry: 22/41".
 
 ### `spy_put_write`: a beta trade with nothing left over
 

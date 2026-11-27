@@ -1383,13 +1383,14 @@ STUDIES: dict[str, Study] = {
                 "`AGREES`; `>>> trend_overlay PBO: discovery 0.828 holdout 0.261 <<<`; B "
                 "`UNDERPOWERED` (15 switched dates, floor 20); FORWARD `STILL-OPEN`. The point "
                 "estimates halve the drawdown, but the lower CI bound sits just below zero in "
-                "both windows. Nothing ships.",
+                "both windows. `NO-DRAWDOWN-BENEFIT` reads as could-not-see: the test was weak, and "
+                "holding less explains much of the cut (post-run check). Nothing ships.",
     ),
     "multi_asset_trend": Study(
         family="deployment", state="open",
         question="Does a monthly time-series momentum rule (12-month return above T-bills, "
                  "Moskowitz, Ooi and Pedersen 2012; Faber 2007's long-or-T-bills form) run on "
-                 "nine ETFs at once beat equal-weight buy-and-hold of the same nine after 5 bp "
+                 "nine ETFs at once beat a rebalanced equal-weight mix of the same nine after 5 bp "
                  "costs, on the Sharpe ratio and the maximum drawdown (discovery 2007-2016 sign "
                  "check, holdout 2017-01 to 2026-08 decides)?",
         verdict="Registered and first run 2026-11-27 (era current: yfinance closes to "
@@ -1401,7 +1402,8 @@ STUDIES: dict[str, Study] = {
                 "multi_asset_trend PBO (12 cells, S=16, in-sample): 0.746 <<<`; options arm "
                 "`36/191 trades priced`; FORWARD `STILL-OPEN (0 forward months of 36)`. The "
                 "drawdown gain counts and the Sharpe gain does not, so without the veto the word "
-                "would be DRAWDOWN-ONLY. Nothing ships.",
+                "would be DRAWDOWN-ONLY. A static mix at the same beta gets most of the drawdown "
+                "cut (post-run check). Nothing ships.",
     ),
     "vol_managed_spy": Study(
         family="deployment", state="null",

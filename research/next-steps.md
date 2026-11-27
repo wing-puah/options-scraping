@@ -534,18 +534,18 @@ Decisions owed. None of these is a study.
     |---|---|---|
     | File the `spy_dip_forward` line in `deployment-evidence.md` as risk premium, not timing | Not filed; the file is untouched | Filing carries the registration's own rule into the evidence file |
     | Keep or withdraw the [§4](../docs/deployment-rules.md#s4) gap-up prohibition; `hedge_timing` H3-GAP now reads `NULL`, the card cites the September `CONTRARY` | Keep; the card is untouched | Withdrawing edits the operator card |
-    | Rule on the DBC 2024-12-23 distribution in `multi_asset_trend` (gate GB passed it on a feed-implied jump; see the 2026-11-27 entry) | Ruling stands as built | Leaving the study `REFUSED` is the stricter choice |
+    | Rule on the DBC 2024-12-23 distribution in `multi_asset_trend` (gate GB passed it on a feed-implied jump; see the 2026-11-27 entry). The review confirms the distribution is real and worth 0.003 Sharpe at most; dropping DBC would make the study `UNDERPOWERED` | Ruling stands as built | Leaving the study `REFUSED` is the stricter choice |
 
     Owed rerun, after the 2026-11-30 US close (the first session after the registration date):
     `python3 -m scripts.backtest_study run calendar_drift --refresh`. The runner
     passes `--` through, so the flag goes without it.
 
 <a id="drawdown-power-check"></a>
-21. **OPEN 2026-11-28 — check the power of the drawdown-difference bootstrap in `trend_overlay`
-    and `multi_asset_trend`.** With few drawdown episodes its p-value has a floor above the Holm
-    thresholds, so the test may be unable to pass. Evidence:
-    [`current.md`](current.md#2026-11-28--two-more-shares-only-rules-volatility-scaling-is-null-dips-pay-a-risk-premium)
-    (post-run review under `vol_managed_spy`). Their printed verdicts stand until this is checked.
+21. **DONE 2026-11-28 — the power of the drawdown-difference bootstrap in `trend_overlay` and
+    `multi_asset_trend`.** There is no p floor, but the test is weak, and a static mix that holds
+    less passes it in all four windows. Passing it therefore does not show timing skill. Both
+    printed verdicts stand. Evidence:
+    [`current.md`](current.md#drawdown-tests-on-the-two-trend-studies-holding-less-passes-them).
 
 <a id="exit-mark-clock"></a>
 22. **OPEN 2026-11-28 — the exit mark can rest on a `Latest` outside the closing quote.** The shared
@@ -563,6 +563,14 @@ Decisions owed. None of these is a study.
     The test
     `test_known_limitation_exit_marks_a_junk_wide_quote_at_latest_outside_bid_ask` pins today's behaviour.
     Also: the study await gates should check that a cached file reaches the fill and exit dates.
+
+<a id="drawdown-vs-static-mix"></a>
+23. **OPEN 2026-11-28 — grade a drawdown-difference test against a static mix at the rule's own
+    average exposure.** The fully invested benchmark is the wrong bar, because any smaller
+    position cuts the drawdown. `vol_managed_spy` did this with `MIX`. It applies to every future
+    overlay study. Also, the `multi_asset_trend` options arm needs a DTE band before it is cited.
+    Evidence:
+    [`current.md`](current.md#drawdown-tests-on-the-two-trend-studies-holding-less-passes-them).
 
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14

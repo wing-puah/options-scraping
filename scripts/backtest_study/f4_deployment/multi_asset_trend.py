@@ -99,6 +99,7 @@ GI_IRX_AGREE = 0.01          # points
 GB_RATIO_FALL = 1e-4         # adj/close may fall at most 0.01% between sessions
 GB_RATIO_STEP = 0.05         # and never jump by more than 5%
 GB_RET = 0.25                # no daily adjusted return beyond +-25%
+GB_ADJ_RET = 0.03            # and the adjusted close's ex-date return must be within 3 points of zero
 GB_DIV_MATCH = 0.001         # a >5% jump passes only if a feed distribution implies it (build ruling)
 GX_SAMPLES = 24
 GR_TOL = 1e-12
@@ -824,12 +825,18 @@ def gate_inputs(inp: Inputs, P: Panel, s0: int) -> list[str]:
             f"close for all nine; worst ^IRX carry {worst} sessions; {agree}   PASS"]
 
 
-def confirmed_distribution(close_prev: float, step: float, div: float | None) -> bool:
+def confirmed_distribution(close_prev: float, step: float, div: float | None,
+                           adj_ret: float) -> bool:
     """GB's distribution check (Resolved at build 2026-11-27): an adj/close jump above 5%
     passes only when the dividend feed lists a cash distribution on that ex-date whose
     implied jump, close_prev / (close_prev - D) - 1, matches the observed step within
-    0.1 points."""
+    0.1 points. The feed match alone is circular on yfinance data, which builds Adj Close
+    from the same feed (Resolved after review 2026-11-28), so the adjusted close's one-session
+    return on the ex-date must also be within GB_ADJ_RET of zero: a real distribution drops
+    the raw close and leaves the adjusted series smooth."""
     if div is None or not (0 < div < close_prev):
+        return False
+    if not (abs(adj_ret) <= GB_ADJ_RET):
         return False
     return abs(close_prev / (close_prev - div) - 1.0 - step) <= GB_DIV_MATCH
 
@@ -854,13 +861,17 @@ def gate_basis(inp: Inputs, d0: str, divs: dict | None = None) -> list[str]:
                           | ~np.isfinite(step))[0]:
             row = f"    {t} {d[k]} -> {d[k + 1]}: adj/close step {step[k]:+.6f}"
             D = dv.get(d[k + 1]) if dv else None
-            if step[k] > GB_RATIO_STEP and confirmed_distribution(s.close[i0 + k], step[k], D):
+            if step[k] > GB_RATIO_STEP and confirmed_distribution(s.close[i0 + k], step[k], D, ret[k]):
                 implied = s.close[i0 + k] / (s.close[i0 + k] - D) - 1.0
+                raw = s.close[i0 + k + 1] / s.close[i0 + k] - 1.0
                 passed.append(f"{row}; feed distribution {D:.4f} on {d[k + 1]} implies "
-                              f"{implied:+.6f}: confirmed")
+                              f"{implied:+.6f}; raw close return {raw:+.4f}, adjusted "
+                              f"return {ret[k]:+.4f}: confirmed")
                 continue
             bad.append(row + ("" if step[k] <= GB_RATIO_STEP else
-                              f"; feed distribution {D if D is not None else 'none'}"))
+                              f"; feed distribution {D if D is not None else 'none'}; raw "
+                              f"close return {s.close[i0 + k + 1] / s.close[i0 + k] - 1.0:+.4f}, "
+                              f"adjusted return {ret[k]:+.4f}"))
         for k in np.where((np.abs(ret) > GB_RET) | ~np.isfinite(ret))[0]:
             bad.append(f"    {t} {d[k]} -> {d[k + 1]}: adjusted return {ret[k]:+.4f}")
         lines.append(f"{t} fall {np.nanmin(step):+.6f} jump {np.nanmax(step):+.4f} "

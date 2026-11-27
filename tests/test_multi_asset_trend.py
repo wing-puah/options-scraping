@@ -117,6 +117,77 @@ def test_tb_rule_ties_are_out_and_sma_reads_month_end_closes():
     assert st[0] and not st[1:].any() and w[0] == pytest.approx(1 / NT)
 
 
+# ── decision dating on synthetic panels ──────────────────────────────────────
+
+def _flat_panel(adj0=None, n=None):
+    """Three years of weekdays, ETF 0 at `adj0` (default 100), the rest flat at 100, zero
+    T-bill return. Flat sleeves tie with the T-bill and are OUT, so only ETF 0 can be IN."""
+    dates = _weekdays("2010-01-01", "2012-12-31")
+    n = len(dates)
+    adj = np.full((n, NT), 100.0)
+    if adj0 is not None:
+        adj[:, 0] = adj0(dates, n) if callable(adj0) else adj0
+    tb = np.zeros(n)
+    tb[0] = np.nan
+    return M.Panel(dates, adj, adj[:, 0].copy(), np.zeros(n), np.zeros(n, dtype=int), tb)
+
+
+def _pinned_month_ends(P, me, j, back):
+    """Set ETF 0's close at month-end me[j - i] to back[i]; the decision month-end j is i=0."""
+    for i, px in back.items():
+        P.adj[me[j - i], 0] = px
+
+
+def test_decision_table_keys_are_the_session_after_each_decision_month_end():
+    P = _flat_panel()
+    me = M.month_end_idx(P.dates)
+    j0 = 12
+    table = M.decision_table(P, me, j0, "TB-12-EW")
+    # independent of month_end_idx: a first session of a month, at or after the j0 decision
+    firsts = {i for i in range(1, len(P.dates)) if P.dates[i][:7] != P.dates[i - 1][:7]}
+    expected = {i for i in firsts if i - 1 >= me[j0]}
+    assert set(table) == expected
+    assert min(table) == me[j0] + 1
+
+
+@pytest.mark.parametrize("old,mid,new,held", [
+    (90.0, 110.0, 100.0, True),     # 12-month return +11%, 11-month return -9%
+    (110.0, 90.0, 100.0, False),    # 12-month return -9%, 11-month return +11%
+])
+def test_tb_lookback_is_exactly_twelve_month_ends(old, mid, new, held):
+    P = _flat_panel()
+    me = M.month_end_idx(P.dates)
+    j = 20
+    # the 13-month close points the other way, so a lookback of 13 also fails
+    _pinned_month_ends(P, me, j, {13: 200.0 if held else 50.0, 12: old, 11: mid, 0: new})
+    st, w = M.targets(P.adj[:me[j] + 1], P.tb[:me[j] + 1], me[:j + 1], "TB-12-EW")
+    assert bool(st[0]) is held
+    table = M.decision_table(P, me, j, "TB-12-EW")
+    assert bool(table[me[j] + 1][0][0]) is held
+    assert bool(w[0] > 0) is held
+
+
+def test_signal_flip_changes_weights_at_the_next_session_not_a_month_later():
+    P = _flat_panel()
+    me = M.month_end_idx(P.dates)
+    K = 20
+    # rising through month-end K, then a crash inside month K + 1
+    px = 100.0 * 1.002 ** np.arange(len(P.dates))
+    px[me[K] + 1:] = px[me[K]] * 0.1
+    P.adj[:, 0] = px
+    table = M.decision_table(P, me, 14, "TB-12-EW")
+    assert bool(table[me[K] + 1][0][0]) is True
+    flip = me[K + 1] + 1
+    assert bool(table[flip][0][0]) is False
+    assert table[flip][1][0] == 0.0
+    assert not [k for k in table if me[K] + 1 < k < flip]
+    cv = M.simulate(P, {k: v for k, v in table.items() if k >= me[K] + 1}, "x", cost_bp=0.0)
+    ex = {e.k: e for e in cv.execs}
+    assert ex[me[K] + 1].w[0] > 0.0
+    assert ex[flip].w[0] == 0.0
+    assert ex[flip].date == P.dates[me[K + 1] + 1]
+
+
 # ── execution and cost ───────────────────────────────────────────────────────
 
 def _tiny_panel(n=8, r0=0.02, rate=0.0):
@@ -281,12 +352,66 @@ def test_forward_words():
 
 # ── GB distribution check and the options-arm pickers ────────────────────────
 
-def test_gb_distribution_check_matches_the_implied_jump():
+def test_gb_real_distribution_passes_raw_drops_and_adjusted_is_flat():
+    close_prev, div = 22.02, 1.116
+    step = close_prev / (close_prev - div) - 1.0
+    adj_ret = 0.0008                                   # DBC 2024-12-23: raw -5.0%, adjusted +0.08%
+    assert M.confirmed_distribution(close_prev, step, div, adj_ret)
+    assert M.confirmed_distribution(close_prev, step, div, -0.029)
+
+
+def test_gb_feed_entry_with_an_adjusted_jump_is_refused_even_when_it_matches():
     close_prev, div = 20.0, 1.0
     step = close_prev / (close_prev - div) - 1.0
-    assert M.confirmed_distribution(close_prev, step, div)
-    assert not M.confirmed_distribution(close_prev, step + 0.01, div)
-    assert not M.confirmed_distribution(close_prev, step, None)
+    assert not M.confirmed_distribution(close_prev, step, div, 0.0526)   # raw flat, adjusted jumps
+    assert not M.confirmed_distribution(close_prev, step, div, -0.05)
+    assert not M.confirmed_distribution(close_prev, step, div, float("nan"))
+
+
+def test_gb_distribution_still_needs_a_feed_entry_and_a_matching_jump():
+    close_prev, div = 20.0, 1.0
+    step = close_prev / (close_prev - div) - 1.0
+    assert not M.confirmed_distribution(close_prev, step + 0.01, div, 0.0)
+    assert not M.confirmed_distribution(close_prev, step, None, 0.0)
+
+
+def _gb_inputs(raw_drop: bool):
+    """DBC-like series with a 5.3% adj/close jump on 2024-12-23 and a feed entry for it."""
+    dates = _weekdays("2024-12-02", "2025-01-10")
+    k = dates.index("2024-12-23")
+    n = len(dates)
+    close = np.full(n, 22.0)
+    adj = np.full(n, 20.0)
+    if raw_drop:            # real distribution: raw falls by D, adjusted runs on smoothly
+        close[k:] = 22.0 - 1.1
+    else:                   # fake entry: raw does not drop, adjusted jumps
+        adj[k:] = 20.0 * 1.0526
+    etf = {t: M.Series(list(dates), np.full(n, 50.0), np.full(n, 50.0)) for t in M.TICKERS}
+    etf["DBC"] = M.Series(list(dates), close, adj)
+    inp = M.Inputs(etf, M.Series(list(dates), np.full(n, 2.0), np.full(n, np.nan)), None, "synthetic")
+    return inp, dates, {"DBC": {"2024-12-23": 1.1}}
+
+
+def test_gate_basis_passes_a_real_distribution_and_prints_both_returns():
+    inp, dates, divs = _gb_inputs(raw_drop=True)
+    # ratio steps from 20/22 to 20/20.9, about +5.0%; widen with the exact implied value
+    inp.etf["DBC"].adj[:] = inp.etf["DBC"].close * (20.0 / 22.0)
+    k = dates.index("2024-12-23")
+    inp.etf["DBC"].adj[k:] = inp.etf["DBC"].close[k:] * (20.0 / 22.0) * 22.0 / (22.0 - 1.1)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        out = M.gate_basis(inp, dates[0], divs)
+    text = "\n".join(out)
+    assert out[-1].endswith("PASS")
+    assert "raw close return -0.0500" in text and "adjusted return +0.0000" in text
+
+
+def test_gate_basis_refuses_a_feed_entry_whose_adjusted_close_jumps():
+    inp, dates, divs = _gb_inputs(raw_drop=False)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), pytest.raises(M.Refused):
+        M.gate_basis(inp, dates[0], divs)
+    assert "adjusted return +0.0526" in buf.getvalue()
 
 
 def test_expiry_and_strike_pickers():

@@ -437,6 +437,11 @@ Jensen alpha and beta against `EW-9`. Per-sleeve time IN prints for the headline
   prints every row passed this way. The 5% bound holds for every other row. The fall bound and the
   ±25% return bound have no exemption. `--refresh` writes the feed to
   `backtests/multi_asset_trend/<TICKER>_dividends.csv`.
+- `Resolved after review (2026-11-28)`: the feed-match check alone is circular on yfinance data,
+  because yfinance builds `Adj Close` from the same feed. The gate now also requires the adjusted
+  close's ex-date return to be within 3 points of zero. The DBC row passes: the raw close returned
+  -5.00% and the adjusted close returned +0.08%. This tightens the gate and changes no outcome.
+  The operator's ruling on the row is still owed.
 - **GX, no lookahead.** The target weights and states behind session `k`'s return read no close
   after the latest decision close at or before `k − 2`. Drift between executions moves weights
   with realised prices only, so it is not a signal. `tests/test_multi_asset_trend.py` changes every later close
