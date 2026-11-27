@@ -1,7 +1,7 @@
 ## spy_dip_forward — do SPY entries on dip dates do better over the next month, 1993 on?
 
 <!-- outcome:start -->
-> Latest outcome: not yet run — registered 2026-11-27
+> Latest outcome: `>>> spy_dip_forward P (SPY 21-session excess return, entry the close after a close below the 50-day SMA, vs other entries, holdout 2010-2025, Holm m=3): SUPPORTED <<<` (`+1.226% [+0.419%, +1.962%]`, Holm 0.0054); T `DEEPER-DRAWDOWN`, Z `NULL`, PBO `0.0720`; discovery `P +0.035%`; forward `STILL-OPEN` — window HOLDOUT 2010–2025, yfinance closes to 2026-11-25, run 2026-11-27 · [record](../../../study-results/f1_selection/signal/spy_dip_forward.md)
 <!-- outcome:end -->
 
 _Registered 2026-11-27._
@@ -156,6 +156,10 @@ the same below-SMA cell, not another rule.
   same h.
 - **Dip episode.** Formed on the whole series. An episode starts on a dip session when none of the
   5 sessions before it was a dip session. It ends when more than 5 sessions in a row are non-dip.
+- `Resolved at build (2026-11-27)`: the two rules disagree when exactly 5 non-dip sessions separate
+  two dip sessions. The start rule opens a new episode there, and the end rule keeps the old one
+  open. The build follows the end rule: a run of 5 non-dip sessions continues the episode, and a
+  run of 6 or more ends it. This gives fewer, longer episodes, so both GN floors are harder to meet.
 - **Why episodes.** Dip sessions arrive in runs. The episode count, not the session count, is
   closest to the number of independent dips. It sets the power floor.
 - **Episodes read later sessions.** An episode's end is known only after it. So episodes feed the

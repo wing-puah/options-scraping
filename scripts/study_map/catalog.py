@@ -612,6 +612,21 @@ STUDIES: dict[str, Study] = {
                 "`GE: SPY ends 2026-11-25, before the registration date 2026-11-27`. No return "
                 "was computed. The graded run is owed after the 2026-11-27 close. Nothing ships.",
     ),
+    "spy_dip_forward": Study(
+        family="selection", state="open",
+        question="Do SPY entries at the close after a close below the 50-day SMA (the live dip "
+                 "flag) beat entries after other closes over the next 21 sessions, in excess of "
+                 "T-bills and net of 2 bps a side, on the 2010-2025 holdout?",
+        verdict="Registered 2026-11-27 and first run the same day (yfinance closes to 2026-11-25, "
+                "holdout 2010-2025): `>>> spy_dip_forward P (SPY 21-session excess return, entry "
+                "the close after a close below the 50-day SMA, vs other entries, holdout 2010-2025, "
+                "Holm m=3): SUPPORTED <<<` on `P  +1.226% [+0.419%, +1.962%]  p 0.0018  (n 4002, "
+                "NaN draws 0.00%), Holm 0.0054`. T reads `DEEPER-DRAWDOWN` and Z reads `NULL`. "
+                "Discovery barely agrees: `P +0.035% [-1.089%, +1.151%]`. PBO `0.0720`. The holdout "
+                "VOL-SCALED CI spans 0 (`+0.1475 [-0.0472, +0.3248]`), so the gain files as risk "
+                "premium, not timing. Shares only; the option rule is untested. Forward `STILL-OPEN`. "
+                "Nothing ships.",
+    ),
     "tail_breach_intraday": Study(
         family="selection", state="open",
         question="Does SPY's intraday low breach twice its VIX-implied move, or fall 5% below a close "
@@ -1385,6 +1400,26 @@ STUDIES: dict[str, Study] = {
                 "`36/191 trades priced`; FORWARD `STILL-OPEN (0 forward months of 36)`. The "
                 "drawdown gain counts and the Sharpe gain does not, so without the veto the word "
                 "would be DRAWDOWN-ONLY. Nothing ships.",
+    ),
+    "vol_managed_spy": Study(
+        family="deployment", state="null",
+        question="Does scaling a SPY position by the inverse of recent realised volatility "
+                 "(Moreira and Muir 2017; capped at 1.0, the rest in T-bills, monthly, 5 bp on "
+                 "the SPY leg) beat a constant SPY and T-bill mix at the rule's own mean weight "
+                 "on the Sharpe ratio and the maximum drawdown (discovery 1993-2009 sign check, "
+                 "holdout 2010-01 to 2026-08 decides, Holm family of two)?",
+        verdict="Registered, built and first run 2026-11-27 (era current: yfinance closes to "
+                "2026-09-22, first decision 1993-04-30): `>>> vol_managed_spy HEADLINE "
+                "(VOL-21-12 vs MIX, holdout 2010-01 to 2026-08, 5 bp): NULL <<<`; `>>> "
+                "vol_managed_spy HOLDOUT (2010-01 to 2026-08): dSharpe +0.012 [-0.135, +0.149] "
+                "p 0.4732 dMDD +0.053 [-0.021, +0.081] p 0.0816 wbar 0.837 at-cap 48% dCAGR "
+                "-1.19 points <<<`; discovery `dSharpe +0.112 [-0.076, +0.320] dMDD +0.100 "
+                "[-0.002, +0.216]`; `>>> vol_managed_spy ARM R (alpha on SPY, holdout): "
+                "NO-ALPHA alpha +0.008 [-0.008, +0.022] beta 0.68 <<<`; `>>> vol_managed_spy "
+                "PBO (12 cells, S=16, in-sample): 0.630 <<<`; post-publication `dSharpe +0.025 "
+                "[-0.161, +0.198] dMDD +0.050 [-0.011, +0.085] alpha +0.011 [-0.009, +0.027]`; "
+                "FORWARD `STILL-OPEN (0 forward months of 36)`. Neither statistic passes Holm, "
+                "so no gain counts. Nothing ships.",
     ),
     "ruin_bound": Study(
         family="deployment", state="open",

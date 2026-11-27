@@ -8,4 +8,5 @@
     emission_timing.py      does re-emission (ARM P) or fill lag (ARM L) degrade a play?
     direction_hit.py        does anything known at entry predict the underlying moving the play's way?
     calendar_drift.py       do the pre-FOMC drift and the turn of the month still pay on SPY?
+    spy_dip_forward.py      do SPY entries after a close below the 50-day SMA beat other entries?
 """

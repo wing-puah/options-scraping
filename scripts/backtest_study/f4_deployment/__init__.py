@@ -42,6 +42,10 @@ built is runnable in a real account, not whether it is right.
                         ETFs against holding all nine. The holdout drawdown
                         gain counts and the Sharpe gain does not, but the
                         12-cell grid's PBO (0.746) vetoes any claim.
+    vol_managed_spy.py  null · NULL — SPY scaled by the inverse of recent
+                        realised volatility, capped at 1.0, against a constant
+                        SPY and T-bill mix at the rule's own mean weight.
+                        Neither holdout statistic passes Holm; PBO 0.630.
     concurrency_correlation.py
                         open · NOISE — nothing caps the STOCK of open positions,
                         so does the size or internal similarity of the open book
