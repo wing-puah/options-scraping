@@ -419,3 +419,109 @@ def test_headline_word_first_match(g, pbo, d80, word):
 def test_beats_with_low_power_keeps_its_word_and_says_so():
     w, nt = S.headline_word(True, 0.2, S.Graded(0.04, 0.01, 0.02, 0.05), 0.05)
     assert w == "BEATS-EW" and any("low power" in x for x in nt)
+
+
+# ── 9. null generators, power path, first-month pairing ──────────────────────
+
+def test_first_graded_month_earns_only_the_rest_of_month_growth_for_both_arms():
+    """Mutation: applying the execution-session return B in the first graded month
+    (`j > j0` instead of `j > j0 + 1`) in simulate_rule or simulate_ew."""
+    J, j0 = 15, 12
+    B = np.ones((J + 1, NT))
+    A = np.ones((J + 1, NT))
+    W = np.full((J + 1, NT), np.nan)
+    W[j0:] = 0.0
+    W[j0:, :3] = 1 / 3
+    B[j0 + 1, 0] = 2.0                 # earned before the entry close: nobody holds it yet
+    B[j0 + 1, 3] = 3.0
+    A[j0 + 1, 0] = 1.2
+    A[j0 + 1, 3] = 1.9
+    r, _ = S.simulate_rule(B, A, W, j0, 5.0)
+    assert r[j0 + 1] == pytest.approx((1.2 + 1.0 + 1.0) / 3 - 1)
+    re_, _ = S.simulate_ew(B, A, j0, 5.0)
+    assert re_[j0 + 1] == pytest.approx((1.2 + 1.9 + 7.0) / 9 - 1)
+
+
+def test_pass_rate_needs_the_shifted_draws_to_clear_zero_and_is_monotone_in_the_shift():
+    """Mutation: flipping the sign of the shift applied to the sorted draws."""
+    rng = np.random.default_rng(3)
+    n_paths, n_draws = 40, 200
+    srt = np.sort(rng.normal(-0.05, 0.01, (n_draws, n_paths)), axis=0)
+    xs = {w: np.full(n_paths, -0.04) for w in ("graded", "early", "late")}
+    shifts = [0.0, 0.02, 0.05, 0.10, 0.15]
+    rates = S._pass_rates(xs, srt, shifts)
+    assert rates[0] == 0.0                     # draws all below zero, XS negative
+    assert rates[2] == 0.0                     # shifted draws straddle zero: cannot reject
+    assert rates[4] == 1.0                     # shifted well clear of zero
+    assert np.all(np.diff(rates) >= 0)
+
+
+def test_p_two_sided_is_twice_the_smaller_tail_capped_at_one():
+    draws = np.array([[-3.0, 1.0, -1.0, 0.0],
+                      [-2.0, 2.0, -1.0, 0.0],
+                      [-1.0, 3.0, 1.0, 0.0],
+                      [1.0, 4.0, 1.0, 0.0]])
+    p = S.p_two_sided(draws)
+    assert p[0] == pytest.approx(0.5)          # 1/4 at or above zero, doubled
+    assert p[1] == pytest.approx(0.0)          # all positive
+    assert p[2] == pytest.approx(1.0)          # symmetric
+    assert p[3] == pytest.approx(1.0)          # all zero: both tails 1, doubled, capped
+
+
+def test_real_basis_demeans_every_asset_to_one_common_mean():
+    """Mutation: no demeaning (`Rd = R`), so the month-resampling null keeps each asset's own
+    mean."""
+    import dataclasses
+    inp = _inputs(start="2019-12-01", end="2021-06-30")
+    P = S.build_panel(inp)
+    mus = np.linspace(-0.001, 0.004, NT)                 # clearly different daily means
+    adj = 50.0 * np.cumprod(np.tile(1.0 + mus, (len(P.dates), 1)), axis=0)
+    P = dataclasses.replace(P, adj=adj, close=adj.copy())
+    M = S.months_from_panel(P)
+    rb = S.real_basis(P, M, 1, len(M.me) - 1)
+    assert rb.mu_bar == pytest.approx(mus.mean())
+    assert np.ptp(rb.month_B[:, 0] - 1.0) < 1e-12 and np.ptp(rb.month_B.mean(axis=0)) > 0.004
+    first = rb.month_Bd - 1.0
+    assert np.allclose(first.mean(axis=0), rb.mu_bar)    # every asset's column mean is common
+    last_a = rb.month_Ad[-1]
+    assert np.allclose(last_a, last_a[0])
+
+
+def test_garch_null_scale_has_unit_mean_variance():
+    """Mutation: dropping `* math.sqrt(NT)` from the GARCH scale, so E[s2] falls from 1 to
+    about 0.02."""
+    T = 400
+    sigma = 0.01
+    rb = S.RealBasis(R=np.zeros((T, NT)), counts=[1] * T, month_B=None, month_A=None,
+                     month_Bd=None, month_Ad=None, mu_bar=0.0,
+                     cov=np.eye(NT) * sigma ** 2, J=T, j0=12)
+    B, A = S.null_batch("G-GARCH", rb, np.random.default_rng(5), 150)
+    x = B[:, 1:, :] - 1.0                                # one session per month
+    ratio = float(np.mean(x * x) / sigma ** 2)
+    assert 0.5 < ratio < 1.6
+    assert np.allclose(A[:, 1:], 1.0)
+
+
+def test_best_sector_month_finds_the_planted_jump():
+    """Replacing the planted leader's best month by EW-9's returns lowers XS most."""
+    dates = _weekdays("2019-01-01", "2021-06-30")
+    n = len(dates)
+    daily = np.ones((n, NT))
+    daily[:, 3] = 1.002                                  # a steady leader, held by the rule
+    daily[[k for k, d in enumerate(dates) if d.startswith("2020-03")], 3] = 1.02
+    adj = 50.0 * np.cumprod(daily, axis=0)
+    P = S.Panel(dates, adj, adj.copy(), adj[:, 0].copy(), np.zeros(n), np.zeros(n, dtype=bool),
+                np.zeros(n))
+    M = S.months_from_panel(P)
+    j0 = S.first_decision(M)
+    g_ew = np.ones(n)
+    g_ew[1:] = (adj[1:] / adj[:-1]).mean(axis=1)
+    gw = S.Window("graded", j0 + 1, len(M.me), M.labels[j0 + 1:])
+    i, q, xs = S.best_sector_month(M, j0, gw, g_ew, _token())
+    assert i == 3
+    assert M.labels[gw.lo + q] == "2020-03"
+    W = S.rule_weights(M.L, S.HEADLINE, j0)
+    rr, _ = S.simulate_rule(M.B, M.A, W, j0, S.COST_BP)
+    re_, _ = S.simulate_ew(M.B, M.A, j0, S.COST_BP)
+    base = 12.0 * gw.sl(rr - re_).mean()
+    assert 0 < xs < base                                 # the replacement removed some of the gain
