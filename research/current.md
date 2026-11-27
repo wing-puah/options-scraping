@@ -602,6 +602,7 @@ trades on 55 monthly cycles.
 - `ARM Z` is `NULL`: cycle-mean R +0.019, CI [−0.072, +0.095].
 - Dropping 2024's cycles turns the mean to −0.004.
 - `ARM H` is `NO-ALPHA`: alpha −0.034 a month, CI [−0.069, +0.000]. Beta is 4.49.
+- That alpha is per $25,000 of reference capital, about −$853 a month.
 - PBO is 0.829. No other cell shows an edge.
 - One lot never fits the $1,000 stop. The median max loss is $4,398.
 
@@ -611,6 +612,54 @@ and November expiries. On those weeks SPY fell 2.4% from fill to expiry. On the
 
 `index_vrp` closed short index vol as a hedge. This study closes the other half:
 on these quotes the put spread does not pay beyond its beta.
+
+#### Post-run review (unregistered)
+
+Numbers confirmed; the cycle-mean is about zero once the uncached November 2026 cycle is
+counted; `NULL` stands. This review was not registered and changes no verdict.
+
+- Rebuild: all 232 primary entries were rebuilt from the raw quote files with separate code.
+  Expiry, strikes, fill date, credit, max loss and R match. Cycle-mean R is +0.0194, CI
+  [-0.0710, +0.0947]. ARM H alpha is -0.03414 and beta 4.4943. PBO 0.829 reproduces.
+- The cache holes are not neutral. Two in-window cycles have no priced trade: 2026-11-20 (5
+  weekly entries) and 2026-10-16 (4 entries). SPY fell 9.7% to 11.5% from those fills to the
+  11-20 expiry, so every planned spread there settles within $0.20 of full width.
+- Counting the 11-20 cycle at about -1 R moves the cycle-mean from +0.0194 to +0.0012. Its
+  credits are estimated at the 2026 median of 0.157 of width, not quoted.
+- Two winning weeks are also unpriced (2024-08-05, 2026-03-30). The verdict is `NULL` either way.
+- ARM H months stop at 2026-08, so the October-November fall is in neither arm.
+- Reading ARM H: alpha is per $25,000 of reference capital, not R. Beta 4.49 is not a units
+  error: about 4.65 spreads are open at a month-end, each worth about 45 SPY shares. At a
+  $100,000 reference, beta is about 1.12.
+- Short gamma shows. The slope is 5.50 in down months (n 19). It is 3.37 in up months (n 35).
+- The comparator is SPY levered 4.49 times with no financing cost, as registered. With the
+  T-bill rate charged, alpha is -0.019. With dividends added too, it is -0.024 [-0.059,
+  +0.010]. Do not quote -0.034 as the cost against SPY without this.
+- `NO-ALPHA` is borderline: the interval's upper bound is +0.00043, and one bootstrap seed in
+  20 prints `NEGATIVE-ALPHA`. The financing-adjusted reading moves away from zero.
+- Power: a true cycle-mean R of +0.05 is detected about 22% of the time.
+  A true +0.10 is detected about 65%. About +0.12 is needed for 80%. The test rules out a cycle-mean above about +0.095. It cannot
+  tell a small positive edge from zero.
+- PBO 0.829 is not near-identical cells (median cross-cell correlation 0.53).
+- The likely cause is rank reversal by regime. Target exits lead in 2022 and 2025. Hold exits
+  lead in 2023, 2024 and 2026. PBO does not enter a `NULL`.
+- Two entries filled the short leg at its bid under the junk-quote rule (2024-07-29,
+  2025-02-03), as registered. The trades file has no column that shows it.
+- Test gaps (closed by another agent): the monthly mark-to-market series behind ARM H, the
+  cycle as the bootstrap unit, and the D+1 wiring in the pick step.
+- Run of record: the stored report ran on a dirty tree, but the code behind it is committed.
+  A rerun would re-pick strikes, because the 2026-11-27 fetch added $1-strike SPY contracts
+  (the same cause moved four descriptive option trades in `multi_asset_trend`). Do not rerun
+  without saying so.
+
+Size, plain fact, with the short strike at spot. The primary cell's max loss per lot has median
+$4,398 and minimum $2,330. No recommendation.
+
+| Spread width | Weeks that fit a $1,000 stop |
+|---|---|
+| $10 | 100% of 230 (median max loss $682, max $866) |
+| $15 | 29% |
+| $20 or wider | never |
 
 ### `calendar_drift`: built, no verdict
 

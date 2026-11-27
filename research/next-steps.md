@@ -572,6 +572,16 @@ Decisions owed. None of these is a study.
     Evidence:
     [`current.md`](current.md#drawdown-tests-on-the-two-trend-studies-holding-less-passes-them).
 
+<a id="spy-put-write-cache"></a>
+24. **OPEN 2026-11-28 — complete the `spy_put_write` sample, and record the cache state a study ran
+    on.** (a) Fetching the legs for the 2026-11-20 and 2026-10-16 cycles and the two unpriced
+    winning weeks (2024-08-05, 2026-03-30) would complete the registered sample. It needs a
+    `Resolved at build` note. The expected effect is a cycle-mean near zero and an unchanged
+    verdict. (b) A cache top-up changes which strike a nearest-listed-strike rule picks. Any
+    study on the SPY option cache should record the cache state it ran on, as a file count or
+    manifest hash in the report header. This is a tooling item. Evidence:
+    [`current.md`](current.md#spy_put_write-a-beta-trade-with-nothing-left-over).
+
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14
 

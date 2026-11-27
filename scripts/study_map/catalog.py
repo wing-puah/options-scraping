@@ -1285,7 +1285,10 @@ STUDIES: dict[str, Study] = {
                 "`ARM H NO-ALPHA: alpha/month -0.03410 CI95 [-0.06864, +0.00043], beta +4.4910 "
                 "CI95 [+3.7564, +5.4183], 54 months`; `C4 PBO 0.829  ·  C0a PASS  ·  FORWARD "
                 "STILL-OPEN`. The October and November 2026 cycles, where SPY fell, are "
-                "uncached, so none of their trades is priced. Nothing ships.",
+                "uncached, so none of their trades is priced. Nothing ships. Post-run "
+                "review: about zero once the uncached November 2026 cycle (about -1 R) is "
+                "counted; alpha is per $25,000 of reference capital against unfinanced 4.5x "
+                "SPY (post-run review).",
     ),
     "vol_expansion_long_vol": Study(
         family="structure", state="null",

@@ -1,7 +1,7 @@
 ## spy_put_write — does a weekly SPY put credit spread pay beyond its SPY beta?
 
 <!-- outcome:start -->
-> Latest outcome: `NULL` on the first run, 2026-11-27, signal weeks 2022-01-31 to 2026-10-26. `ARM Z NULL: cycle-mean R +0.019 CI95 [-0.072, +0.095] on 232 trades, 55 cycles`; `ARM H NO-ALPHA` at beta 4.49; `C4 PBO 0.829`. Nothing ships · [record](../../study-results/f3_structure/spy_put_write.md).
+> Latest outcome: `NULL` on the first run, 2026-11-27, signal weeks 2022-01-31 to 2026-10-26. `ARM Z NULL: cycle-mean R +0.019 CI95 [-0.072, +0.095] on 232 trades, 55 cycles`; `ARM H NO-ALPHA` at beta 4.49; `C4 PBO 0.829`. Nothing ships. Post-run review: about zero once the uncached November 2026 cycle (about -1 R) is counted. Alpha is per $25,000 of reference capital against unfinanced 4.5x SPY (post-run review) · [record](../../study-results/f3_structure/spy_put_write.md).
 <!-- outcome:end -->
 
 _Registered 2026-11-27._

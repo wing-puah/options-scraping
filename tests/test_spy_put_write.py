@@ -50,6 +50,7 @@ class FakeChain:
     def __init__(self, quotes: dict, asof: date | None = None):
         self.quotes = quotes          # {(expiry, strike): {date: row}}
         self.asof = asof
+        self.idx: dict = {}           # `Study` builds a UniverseSpot over it; spot is replaced
 
     def cached(self, ticker, expiry, strike, opt):
         return opt == "Put" and (expiry, float(strike)) in self.quotes
@@ -352,3 +353,193 @@ def test_coverage_gate_needs_75_percent_overall_and_50_in_every_year():
 def test_twelve_cells_with_the_registered_primary_first():
     assert len(S.CELLS) == 12 and len(set(S.CELLS)) == 12
     assert S.CELLS[0] == S.Cell(1.00, 0.10, S.HOLD) == S.PRIMARY
+
+
+# ── wiring: Study.pick, outcomes ─────────────────────────────────────────────
+
+JUL19 = date(2024, 7, 19)
+
+
+def _study(quotes: dict, sessions: list[date], spot: float = 500.0, day: date | None = None):
+    st = S.Study(chain=FakeChain(quotes), evidence=set(),
+                 closes={d: 500.0 for d in sessions}, sim_cfg={})
+    st.spot_u = spot_on_d_only(spot, day) if day else (lambda ticker, d, expiry: spot)
+    return st
+
+
+def test_study_fills_on_the_session_after_the_decision_date_at_that_sessions_quotes():
+    d = date(2024, 5, 17)                      # a Friday: the next session is Monday, not d+1
+    fill = date(2024, 5, 20)
+    days = weekdays(date(2024, 5, 1), EXP)
+    q = {}
+    for k, (on_d, on_fill, after) in {500.0: ((9.0, 9.2), (5.0, 5.2), (4.0, 4.2)),
+                                      450.0: ((2.0, 2.2), (1.0, 1.2), (0.5, 0.7))}.items():
+        q[(EXP, k)] = {x: row(*(on_d if x == d else on_fill if x == fill else after))
+                       for x in days}
+    st = _study(q, days, day=d)
+    p = st.pick(d, (1.0, 0.10))
+    assert (p.status, p.fill, p.k_s, p.k_l) == (S.BUILT, fill, 500.0, 450.0)
+    assert p.fill == st.sessions[st.sessions.index(d) + 1]
+    e = st.entry(d, (1.0, 0.10))
+    assert e.fill == fill
+    assert e.credit == pytest.approx(5.1 - 1.1)          # D's 9.1 - 2.1 = 7.0 would be wrong
+
+
+def test_outcomes_groups_trades_by_expiry_cycle_and_keys_cycles_on_the_planned_fill(
+        monkeypatch, tmp_path, capsys):
+    """Weeks 05-13 and 05-20 plan Jun 21; 05-29 plans Jul 19 only because its
+    fill (05-30) is past the Jun 21 nearest-37 tie, while 05-29 itself ties to
+    Jun 21. So a cycle list built from the decision date would lose Jul 19."""
+    monkeypatch.setattr(S, "OUT_DIR", tmp_path)
+    monkeypatch.setattr(S, "TRADES_CSV", tmp_path / "trades.csv")
+    days = weekdays(date(2024, 5, 1), JUL19)
+    strikes = (500, 485, 475, 460, 450, 435, 425)
+    q = {(e, float(k)): {x: row(k / 100, k / 100 + 0.1) for x in days}
+         for e in (EXP, JUL19) for k in strikes}
+    st = _study(q, days)
+    weeks = [date(2024, 5, 13), date(2024, 5, 20), date(2024, 5, 29)]
+    assert S.rule_expiry(weeks[2]) == EXP and S.rule_expiry(st.nxt[weeks[2]]) == JUL19
+    cens = {g: S.census(st, weeks, g) for g in S.GEOMS}
+    seen = []
+    real = S.grade_z
+
+    def spy(outs, cycles, *a, **k):
+        seen.append((list(outs), list(cycles)))
+        return real(outs, cycles, *a, **k)
+
+    monkeypatch.setattr(S, "grade_z", spy)
+    assert S.outcomes(st, weeks, cens, 2.6) == 0
+    capsys.readouterr()
+    outs, cycles = seen[0]                      # the primary cell
+    assert cycles == [EXP, JUL19]
+    assert [o.expiry for o in outs] == [EXP, EXP, JUL19]
+    means = S.cycle_means(outs, cycles)
+    assert means[0] == pytest.approx((outs[0].R + outs[1].R) / 2)
+    assert means[1] == pytest.approx(outs[2].R)
+
+
+def test_grade_z_follows_the_cycle_mean_not_the_per_trade_mean():
+    cycles = [date(2022 + i // 12, i % 12 + 1, 15) for i in range(30)]
+    # One crowded cycle at +0.5 (100 trades), 29 single-trade cycles at -0.2.
+    outs = [_o(cycles[0], 0.5) for _ in range(100)] + [_o(c, -0.2) for c in cycles[1:]]
+    assert sum(o.R for o in outs) / len(outs) > 0.3          # per-trade mean is clearly positive
+    g = S.grade_z(outs, cycles, n=2000)
+    assert g["mean"] == pytest.approx((0.5 - 0.2 * 29) / 30)
+    assert g["mean"] < 0 and g["ci"][1] < 0
+    assert g["token"] == S.NEGATIVE
+
+
+# ── ARM H monthly series ─────────────────────────────────────────────────────
+
+def _book_trade(fill: date, expiry: date, mark_on, commission: float) -> S.Outcome:
+    """A $4.00-credit, $50-wide hold that settles at 0 (gross +$400), marked
+    by `mark_on(day)` per session."""
+    sessions = weekdays(fill, expiry)
+    pick = S.Pick(fill, fill, expiry, 1.0, 0.10, S.BUILT, spot=500.0, k_s=500.0, k_l=450.0)
+    e = S.Entry(pick, fill, 4.0, 50.0, ("close_mid",) * 2, sessions,
+                [mark_on(s) for s in sessions], [("close_mid",) * 2] * len(sessions), 0.0)
+    return S.exit_hold(e, S.PRIMARY, commission)
+
+
+def _book():
+    # A: open 05-14 -> 08-16, spread 3.0 to May 31 (+$100), 2.0 in June (+$200),
+    #    5.0 in July (-$100), settles worthless on exit (+$400).
+    a = _book_trade(date(2024, 5, 14), date(2024, 8, 16),
+                    lambda s: 3.0 if s <= date(2024, 5, 31) else 2.0 if s < date(2024, 7, 1) else 5.0,
+                    0.0)
+    # B: open 06-03 -> 06-21, settles worthless (+$400), $2.60 commission at its exit.
+    b = _book_trade(date(2024, 6, 3), EXP, lambda s: 3.5, 2.60)
+    closes = {date(2024, 5, 31): 500.0, date(2024, 6, 28): 510.0, date(2024, 7, 1): 999.0,
+              date(2024, 7, 31): 495.9, date(2024, 8, 16): 1.0}
+    return [a, b], closes
+
+
+def test_monthly_series_is_mtm_equity_change_net_of_commission_over_reference_capital():
+    """Pinned: months run from the first full month after the first fill (May,
+    the fill month, is dropped) to the last calendar month ending on or before
+    the last exit (August, which ends after the 08-16 exit, is dropped). Each
+    month is (equity at its last session - equity at the prior month's last
+    session) / capital, equity = marked level of open trades + booked dollars of
+    closed ones - commissions of trades exited on or before that day. The SPY
+    return uses the last close on or before each month-end (07-01 is ignored)."""
+    outs, closes = _book()
+    months, bc = S.monthly_series(outs, closes)
+    assert [m[0] for m in months] == ["2024-06", "2024-07"]
+    # June: A marked +$200 (still open), B booked +$400, commission 2.60; May: A +$100.
+    assert months[0][1] == pytest.approx((200 + 400 - 2.60 - 100) / 25_000)
+    # July: A marked -$100 (open, MTM not realised), B unchanged; the commission is already in June.
+    assert months[1][1] == pytest.approx((-100 - 200) / 25_000)
+    assert months[0][2] == pytest.approx(510 / 500 - 1) and months[1][2] == pytest.approx(495.9 / 510 - 1)
+    assert bc.n_positions == 2
+
+
+def test_monthly_series_divides_by_the_capital_it_is_given_and_defaults_to_25000():
+    outs, closes = _book()
+    base = S.monthly_series(outs, closes)[0]
+    assert S.REF_CAPITAL == 25_000.0
+    half = S.monthly_series(outs, closes, capital=50_000.0)[0]
+    assert [m[1] for m in half] == pytest.approx([m[1] / 2 for m in base])
+
+
+def test_monthly_series_charges_commission_in_the_month_of_the_exit():
+    outs, closes = _book()
+    free = S.monthly_series([outs[0], _book_trade(date(2024, 6, 3), EXP, lambda s: 3.5, 0.0)],
+                            closes)[0]
+    paid = S.monthly_series(outs, closes)[0]
+    assert free[0][1] - paid[0][1] == pytest.approx(2.60 / 25_000)
+    assert free[1][1] == pytest.approx(paid[1][1])
+
+
+def test_monthly_series_of_an_empty_book_or_a_book_with_no_full_month_is_empty():
+    assert S.monthly_series([], {}) == ([], None)
+    short = _book_trade(date(2024, 5, 14), EXP, lambda s: 3.0, 0.0)   # fills May, exits Jun 21
+    assert S.monthly_series([short], {date(2024, 5, 31): 500.0})[0] == []
+
+
+# ── leg mark and ARM H tokens ────────────────────────────────────────────────
+
+def _history(day_rows: dict):
+    q = {(EXP, 500.0): day_rows}
+    return FakeChain(q).history(S.put_leg(EXP, 500.0, -1))
+
+
+def test_leg_mark_is_the_closing_mid_on_a_clean_quote():
+    series, details = _history({D: row(5.0, 5.2)})
+    assert S.leg_mark(series, details, D, EXP) == (pytest.approx(5.1), "close_mid")
+
+
+def test_leg_mark_carries_the_last_snap_on_a_day_without_a_row_and_none_before_any():
+    series, details = _history({D: row(5.0, 5.2)})
+    assert S.leg_mark(series, details, FILL, EXP) == (pytest.approx(5.1), "carried")
+    assert S.leg_mark(series, details, date(2024, 5, 10), EXP) is None
+
+
+def _months(alpha: float, noise: float, seed: int = 3) -> list[tuple]:
+    rng = np.random.default_rng(seed)
+    out = []
+    for i in range(36):
+        x = 0.02 * rng.standard_normal()
+        out.append((f"{2022 + i // 12:04d}-{i % 12 + 1:02d}",
+                    alpha + 2.0 * x + noise * rng.standard_normal(), x))
+    return out
+
+
+@pytest.mark.parametrize("alpha, noise, token", [
+    (-0.01, 0.001, S.NEG_ALPHA),       # interval wholly below zero
+    (0.01, 0.001, S.ALPHA),            # wholly above zero, stable by year and stress month
+    (0.0, 0.05, S.NO_ALPHA),           # noise swamps a zero alpha: interval spans zero
+])
+def test_grade_h_token_follows_the_alpha_interval(alpha, noise, token):
+    g = S.grade_h(_months(alpha, noise), n=500)
+    if token == S.NO_ALPHA:
+        assert g["ci"][0] < 0 < g["ci"][1]
+    assert g["token"] == token
+
+
+def test_h_token_needs_every_criterion_for_alpha_but_only_c1_for_negative():
+    base = dict(c0=True, c1=True, c2=True, c3=True, alpha=0.01)
+    assert S.h_token(base) == S.ALPHA
+    assert S.h_token({**base, "c2": False}) == S.NO_ALPHA
+    assert S.h_token({**base, "c3": False}) == S.NO_ALPHA
+    assert S.h_token({**base, "alpha": -0.01, "c2": False}) == S.NEG_ALPHA
+    assert S.h_token({**base, "c1": False}) == S.NO_ALPHA
