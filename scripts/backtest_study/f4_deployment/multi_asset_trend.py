@@ -1415,7 +1415,8 @@ def main(argv=None) -> int:
     dirty = bool(_git("status", "--porcelain"))
     print(f"  git {sha or '?'} ({'dirty' if dirty else 'clean'} working tree)")
     print("  era: current (inputs are unversioned market closes)")
-    print(f"  windows: discovery <first month> to {DISCOVERY_END}, holdout {HOLDOUT[0]} to "
+    print(f"  windows: discovery from the first common decision month (printed under DISCOVERY) to "
+          f"{DISCOVERY_END}, holdout {HOLDOUT[0]} to "
           f"{HOLDOUT[1]}, gap 2026-09 to 2026-11 (in no window), forward from {FORWARD_START}; "
           f"in-sample cut {IN_SAMPLE_END}")
     print(f"  seal: starts {era_mod.SEAL_START}; binds play signal dates; this study reads no "

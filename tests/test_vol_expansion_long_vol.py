@@ -518,5 +518,14 @@ def test_outcomes_run_end_to_end_on_synthetic_quotes(tmp_path, monkeypatch, caps
     assert ">>> vol_expansion_long_vol PBO (12 cells, gates all three arms): " in out
     assert "ARM S STILL-OPEN ARM BC STILL-OPEN ARM BP STILL-OPEN" in out
     assert (tmp_path / "trades.csv").exists()
+    # per-arm blocks sit under GRADED ARMS, the PBO lines under C4
+    lines = out.splitlines()
+    ig = next(i for i, x in enumerate(lines) if x.startswith("GRADED ARMS"))
+    ic = next(i for i, x in enumerate(lines) if x.startswith("C4 — PBO"))
+    for a in V.ARMS:
+        ia = next(i for i, x in enumerate(lines) if x.startswith(f"  ARM {a}: n "))
+        assert ig < ia < ic
+    ip = next(i for i, x in enumerate(lines) if x.startswith("  quarters ") or "not computed" in x)
+    assert ip > ic
     # 12 onsets and fewer than 60 calm weeks: every arm is UNDERPOWERED
     assert out.count(f": {V.UNDERPOWERED} — ") == 3

@@ -218,7 +218,10 @@ prohibition in [§4](../docs/deployment-rules.md#s4) was accepted on 2026-09-06
 and now rests on `hedge_timing`'s H3-GAP arm alone, because H1-GAP moved from
 `CONTRARY` to `NULL` on this run. The sleeve stays, so finding an indicator for
 when to open a hedge is an open queue item with nothing in it
-([`next-steps.md`](next-steps.md) §2.10).
+([`next-steps.md`](next-steps.md) §2.10). On 2026-11-27 `H3-GAP` read `NULL`:
+`HEADLINE difference -0.278  CI95 [-0.566, +0.005]`. The §4 gap-up prohibition
+no longer has a `CONTRARY` read behind it. Keeping or withdrawing it is the
+operator's call.
 
 The spine is [`f5_hedging/README.md`](../scripts/backtest_study/f5_hedging/README.md):
 the four studies grouped by the question each answers, what each one last

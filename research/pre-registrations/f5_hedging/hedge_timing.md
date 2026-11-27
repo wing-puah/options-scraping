@@ -1,7 +1,7 @@
 ## hedge_timing — is the bear sleeve's DEPLOY DAY mechanical?
 
 <!-- outcome:start -->
-> Latest outcome: `hedge_timing ARM H3-GAP` `CONTRARY`. `ARM H4-CHOP`, `ARM H4-GAP` and `ARM H4-DECLINE` `UNSTABLE`. The other six headline arms `NULL`: H1 and H3 for each of CHOP and DECLINE, and H1-GAP. Control `ARM H2-GAP` `TIMING-CANDIDATE`; the other two H2 controls `NULL`. 0 `TIMING-CANDIDATE` survivors — 2026-09-28 · [record](../../study-results/f5_hedging/hedge_timing.md).
+> Latest outcome (2026-11-27): `hedge_timing ARM H3-GAP` `NULL`, with `HEADLINE difference -0.278  CI95 [-0.566, +0.005]`. `ARM H1-DECLINE` `UNSTABLE`; the other seven headline arms `NULL`. Control `ARM H2-GAP` `UNSTABLE`; the other three H2 controls `NULL`. 0 `TIMING-CANDIDATE` survivors. `H3-GAP` read `CONTRARY` on 2026-09-28 and `UNSTABLE` on 2026-10-26 · [record](../../study-results/f5_hedging/hedge_timing.md).
 <!-- outcome:end -->
 
 _Registered 2026-08-28._

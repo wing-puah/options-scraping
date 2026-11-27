@@ -1226,25 +1226,26 @@ def outcomes(ins: Book, fwd: Book) -> int:
         arm_rows[a], calm_rows[a], xdrops[a] = rows(ps), rows(calm_data[(a, HOLD)]), xd
         grades[a] = grade(arm_rows[a], calm_rows[a])
     apply_holm(grades)
-    # ── PBO ──────────────────────────────────────────────────────────────────
-    hdr("C4 — PBO by CSCV over the 12 cells, onset trades, quarter blocks")
-    pbo, pbo_state = None, "ok"
+    # ── PBO (computed first: it gates the arm words; printed under C4 below) ──────
+    pbo, pbo_state, pbo_lines = None, "ok", []
     if any(v is None for v in cell_data.values()):
         pbo_state = "await"
-        print("  not computed: a cell awaits a fetch")
+        pbo_lines.append("  not computed: a cell awaits a fetch")
     else:
         try:
             res, T, padded = run_pbo({n: rows(v[0]) for n, v in cell_data.items()})
             pbo = res.pbo
             share = res.selection_share()
-            print(f"  quarters {T} (+{padded} zero pad)  S {PBO_S}  combinations "
-                  f"{res.n_combinations}  PBO {pbo:.3f}  "
-                  f"({'bars promotion' if pbo >= PBO_MAX else 'below 0.50'})")
-            print("  n_star share per cell (a half with no trades makes every cell NaN and "
-                  "picks cell 1): " + "  ".join(f"{c.n}:{s:.3f}" for c, s in zip(CELLS, share)))
+            pbo_lines.append(
+                f"  quarters {T} (+{padded} zero pad)  S {PBO_S}  combinations "
+                f"{res.n_combinations}  PBO {pbo:.3f}  "
+                f"({'bars promotion' if pbo >= PBO_MAX else 'below 0.50'})")
+            pbo_lines.append(
+                "  n_star share per cell (a half with no trades makes every cell NaN and "
+                "picks cell 1): " + "  ".join(f"{c.n}:{s:.3f}" for c, s in zip(CELLS, share)))
         except ValueError as exc:
             pbo_state = "other"
-            print(f"  not computed: {exc}")
+            pbo_lines.append(f"  not computed: {exc}")
 
     words = {}
     for a in ARMS:
@@ -1269,6 +1270,10 @@ def outcomes(ins: Book, fwd: Book) -> int:
               + (f"; re-run at R=-1 meanR {_f(gpos['mean'])} CI95 {_ci_s(gpos['ci'])}"
                  if gpos else ""))
         print(f"     -> {words[a][0]}" + (f" ({words[a][1]})" if words[a][1] else ""))
+
+    hdr("C4 — PBO by CSCV over the 12 cells, onset trades, quarter blocks")
+    for line in pbo_lines:
+        print(line)
 
     printed_only(ins, cell_data, calm_data, grades)
 

@@ -302,3 +302,14 @@ def test_expiry_and_strike_pickers():
     strikes = ["99", "101", "105"]
     assert M.pick_strike(strikes, 100.0, tie_high=False) == "99"
     assert M.pick_strike(strikes, 100.0, tie_high=True) == "101"
+
+
+def test_header_prints_no_placeholder(monkeypatch, capsys):
+    def refuse(*a, **k):
+        raise M.Refused(3, "synthetic refusal", "synthetic")
+    monkeypatch.setattr(M, "check_era", lambda: None)
+    monkeypatch.setattr(M, "load_inputs", refuse)
+    M.main([])
+    out = capsys.readouterr().out
+    assert "<first month>" not in out and "<" not in out.split("windows:")[1].split("\n")[0]
+    assert f"to {M.DISCOVERY_END}, holdout" in out

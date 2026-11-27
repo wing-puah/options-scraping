@@ -1,7 +1,7 @@
 ## selection_order — does a different entry-side order of the same candidates spend the delta budget better?
 
 <!-- outcome:start -->
-> Latest outcome: on the registered v3 book, `POWER-STOPPED`: no arm powered, best 11 of 25 dates (2026-08-15). Later v4 runs, not the registered book, read `ORDERING-IS-NOISE` (2026-09-28) · [record](../../study-results/f4_deployment/selection_order.md).
+> Latest outcome: on the registered v3 book, `POWER-STOPPED`: no arm powered, best 11 of 25 dates (2026-08-15). Later v4 runs, not the registered book, read `ORDERING-IS-NOISE` (2026-09-28), then `ORDERING-MATTERS — O3 clears all seven. CANDIDATE, NOT a ship` (2026-11-27) · [record](../../study-results/f4_deployment/selection_order.md).
 <!-- outcome:end -->
 
 _Registered 2026-08-14._

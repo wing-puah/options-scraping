@@ -319,7 +319,12 @@ STUDIES: dict[str, Study] = {
         question="Does entry TIMING carry risk the columns never saw: the same (ticker, "
                  "structure) re-emitted across consecutive analysis dates (am I late?), and "
                  "a fill delayed 1-3 sessions past the signal (does the edge decay?)?",
-        verdict="Both headlines hold and the candidate COUNT went back up. `ARM P: NULL (no "
+        verdict="2026-11-27 suite run (era v4, 2,073-row book): `ARM P: NULL (no persistence "
+                "effect) — no cell separates repeats from firsts` holds, and `ARM L: "
+                "STALE-ENTRY-PENALTY (CANDIDATE, NOT A SHIP)` replaces LAG-TOLERANT; it queues "
+                "an independent-window confirmation of a same-session fill. Nothing ships. The "
+                "LAG-TOLERANT read below no longer holds. Earlier reads follow. 2026-09-19 "
+                "suite run: both headlines held and the candidate COUNT went back up. `ARM P: NULL (no "
                 "persistence effect) — no cell separates repeats from firsts` and `ARM L: "
                 "LAG-TOLERANT (PUBLISHABLE OPERATIONAL FINDING)` are unchanged on the 2026-09-19 "
                 "suite run (sha 8e9b6a7, `rows=1325  dates=207`), but the report now prints TWO "
@@ -350,7 +355,11 @@ STUDIES: dict[str, Study] = {
         question="Does entering a play only WHEN its stated trigger level is first crossed, "
                  "at that session's CLOSE, beat the unconditional next-open entry once the "
                  "entry price pays for the confirmation?",
-        verdict="LATE-ENTRY on every cell now, and the finding is STRONGER rather than weaker. "
+        verdict="2026-11-27 suite run (era v4, 2,073-row book): `tally: {'CONFOUND-EXPLAINED': "
+                "1, 'NULL': 2}`. N=1 reads `CONFOUND-EXPLAINED` and N=3 and N=5 read `NULL`, so "
+                "the LATE-ENTRY read below no longer holds. Nothing ships. Earlier reads "
+                "follow. 2026-09-19 suite run: LATE-ENTRY on every cell, and the finding was "
+                "STRONGER rather than weaker. "
                 "On the 2026-09-19 suite run (sha 8e9b6a7, `book: 1325 rows  era=v4  "
                 "n_dates=207`; `1277 exact, 4 near, 0 "
                 "superseded-basis, 1 boundary-tie, 43 HARD  of 1325` -> `ADMITTED: 1282 rows / "
@@ -987,7 +996,7 @@ STUDIES: dict[str, Study] = {
                  "one session, plus one volume-climax variant), P (partial scale-out, "
                  "exact), and D (a SECONDARY drawdown THROTTLE on sizing, which can never "
                  "ship from an f2 study).",
-        verdict="2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): ARM U/a and U/b `REACTIVE-AGAIN`, O/vol `NULL`, `SECONDARY-NULL`; nothing ships. Earlier reads follow. Every PRIMARY cell is UNDERPOWERED, on the 2026-09-19 suite run (sha 8e9b6a7, "
+        verdict="2026-11-27 suite run (era v4, 2,073-row book): `ARM U/a          UNDERPOWERED`, `ARM U/b          NULL`, `tally: {'NULL': 3, 'UNDERPOWERED': 4, 'SECONDARY-NULL': 1}`, and `ARM W arm-level token: PROD-ROBUST`. The REACTIVE-AGAIN read of U/a and U/b below no longer holds; nothing ships. Earlier reads follow. 2026-09-28 suite run (sha de5a6f3 + the loader rulings, 1,795-row book, 280 dates): ARM U/a and U/b `REACTIVE-AGAIN`, O/vol `NULL`, `SECONDARY-NULL`; nothing ships. Earlier reads follow. Every PRIMARY cell is UNDERPOWERED, on the 2026-09-19 suite run (sha 8e9b6a7, "
                 "`book: 1325 rows`, PRIMARY `baseline book: 104 positions / 47 dates   max DD "
                 "$-7,698 (-30.8% of capital)`) exactly as on 09-05 and exactly as the "
                 "registration named IN ADVANCE. The VERDICT SUMMARY is unchanged word for word: "
@@ -1426,7 +1435,7 @@ STUDIES: dict[str, Study] = {
                 "consider a §2 change.",
     ),
     "selection_order": Study(
-        family="deployment", state="null",
+        family="deployment", state="open",
         question="On v3, account_sim's rejected picks out-earned its taken ones — a read that "
                  "REVERSES on v4 (see the account_sim entry), so the premise this study was "
                  "registered under no longer holds on the current era. The pre-registered "
