@@ -602,13 +602,15 @@ Decisions owed. None of these is a study.
 
 <a id="tier-contrast-forward"></a>
 25. **REGISTERED 2026-11-28 as
-    [`tier_contrast_forward`](pre-registrations/f4_deployment/tier_contrast_forward.md); the
-    module build is owed.** The v4 tier gate had no graded A/B-versus-C contrast. `v4_bridge`
+    [`tier_contrast_forward`](pre-registrations/f4_deployment/tier_contrast_forward.md); built
+    the same day, `STILL-OPEN`.** Two parts are owed before the read: a helper for the
+    capped-exit-mark line, and a decision on how a pipeline stop is declared (today the operator
+    passes `--pipeline-stopped`). The v4 tier gate had no graded A/B-versus-C contrast. `v4_bridge`
     prints `LADDER UNVALIDATED`, and `regime_map` tests cells against zero. The tier means are
     now printed, so an in-sample contrast would be graded after a look. No existing forward read
     covers it. The new read is forward-only, on rows dated from 2026-11-28. It fires once, when
     each arm holds 377 closed positions on 120 signal dates. That is expected near September
-    2027. Build the module before the first forward row closes. Evidence:
+    2027. Evidence:
     [`current.md`](current.md#regime_map-against-uninformative-labels-the-cells-show-the-tier-not-the-regime).
 
 <a id="s0c"></a>
