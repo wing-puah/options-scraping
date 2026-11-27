@@ -440,7 +440,7 @@ Owed, the operator's call: the registration says a `SUPPORTED` whose VOL-SCALED 
 - The `vol_expansion_long_vol` fetch and result are in the entry below, not repeated here.
 - Stale index records were brought to their 2026-11-27 reads for `selection_order`, `hedge_timing`, `emission_timing`, `trigger_entry` and `exit_drawdown`.
 - The operator card's [§4](../docs/deployment-rules.md#s4) gap-up prohibition still cites the September `CONTRARY` read, while H3-GAP now reads `NULL`. The card is untouched; keeping or withdrawing the prohibition is the operator's call.
-- The `calendar_drift` rerun is still owed after the 2026-11-27 US close.
+- The `calendar_drift` rerun is still owed after the 2026-11-30 US close.
 
 The three operator calls and the rerun are next-steps item 20 in [`next-steps.md`](next-steps.md).
 
@@ -533,8 +533,11 @@ on these quotes the put spread does not pay beyond its beta.
 
 Gate `GE` requires SPY closes through the registration date, 2026-11-27. The
 fetch ended at 2026-11-25, so the run refused before any return was computed.
-The rerun is owed after the 2026-11-27 close settles. A run after the first
-December session keeps one more day in the `TOM` sample.
+The rerun is owed after the 2026-11-30 US close, the first session after the registration date. GE now requires that session, so the graded sets are final on the first run.
+
+A pre-run review on simulated returns found the test correctly sized, with a gross rejection rate near 5.5% at a nominal 5% and no p-value floor.
+Its power is about 0.80 for a pre-FOMC effect of 40 bp a day and for a turn-of-month effect of 15 bp a day.
+At 20 bp a day the pre-FOMC power is about 0.21. At 10 bp a day the turn-of-month power is about 0.36. The review added the build rulings before any outcome.
 
 `config/fomc-history.yml` holds 234 scheduled decision days from 1994 to 2023-05.
 It was committed before any price was downloaded. 2020 is the one year with seven.

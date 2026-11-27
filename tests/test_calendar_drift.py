@@ -55,11 +55,30 @@ def test_tom_skips_a_holiday_and_crosses_a_year_boundary():
     assert [dates[d] for d in dec.days] == ["2014-12-30", "2015-01-02", "2015-01-05", "2015-01-06"]
 
 
-def test_tom_window_past_the_data_and_the_final_session_are_open():
+def test_tom_window_past_the_data_is_open_and_the_final_session_is_not_double_counted():
     dates = weekdays("2015-05-01", "2015-06-02")
     ev = cd.tom_events(dates)
-    assert [e.open for e in ev] == [True, True]          # May runs past the data; 06-02 unsettled
-    assert [dates[d] for d in ev[1].days] == ["2015-06-02"]
+    # May's window runs past the data and already holds 06-02: one open event, no spurious one-day event.
+    assert [e.open for e in ev] == [True]
+    assert [dates[d] for d in ev[0].days] == ["2015-05-29", "2015-06-01", "2015-06-02"]
+
+
+def test_tom_final_session_outside_any_window_is_its_own_open_event():
+    dates = weekdays("2015-05-01", "2015-06-10")
+    ev = cd.tom_events(dates)
+    assert [e.open for e in ev] == [False, True]
+    assert [dates[d] for d in ev[1].days] == ["2015-06-10"]
+
+
+def test_tom_fix_leaves_membership_of_completed_windows_unchanged():
+    dates = weekdays("2014-01-01", "2015-06-02")
+    full = cd.tom_events(dates)
+    trimmed = cd.tom_events(dates[:-1])
+    def done(evs):
+        return [e for e in evs if not e.open]
+
+    assert done(full) == done(trimmed)
+    assert {d for e in full for d in e.days} >= {d for e in done(full) for d in e.days}
 
 
 def test_window_membership_never_reads_a_price():
@@ -263,14 +282,8 @@ def test_gf_flags_a_short_year_without_an_exception():
 
 # ── end to end on a synthetic world ─────────────────────────────────────────
 
-def _synthetic_world(tmp_path, monkeypatch):
-    dates = ["1993-01-29"] + weekdays("1993-02-01", "2026-11-27")
-    rng = np.random.default_rng(7)
-    adj = 50 * np.cumprod(1 + rng.normal(0.0003, 0.011, len(dates)))
-    close = adj * 1.0
-    spy = tmp_path / "SPY.csv"
-    spy.write_text("date,close,adj_close\n" + "".join(
-        f"{d},{float(c)!r},{float(a)!r}\n" for d, c, a in zip(dates, close, adj)))
+def _synthetic_world(tmp_path, monkeypatch, plant=0.0, end="2026-12-01"):
+    dates = ["1993-01-29"] + weekdays("1993-02-01", end)
     sessions = set(dates)
     hist = []
     for y in range(1994, 2023):
@@ -290,13 +303,22 @@ def _synthetic_world(tmp_path, monkeypatch):
             d = date(y, m, 14)
             if d < date(2023, 6, 14):
                 continue
-            while d.weekday() >= 5 or (d.isoformat() <= "2026-11-27" and d.isoformat() not in sessions):
+            while d.weekday() >= 5 or (d.isoformat() <= end and d.isoformat() not in sessions):
                 d += timedelta(days=1)
             macro.append({"date": d, "type": "fomc", "release_et": "14:00", "label": "x"})
     my = tmp_path / "macro.yml"
     my.write_text(yaml.safe_dump({"meta": {"compiled": date(2026, 11, 27),
                                            "verified_through": {"fomc": date(2027, 12, 31)}},
                                   "events": macro}))
+    rng = np.random.default_rng(7)
+    ret = rng.normal(0.0003, 0.011, len(dates))
+    if plant:
+        decided = {d for d in hist + [m["date"].isoformat() for m in macro] if d in sessions}
+        ret = ret + np.array([plant if d in decided else 0.0 for d in dates])
+    adj = 50 * np.cumprod(1 + ret)
+    spy = tmp_path / "SPY.csv"
+    spy.write_text("date,close,adj_close\n" + "".join(
+        f"{d},{float(a)!r},{float(a)!r}\n" for d, a in zip(dates, adj)))
     monkeypatch.setattr(cd, "BOOT_N", 200)
     monkeypatch.delenv("STUDY_ERA", raising=False)
     return spy, hy, my
@@ -318,11 +340,48 @@ def test_end_to_end_prints_the_three_banner_lines(tmp_path, monkeypatch, capsys)
     assert "PRIOR (pre-publication, not graded)" in out
 
 
+def _trim_to(spy, last):
+    keep = [ln for ln in spy.read_text().splitlines() if ln.startswith("date,") or ln[:10] <= last]
+    spy.write_text("\n".join(keep) + "\n")
+
+
 def test_ge_refuses_a_series_that_stops_before_registration(tmp_path, monkeypatch, capsys):
     spy, hy, my = _synthetic_world(tmp_path, monkeypatch)
-    lines = spy.read_text().splitlines()
-    spy.write_text("\n".join(lines[:-1]) + "\n")      # drop 2026-11-27
+    _trim_to(spy, "2026-11-26")
     assert cd.main.__module__ == cd.__name__
+    with pytest.raises(cd.Refused) as exc:
+        cd.run(spy_path=spy, history_path=hy, macro_path=my, check_git=False)
+    assert exc.value.code == 3
+
+
+def test_ge_needs_a_session_strictly_after_the_registration_date(tmp_path, monkeypatch, capsys):
+    spy, hy, my = _synthetic_world(tmp_path, monkeypatch)
+    full = spy.read_text()
+    _trim_to(spy, "2026-11-27")                      # ends exactly on the registered date
+    with pytest.raises(cd.Refused) as exc:
+        cd.run(spy_path=spy, history_path=hy, macro_path=my, check_git=False)
+    assert exc.value.code == 3
+    assert "after the registration date 2026-11-27" in capsys.readouterr().out
+    spy.write_text(full)                             # one more session (11-30) passes
+    _trim_to(spy, "2026-11-30")
+    assert cd.run(spy_path=spy, history_path=hy, macro_path=my, check_git=False) == 0
+
+
+def test_ge_tests_the_last_session_with_an_adj_close(tmp_path, monkeypatch):
+    spy, hy, my = _synthetic_world(tmp_path, monkeypatch)
+    _trim_to(spy, "2026-11-30")
+    spy.write_text(spy.read_text() + "2026-12-01,500.0,\n")     # a later row with no Adj Close
+    rows = cd.read_spy(spy)
+    assert rows[-1][0] == "2026-12-01" and rows[-1][2] is None
+    assert cd.ge_problems(rows, "2026-11-27") == []
+    assert cd.ge_problems(rows, "2026-11-30") != []            # the raw last row must not rescue it
+
+
+def test_ge_refuses_duplicate_dates(tmp_path, monkeypatch):
+    spy, hy, my = _synthetic_world(tmp_path, monkeypatch)
+    spy.write_text(spy.read_text() + "2026-12-01,1.0,1.0\n")
+    probs = cd.ge_problems(cd.read_spy(spy), "2026-11-27")
+    assert any("duplicate dates" in p and "2026-12-01" in p for p in probs)
     with pytest.raises(cd.Refused) as exc:
         cd.run(spy_path=spy, history_path=hy, macro_path=my, check_git=False)
     assert exc.value.code == 3
@@ -359,3 +418,58 @@ def test_tom_counts_on_a_full_synthetic_calendar_are_one_per_month():
     months = {d[:7] for d in dates}
     assert len(evs) == len(months)
     assert math.isclose(sum(not e.open for e in evs), len(months) - 1)
+
+
+# ── the statistic, the planted effect, the daily return, the printed-only line ─
+
+def test_delta_is_in_window_mean_minus_out_of_window_mean_hand_computed():
+    assert cd.delta({1: 0.01, 2: 0.03}, {3: 0.0, 4: 0.02}) == pytest.approx(0.01)
+    assert math.isnan(cd.delta({}, {3: 0.0}))
+    dates = weekdays("2012-01-02", "2012-12-31")
+    c = cal_of(dates, seed=3)
+    decisions = [dates[i] for i in (20, 60, 100, 140, 180)]
+    bk = cd.build_book(c, "PF", "GRADED", cd.pf_events(dates, decisions), "2026-11-27", None)
+    r = c.adj[1:] / c.adj[:-1] - 1.0                    # r[i-1] is the return at session i
+    win = [dates.index(d) for d in decisions]
+    rest = [i for i in range(1, len(dates)) if i not in win]
+    want = np.mean([r[i - 1] - cd.COST for i in win]) - np.mean([r[i - 1] for i in rest])
+    assert cd.delta(bk.in_vals, bk.out_vals) == pytest.approx(want, abs=1e-15)
+    assert want == pytest.approx(cd.measure_book(bk).point, abs=1e-15)
+
+
+def test_daily_return_at_d_is_adj_d_over_adj_d_minus_one_at_its_own_index():
+    dates = weekdays("2012-01-02", "2012-03-30")
+    adj = np.linspace(100.0, 160.0, len(dates)) ** 1.1
+    c = cd.Cal(dates, adj)
+    for i in (1, 17, len(dates) - 1):
+        assert c.r[i] == pytest.approx(adj[i] / adj[i - 1] - 1.0)
+    assert math.isnan(c.r[0])
+    bk = cd.build_book(c, "PF", "GRADED", cd.pf_events(dates, [dates[17]]), "2026-11-27", None)
+    assert bk.in_vals[17] == pytest.approx(adj[17] / adj[16] - 1.0 - cd.COST)
+
+
+def test_planted_pre_fomc_effect_is_found_end_to_end(tmp_path, monkeypatch, capsys):
+    spy, hy, my = _synthetic_world(tmp_path, monkeypatch, plant=0.02)
+    assert cd.run(spy_path=spy, history_path=hy, macro_path=my, check_git=False) == 0
+    out = capsys.readouterr().out
+    pf_line = [ln for ln in out.splitlines() if ln.strip().startswith(">>> calendar_drift PF")][0]
+    assert pf_line.split(": ")[-1].rstrip(" <").strip() == cd.STILL_PAYS
+    cal = cd.build_cal(cd.read_spy(spy))
+    fomc = cd.load_fomc(hy, my)
+    bk = cd.build_book(cal, "PF", "GRADED", cd.pf_events(cal.dates, fomc.decisions),
+                       cd.REGISTERED, fomc.horizon)
+    res = cd.measure_book(bk)
+    assert res.point > 0.01 and res.lo > 0
+    assert cd.verdict(res, True, 0.0, True, True, True) == cd.STILL_PAYS
+
+
+def test_ex_other_arm_line_uses_the_reduced_reference_set_and_feeds_no_verdict():
+    c, bk = _flat_book("PF", 200, [20, 60, 100], 1)
+    other = {5, 6, 7, 8, 9, 10, 11, 12}
+    r = cd.measure_ex_other(bk, other)
+    ref = [v for d, v in bk.out_vals.items() if d not in other]
+    assert r.n_out == len(ref) < len(bk.out_vals)
+    assert r.point == pytest.approx(np.mean(list(bk.in_vals.values())) - np.mean(ref))
+    assert r.point != pytest.approx(cd.delta(bk.in_vals, bk.out_vals))
+    a = cd.read_arm(c, bk, other, {20, 60, 100}, set(), {20, 60, 100})
+    assert a.ex_other.n_out == r.n_out and a.res.n_out == len(bk.out_vals)

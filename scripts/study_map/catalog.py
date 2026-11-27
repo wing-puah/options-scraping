@@ -610,7 +610,8 @@ STUDIES: dict[str, Study] = {
                  "a side?",
         verdict="Registered 2026-11-27. First run 2026-11-27 refused at gate GE, as designed: "
                 "`GE: SPY ends 2026-11-25, before the registration date 2026-11-27`. No return "
-                "was computed. The graded run is owed after the 2026-11-27 close. Nothing ships.",
+                "was computed. The graded run is owed after the 2026-11-30 US close, "
+                "`python3 -m scripts.backtest_study run calendar_drift --refresh`. Nothing ships.",
     ),
     "spy_dip_forward": Study(
         family="selection", state="open",

@@ -536,7 +536,7 @@ Decisions owed. None of these is a study.
     | Keep or withdraw the [§4](../docs/deployment-rules.md#s4) gap-up prohibition; `hedge_timing` H3-GAP now reads `NULL`, the card cites the September `CONTRARY` | Keep; the card is untouched | Withdrawing edits the operator card |
     | Rule on the DBC 2024-12-23 distribution in `multi_asset_trend` (gate GB passed it on a feed-implied jump; see the 2026-11-27 entry) | Ruling stands as built | Leaving the study `REFUSED` is the stricter choice |
 
-    Owed rerun, after the 2026-11-27 US close:
+    Owed rerun, after the 2026-11-30 US close (the first session after the registration date):
     `python3 -m scripts.backtest_study run calendar_drift --refresh`. The runner
     passes `--` through, so the flag goes without it.
 

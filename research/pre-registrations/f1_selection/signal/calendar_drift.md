@@ -1,7 +1,7 @@
 ## calendar_drift — do the pre-FOMC drift and the turn of the month still pay on SPY after publication?
 
 <!-- outcome:start -->
-> Latest outcome: no verdict yet — the first run refused at gate GE (`GE: SPY ends 2026-11-25, before the registration date 2026-11-27`), so no return was computed; the graded run is owed after the 2026-11-27 close, run 2026-11-27 · [record](../../../study-results/f1_selection/signal/calendar_drift.md)
+> Latest outcome: no verdict yet — the first run refused at gate GE (`GE: SPY ends 2026-11-25, before the registration date 2026-11-27`), so no return was computed; the graded run is owed after the 2026-11-30 US close, the first session after the registration date (`python3 -m scripts.backtest_study run calendar_drift --refresh`), run 2026-11-27 · [record](../../../study-results/f1_selection/signal/calendar_drift.md)
 <!-- outcome:end -->
 
 _Registered 2026-11-27._
@@ -306,6 +306,18 @@ is undefined. The placebo shift and the cost are fixed here and never varied.
   for `GRADED`, and 1994-01-01 to 2008-12-31 for `PRIOR`. Its out-of-window days are sessions in
   no window of either arm. `HIT`'s SPY share counts every gross same-length window that starts
   inside the population's dates.
+- **`Resolved at build (2026-11-28)`: the final session inside an open window.** When the
+  data's final session already sits inside an earlier open `TOM` window, it adds no event of
+  its own. Which days are in or out of a set does not change.
+- **`Resolved at build (2026-11-28)`: printed labels, no statistic changed.**
+  - `YEARS` notes that per-year deltas are net of cost, so with no calendar effect about 0.45
+    of years print above 0, not 0.50 (pre-run simulation).
+  - `HIT` says the event hit rate is net of cost and SPY's base share is gross.
+  - A `REVERSED` verdict prints a note: read with the `GROSS` line, because the 2 bp cost alone
+    makes `REVERSED` fire in about 3-4% of simulated paths with no effect.
+  - Each arm prints one more line, `EX-OTHER-ARM`: the same `Δ` with the other arm's window
+    days removed from the out-of-window reference set, same bootstrap. It is printed only, not
+    graded, and feeds no verdict.
 | `PRIOR` | Every line above, and `Δ` with its CI, for the pre-publication years |
 
 - **`ANNUAL`.** `(product of (1 + s_t))^(252 / N) − 1`, where `s_t` is the strategy's net return on
@@ -342,6 +354,12 @@ is undefined. The placebo shift and the cost are fixed here and never varied.
 
 - **GE, inputs.** `backtests/calendar_drift/SPY.csv` exists, is not empty, starts on or before
   1993-02-01 and runs through `REGISTERED`. Any failure refuses (exit 3).
+  - **`Resolved at build (2026-11-28)`: GE needs a session after `REGISTERED`.** The last
+    session with an Adj Close must fall strictly after the registration date. The final session
+    is always an open `TOM` event, so the graded sample is final only once a later session
+    exists; a file ending on 2026-11-27 would grade one day short and a rerun would print
+    different figures. This tightens the gate before any outcome. GE also refuses duplicate
+    dates, and tests the last session that has an Adj Close, not the raw last row.
 - **GB, basis.** `tail_breach.ratio_problems`, imported unchanged: the close-to-`Adj Close` ratio
   never steps like a split. Any failure refuses (exit 3).
 - **GF, FOMC calendar.** Any failure refuses (exit 3):

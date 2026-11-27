@@ -35,7 +35,7 @@ The holdout seal does not apply: no flow signal, play or backtest row is read.
 Nothing ships from this study. Run:
 
     python -m scripts.backtest_study run calendar_drift
-    python -m scripts.backtest_study run calendar_drift -- --refresh
+    python -m scripts.backtest_study run calendar_drift --refresh
 """
 from __future__ import annotations
 
@@ -331,11 +331,15 @@ def tom_events(dates: list[str]) -> list[Event]:
     """L = the last session of a calendar month (the next session is in a later
     month); the window is L and the next three sessions. A window running past
     the data is open. The data's final session cannot be confirmed as its
-    month's last, so it is an open (unsettled) event: in neither set."""
+    month's last, so it is an open (unsettled) event: in neither set. When that
+    final session already sits inside an earlier open window it adds no event of
+    its own (the session is counted once)."""
     n = len(dates)
     out = []
     for i in range(n):
         if i + 1 < n and dates[i + 1][:7] == dates[i][:7]:
+            continue
+        if i == n - 1 and any(i in e.days for e in out):
             continue
         days = tuple(j for j in range(i, i + WINDOW_N["TOM"]) if j < n)
         out.append(Event("TOM", days, open=(i + WINDOW_N["TOM"] - 1 >= n)))
@@ -662,13 +666,25 @@ def check_era() -> None:
 
 
 def ge_problems(spy: list[tuple], registered: str) -> list[str]:
+    """GE on the built calendar (sessions with an Adj Close). The last session
+    must fall strictly AFTER the registration date: the final session is always
+    an open TOM event, so the graded sets are final only once a later session
+    exists. Duplicate dates are refused."""
     if not spy:
         return ["SPY.csv is empty"]
     out = []
-    if spy[0][0] > SPY_START_LATEST:
-        out.append(f"SPY starts {spy[0][0]}, after {SPY_START_LATEST}")
-    if spy[-1][0] < registered:
-        out.append(f"SPY ends {spy[-1][0]}, before the registration date {registered}")
+    dup = sorted({a[0] for a, b in zip(spy, spy[1:]) if a[0] == b[0]})
+    if dup:
+        out.append(f"SPY has duplicate dates: {', '.join(dup[:5])}"
+                   f"{' ...' if len(dup) > 5 else ''}")
+    cal = build_cal(spy)
+    if not cal.dates:
+        return out + ["SPY has no row with an Adj Close"]
+    if cal.dates[0] > SPY_START_LATEST:
+        out.append(f"SPY starts {cal.dates[0]}, after {SPY_START_LATEST}")
+    if cal.dates[-1] <= registered:
+        out.append(f"SPY's last session with an Adj Close is {cal.dates[-1]}; GE needs at "
+                   f"least one session after the registration date {registered}")
     return out
 
 
@@ -737,6 +753,14 @@ class ArmRead:
     gv_ok: bool = False
     gv_res: Result | None = None
     gv_dropped: int = 0
+    ex_other: Result | None = None     # printed only, never graded
+
+
+def measure_ex_other(book: Book, other_days: set) -> Result:
+    """PRINTED ONLY, never graded: the arm's Delta with the other arm's window
+    days removed from the out-of-window reference set; same cycles and bootstrap."""
+    ref = {d: v for d, v in book.out_vals.items() if d not in other_days}
+    return measure(book.in_vals, ref, [e.last for e in book.events])
 
 
 def read_arm(cal: Cal, book: Book, other_days: set, own_days: set, tom_days: set,
@@ -751,6 +775,7 @@ def read_arm(cal: Cal, book: Book, other_days: set, own_days: set, tom_days: set
     iv, ov, vb, a.gv_dropped = ex_overlap(book, tom_days, decision_idx)
     a.gv_res = measure(iv, ov, vb)
     a.gv_ok = math.isfinite(a.gv_res.point) and a.gv_res.point > 0
+    a.ex_other = measure_ex_other(book, other_days)
     return a
 
 
@@ -803,12 +828,16 @@ def print_printed_only(arm: str, pop: str, a: ArmRead, cal: Cal) -> None:
         print("    CAPTURE    n/a (SPY's summed log return over these sessions is zero or less)")
     else:
         print(f"    CAPTURE    {pct(st['capture'], 1)} of SPY's summed log return, same sessions")
-    print(f"    HIT        {pct(hit, 1)} of {len(bk.events)} events net positive; SPY "
-          f"{pct(base, 1)} of {nb} {n_win}-session windows gross positive")
+    print(f"    HIT        {pct(hit, 1)} of {len(bk.events)} events net positive (net of cost); SPY "
+          f"{pct(base, 1)} of {nb} {n_win}-session windows gross positive (base share is gross)")
     print(f"    YEARS      Delta above zero in {pos_years} of {len(yd)} years")
+    print("      per-year deltas are net of cost; with no calendar effect about 0.45 of years "
+          "print above 0, not 0.50 (pre-run simulation)")
     for y, v in yd.items():
         print(f"      {y}  {bp(v)}")
     print(f"    EX-OVERLAP {res_txt(a.gv_res)} ({a.gv_dropped} events removed)")
+    print(f"    EX-OTHER-ARM (printed only, not graded) {res_txt(a.ex_other)}; the other arm's "
+          f"window days removed from the out-of-window reference set")
 
 
 def run(refresh: bool = False, spy_path: Path = SPY_CSV, history_path: Path = HISTORY_YML,
@@ -842,7 +871,9 @@ def run(refresh: bool = False, spy_path: Path = SPY_CSV, history_path: Path = HI
         for line in probs:
             print(f"  GE: {line}")
         raise Refused(EXIT_INPUT, "GE: the SPY input check failed. Exit 3.")
-    print(f"  GE: SPY {len(spy)} rows, {spy[0][0]} -> {spy[-1][0]} — pass")
+    cal = build_cal(spy)
+    print(f"  GE: SPY {len(spy)} rows, {cal.dates[0]} -> {cal.dates[-1]} (last session with an "
+          f"Adj Close, after {registered}) — pass")
     rp = ratio_problems(spy)
     if rp:
         for line in rp[:10]:
@@ -850,7 +881,6 @@ def run(refresh: bool = False, spy_path: Path = SPY_CSV, history_path: Path = HI
         raise Refused(EXIT_INPUT, f"GB: {len(rp)} close/adj steps outside the dividend "
                                   "pattern. Exit 3.")
     print("  GB: close/adj_close ratio never steps like a split — pass")
-    cal = build_cal(spy)
     fomc = load_fomc(history_path, macro_path)
     gfp = (gf_git_problems() if check_git else []) + gf_calendar_problems(fomc) \
         + gf_session_problems(fomc, cal)
@@ -943,6 +973,12 @@ def run(refresh: bool = False, spy_path: Path = SPY_CSV, history_path: Path = HI
             a = g[arm]
             failed = [n for n, ok in (("GL", a.gl_ok), ("GP", a.gp_ok), ("GV", a.gv_ok)) if not ok]
             print(f"  {arm} FRAGILE: failed {', '.join(failed)}")
+    for pop in ("GRADED", "FORWARD"):
+        for arm in ARMS:
+            if words[pop][arm][0] == REVERSED:
+                print(f"  {arm} {pop} REVERSED: read with the GROSS line: with no calendar effect "
+                      f"the 2 bp cost alone makes REVERSED fire in about 3-4% of simulated paths, "
+                      f"and the other arm's window days sit in this arm's reference set")
     print()
     for arm in ARMS:
         print(f"  >>> calendar_drift {arm} ({BANNER[arm]}): {words['GRADED'][arm][0]} <<<")
