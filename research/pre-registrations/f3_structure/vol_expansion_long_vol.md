@@ -1,6 +1,7 @@
 ## vol_expansion_long_vol — after a SPY E-VOL onset, do a long straddle or a 1x2 backspread pay, and more than on calm weeks?
 
 <!-- outcome:start -->
+> Latest outcome: not yet run.
 <!-- outcome:end -->
 
 _Registered 2026-11-27._
@@ -56,7 +57,7 @@ What each verdict word would mean for the operator:
 | Word | Meaning |
 |---|---|
 | `LONG-VOL-PAYS` | The structure made money after the onset, and more than on calm weeks |
-| `PAYS-NOT-SIGNAL` | It made money after the onset, but calm weeks did as well. The label adds nothing |
+| `PAYS-NOT-SIGNAL` | It made money after the onset, but it was not shown to beat calm weeks. The label adds nothing shown |
 | `CONTRARY` | It lost money after the onset |
 | `NULL` | Nothing was shown either way. Only a large effect could have been seen |
 | `UNDERPOWERED` | Too few trades to judge. Nothing is concluded |
@@ -111,20 +112,34 @@ have cancelled `ARM S` only.
   rows earlier, nothing later (`lib/mech_regime.py:5-6`). The fill is the next close.
 - **Thresholds.** They are module constants `VIX_EVOL_LEVEL = 30.0` and `VIX_EVOL_PCT = 0.25`. They
   were frozen in the 2026-07-22 spec, before this study, and never iterated against P&L
-  (`research/archive/06-mech-regime-and-shipped-exits.md`, addendum 3 and its leak-door list).
+  (`research/archive/06-mech-regime-and-shipped-exits.md`, addendum 2 and its leak-door list;
+  addendum 3 ran the frozen spec).
 - **In-sample table.** `backtests/mech_regime/spy_base_rate_daily.csv`, which runs from 1993. Rows are
   cut at 2026-09-22 before the label is computed.
 - **Forward table.** `backtests/mech_regime/spy_vix_daily_full.csv`, the production table refreshed
   nightly by `scripts/collector/daily/fetch_mech_regime.py` and read by `scripts/regime_watch.py`.
 
-**LIVE or RETRO.** Every in-sample label is a RETRO computation. No log of the label as printed on
-each day covers the window, so the run recomputes it from stored closes. This differs from the
-model's labels, whose RETRO rows were written with hindsight
-([`market_read`](../f1_selection/regime/market_read.md)). The mechanical rule has no judgment in it.
-A recomputation equals the live value whenever the stored VIX closes equal the closes published that
-day. The residual risk is a revised VIX close in the source. Gate GL below checks the two tables
-against each other. It cannot check either against a contemporaneous print. A second reader must see
-this limit.
+**LIVE or RETRO.** Every in-sample label is a RETRO computation, not a live print. No log of the
+label as printed on each day covers the window, so the run recomputes it from stored closes. The
+`scripts/regime_watch.py` history starts 2025-10-22, but the script was added on 2026-10-21. Its
+in-window rows match a `--backfill 250` replay at that time, so they are recomputations too. Later
+gaps filled by replay are listed in `backtests/regime_watch/backfilled.csv`. The spec's own leak-door
+list asks that a label be written once and never recomputed (addendum 2, door 3). This study cannot
+meet that in-sample.
+
+- **Why it is still usable.** The mechanical rule has no judgment in it. A recomputation equals the
+  live value whenever the stored VIX closes equal the closes published that day. This differs from
+  the model's labels, whose RETRO rows were written with hindsight
+  ([`market_read`](../f1_selection/regime/market_read.md)).
+- **The residual risk.** A VIX close revised in the source after the day. Near the +25% threshold,
+  one revised close can add or remove an onset.
+- **What GL checks.** Gate GL below compares the two tables on the dates they share, from mid-2023.
+  It cannot check either table against a contemporaneous print. Onsets from 2022-03-01 to the
+  production table's eleventh row rest on the in-sample table alone.
+- **The forward table is recomputed too.** `fetch_mech_regime.py` replaces it whole each night.
+  Forward onsets are therefore recomputations as well. The report prints, beside each forward
+  onset, the `mech_vol` that `regime_watch` logged on that date, when that row is not listed in
+  `backfilled.csv` and its `mech_asof` equals the date. That print is a check, not a gate.
 
 _Resolved at draft (2026-11-27):_ two tables, because the production table starts 2023-06-01 and the
 in-sample window starts 2022-03-01.
@@ -184,20 +199,27 @@ only its own arm.
 ### Fills, marks and cost
 
 - **Entry fill.** Every leg at `F`'s own closing quote, through `simulate.entry_day_fill(row, q)`
-  with the leg's signed quantity. A two-sided quote fills at its mid. No leg is priced off another day.
+  with the leg's signed quantity. A quote that is not junk fills at its mid. No leg is priced off
+  another day, and no later day is tried.
 - **Junk quote.** The production rule applies: bid ≤ 0, or spread > mid, or spread > twice the
   legacy Cboe width (`simulate._is_junk_quote`). A bought junk leg with a bid fills at its mid. A
-  bought leg with no bid is refused (`junk_entry_quote`). A sold junk leg fills at its bid or 0.
+  bought leg with no bid is refused (`junk_entry_quote`). A sold junk leg fills at its bid, or at 0
+  when it has no bid.
 - **Exit mark.** `selloff_put_diagonal.leg_mark` on the exit session: the closing mid, or on a junk
-  quote its `Latest` if it traded. A leg with no row that day drops the trade (`no_exit_quote`). So
-  does a mark carried from an earlier day (`stale_exit_mark`).
+  quote its `Latest` if it traded that day. A leg with no row that day drops the trade
+  (`no_exit_quote`). A junk row that did not trade gets a mark carried from an earlier day, and that
+  drops the trade too (`stale_exit_mark`). The run checks the mark's own date, not only the tag.
 - **Commission.** $0.65 per contract per side, slippage 0. That is $2.60 per straddle and $3.90 per
   1x2, entry and exit together.
 - **Model prices.** None.
 
-_Resolved at draft (2026-11-27):_ the side-aware production fill is used, not the all-mid mirror
-`daily_vol_structure` needed for its front ratios. This study has no front ratio. The count of trades
-where a sold leg took its bid prints per arm.
+_Resolved at draft (2026-11-27):_ item 18 reads "every leg at the D+1 closing mid". This file uses
+the standing production entry rule instead, which differs on one case only. All legs still fill on
+one clock, `F`'s close, per the operator's ruling of 2026-10-23. A normal quote, and a bought junk
+leg with a bid, fill at the mid as item 18 says. A sold leg on a junk quote fills at its bid, per
+the side-aware entry rule of 2026-09-19: the mid of a wide or bid-less quote is premium nobody
+would receive. The all-mid mirror `daily_vol_structure` needed for its front ratios is not used;
+this study has no front ratio. The count of trades where a sold leg took its bid prints per arm.
 
 ### R, fixed here
 
@@ -253,7 +275,7 @@ Every entry that does not price is counted by reason and by arm, and leaves the 
 |---|---|
 | No monthly meets the expiry rule | `no_monthly` |
 | No listed ATM or wing strike | `no_listed_strike` |
-| A leg has no quote on `F` | `no_entry_quote`; no later day is tried |
+| A leg has no row, no ask or a crossed quote on `F` | `no_entry_quote`; no later day is tried |
 | A bought leg is junk with no bid | `junk_entry_quote` |
 | Strike-order violation on `F` | `non_monotonic_entry_quote`, via `simulate._monotonicity_violation` |
 | `L` ≤ 0, or a straddle with `N` ≤ 0 | `nonpositive_max_loss` |
@@ -267,7 +289,7 @@ Every entry that does not price is counted by reason and by arm, and leaves the 
 | Backspread, 1x2 | Short one ATM option and long two further out, same type and expiry |
 | [MFE / MAE](../../glossary.md#mfe) | The best and worst open R on the daily mark path |
 | [Capture](../../glossary.md#capture) | Sum of R over sum of MFE |
-| Implied-move ratio | \|ln(spot at exit ÷ spot at `F`)\| ÷ (0.8 × ATM IV at `F` × √(h/252)) |
+| Implied-move ratio | \|ln(spot at exit ÷ spot at `F`)\| ÷ (0.8 × ATM IV at `F` × √(h/252)). ATM IV is the mean IV of the ATM call and put, as a decimal (cached points ÷ 100). h is the hold in sessions, 5 or 10 |
 | ATM IV change | Mean IV of the ATM call and put at the exit minus at `F`, in vol points as cached |
 | Holm | A step-down correction for testing several things at once |
 | PBO / CSCV | The chance that the best cell in one half of the history ranks below the median in the other half. `lib/pbo.py` holds the method |
@@ -275,6 +297,7 @@ Every entry that does not price is counted by reason and by arm, and leaves the 
 ## Dependencies
 
 - `lib/mech_regime.py::compute_mech_table` and its frozen constants, on the two tables above.
+- `backtests/regime_watch/history.csv` and `backfilled.csv`, for the forward label check only.
 - `scripts/backtest_study/f1_selection/regime/state_map.py`: `build_cal` for spot, and its
   `backtests/state_map/SPY.csv`.
 - `scripts/backtest_study/f3_structure/daily_vol_structure.py`: `walk_strike`, `SELLOFF_WINDOWS`.
@@ -317,8 +340,8 @@ _Resolved at draft (2026-11-27):_ the gap is the conservative reading. The READM
 dates between an in-sample end and a registration date. The current sell-off sits in the gap, and it
 was seen before registration (see below). Excluding the gap keeps a known episode out of both reads.
 
-- **Report header.** Era, the windows, the git sha, the dirty flag, the input files, and each
-  series' first and last date read.
+- **Report header.** Era, the windows, the git sha, the dirty flag, the input files with each
+  label table's SHA-256, and each series' first and last date read.
 
 ## Plan-time observations, disclosed
 
@@ -366,7 +389,7 @@ It ends before this window and read no option price. It motivated printing the 1
 |---|---|
 | [`signal_call_calendar`](../f1_selection/regime/signal_call_calendar.md) | `K-EVOL` printed `NULL` on 22 SPY call calendars after `E-VOL` onsets with a 10-session re-arm, 2026-11-21. A calendar is long vega |
 | [`state_map`](../f1_selection/regime/state_map.md) | Q3 printed SPY returns after each `S-EVOL` onset, 10-session re-arm, from 2016. Q4 priced a put spread on 39 onsets from 2022-02 |
-| [`index_vrp`](index_vrp.md) | SPY's high-VIX tercile paid sellers +3.41 points over 14 cycles, a descriptive cut |
+| [`index_vrp`](index_vrp.md) | Its SPY short straddle, monthly cycles from 2022-03 held to expiry, as the 2026-11-06 entry quotes it: `SPY \| +0.0019 \| [−0.0057, +0.0086] \| +1.15 [−0.85, +2.69] \| NO-PREMIUM`. Its high-VIX tercile paid sellers +3.41 points over 14 cycles, a descriptive cut. Both are in this window, on SPY monthlies |
 | [`structure_sweep`](structure_sweep.md), [`earnings_vol`](earnings_vol.md) | Long-straddle verdicts on other triggers, both `NULL` |
 
 - **What it spends here.** SPY's path after most in-sample onsets is known from `state_map` Q3.
@@ -488,8 +511,18 @@ The selection guarded against is picking the best of the 12 cells.
   head with `pbo.pad_head`, giving T = 20 and S = 20 blocks of one quarter.
 - **Per-period value.** [sum of R, trade count] for the cell's trades in the quarter.
 - **Metric.** `pbo.ratio_metric`, so a half's value is its mean R.
-- **Not computable.** If PBO cannot be computed, it prints "not computed". Then the positive words
-  cannot print, and an arm that would earn one prints `NULL` with "PBO not computed".
+- **Computable on this design.** `cscv` needs S even, S dividing T and at least two configs. T = 20
+  and S = 20 meet that whatever the trade count, giving C(20, 10) = 184,756 combinations. A quarter
+  with no onset is a true zero row. A half with no trade in a cell gives that cell NaN, which ranks
+  worst.
+- **One PBO for all three arms.** The 12 cells span the three structures, so the selection guarded
+  against includes picking the structure. The one PBO value gates every arm's positive word.
+- **Awaiting a fetch.** If any of the 12 cells still awaits a fetch, PBO prints "not computed". An arm
+  whose other conditions for a positive word hold then prints `NOT BUILT — AWAITING SCRAPE`, not a
+  verdict word.
+- **Not computable otherwise.** If every cell's entries are priced or refused and PBO still cannot be
+  computed, it prints "not computed". Then the positive words cannot print, and an arm that would earn
+  one prints `NULL` with "PBO not computed".
 
 ## Gates
 
@@ -497,10 +530,11 @@ The design names five gates, C0 to C4. They decide which verdict words can print
 gate ids; `ARM C` is the calm control, and the letters are unrelated.
 
 - **C0, power.** At least 20 priced trades in the arm's headline cell, and at least 60 priced calm
-  weeks in its `ARM C` column. Otherwise the arm is `UNDERPOWERED`.
+  weeks in its `ARM C` column at the headline cell. Otherwise the arm is `UNDERPOWERED`.
 - **C1, sign.** The Holm-adjusted mean-R and gain tests above, with their CIs.
-- **C2, leave-one-out.** With each single month cluster removed in turn, the mean R keeps the sign of
-  the full-sample mean. For `LONG-VOL-PAYS` the gain must keep its sign too.
+- **C2, leave-one-out.** Each calendar month that holds a priced trade of the arm is removed in turn,
+  from the arm and from `ARM C`. With each removed, the mean R keeps the sign of the full-sample mean.
+  For `LONG-VOL-PAYS` the gain must keep its sign too.
 - **C3, sell-off windows cut.** With every `D` in 2025-03-01 to 2025-04-30 or 2026-02-01 to
   2026-04-30 removed, from the arm and from `ARM C`, the mean R keeps its sign. For
   `LONG-VOL-PAYS` the gain must keep its sign too. These are `vol_sleeve`'s windows, as
@@ -518,7 +552,7 @@ C4 guards the positive words only. `CONTRARY` picks no cell, so it does not need
 A failed run gate refuses the run (non-zero exit).
 
 - **GE, inputs.** Both label tables, `backtests/state_map/SPY.csv` and the option cache exist. The
-  in-sample table reaches 2026-09-22.
+  in-sample table and `SPY.csv` reach 2026-09-22.
 - **GL, label agreement.** On `D` from the production table's eleventh row to 2026-09-22, the onset
   dates from the two tables are identical. A mismatch refuses and prints the dates.
 - **GX, no lookahead.** Strike, expiry and listing choices read nothing after `F`. A test changes
@@ -528,7 +562,7 @@ A failed run gate refuses the run (non-zero exit).
 - **Await gate.** Nothing is priced until every headline entry, in all three arms and `ARM C`, has
   its contracts cached or a recorded refusal. Until then the report prints its census and
   `NOT BUILT — AWAITING SCRAPE`. A non-headline cell still awaiting prints `NOT BUILT` for that cell,
-  and PBO prints "not computed".
+  and PBO prints "not computed" (see [PBO / CSCV](#pbo--cscv) for what the arms print then).
 - **Census first.** Onset and calm counts, the fetch list and every drop by reason print before any
   price is read.
 
@@ -560,8 +594,14 @@ weeks in its `ARM C` column. The census prints and nothing is concluded.
 7. PBO is below 0.50 (C4).
 8. The exit-drop check below holds.
 
-**`PAYS-NOT-SIGNAL`.** Conditions 1, 2 and 7 hold, C2 and C3 hold for the mean R, and the exit-drop
-check holds. Condition 3 or 4 fails.
+**`PAYS-NOT-SIGNAL`.** `LONG-VOL-PAYS` did not match, and all of these hold:
+
+1. Conditions 1, 2 and 7 above.
+2. C2 and C3 hold for the mean R.
+3. The exit-drop check holds for these conditions.
+
+So an arm whose mean R passes, but whose gain fails its CI, its Holm test, C2, C3 or its exit-drop
+re-run, lands here, not in `NULL`.
 
 **`CONTRARY`.** All of these hold:
 
@@ -574,18 +614,20 @@ check holds. Condition 3 or 4 fails.
 not computed", "C2 fails", "C3 fails", "exit-drop sensitive", or none.
 
 The words cannot overlap. `LONG-VOL-PAYS` and `PAYS-NOT-SIGNAL` need the mean R CI above 0, and
-`CONTRARY` needs it below 0. `LONG-VOL-PAYS` needs conditions 3 and 4, and `PAYS-NOT-SIGNAL` needs
-one of them to fail.
+`CONTRARY` needs it below 0. `PAYS-NOT-SIGNAL` is tried only when `LONG-VOL-PAYS` failed. `NULL`
+takes every remaining case, so every arm gets exactly one word.
 
 **Exit-drop check.** Exit drops (`no_exit_quote`, `stale_exit_mark`) depend on where spot went, so they
-can bias R.
+can bias R. The check is one of each word's conditions, tried in the first-match order above.
 
-- For a positive word, every exit-dropped onset trade is set to R = −1. The bootstrap, Holm, C2 and
-  C3 re-run, and the word's own conditions are checked again.
-- For `CONTRARY`, every exit-dropped onset trade is set to the arm's largest priced R, and the same
-  re-run follows.
-- `ARM C` keeps its exit drops out in both re-runs.
-- A word that fails its re-run prints `NULL` with "exit-drop sensitive".
+- For a positive word, every exit-dropped onset trade of the arm is set to R = −1. The bootstrap,
+  Holm, C2 and C3 re-run, and the word's own conditions are checked again.
+- For `CONTRARY`, every exit-dropped onset trade of the arm is set to the arm's largest priced R, and
+  the same re-run follows.
+- In the re-run, Holm uses the other two arms' original p-values. `ARM C` keeps its exit drops out.
+  PBO is not re-run.
+- A word that fails only its re-run does not match, and the next word is tried. If the arm ends at
+  `NULL`, the reason is "exit-drop sensitive".
 
 ### Printed only, no verdict
 
@@ -630,12 +672,13 @@ The report's section titled VERDICT prints:
 >>> vol_expansion_long_vol ARM S (ATM straddle after E-VOL onset, D+1 close to D+6 close, monthly ~30 DTE, 2022-03-01 to 2026-09-22): LONG-VOL-PAYS | PAYS-NOT-SIGNAL | CONTRARY | NULL | UNDERPOWERED <<<
 >>> vol_expansion_long_vol ARM BC (call 1x2 -1 ATM +2 at 1.05, same): LONG-VOL-PAYS | PAYS-NOT-SIGNAL | CONTRARY | NULL | UNDERPOWERED <<<
 >>> vol_expansion_long_vol ARM BP (put 1x2 -1 ATM +2 at 0.95, same): LONG-VOL-PAYS | PAYS-NOT-SIGNAL | CONTRARY | NULL | UNDERPOWERED <<<
->>> vol_expansion_long_vol PBO (12 cells): <value> <<<
+>>> vol_expansion_long_vol PBO (12 cells, gates all three arms): <value> | not computed <<<
 >>> vol_expansion_long_vol FORWARD (onsets from 2026-11-27): ARM S <w> ARM BC <w> ARM BP <w> <<<
 ```
 
 Each arm line carries the note "VIX direction after 23 in-window onsets was printed before
-registration".
+registration". While an await gate holds for an arm, its line prints `NOT BUILT — AWAITING SCRAPE`
+in place of a word.
 
 ## Anti-tuning
 
