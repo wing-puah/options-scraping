@@ -1,7 +1,7 @@
 ## sector_momentum — does holding the three strongest SPDR sectors beat holding all nine?
 
 <!-- outcome:start -->
-> Latest outcome: not yet run — registered 2026-11-28.
+> Latest outcome: `>>> sector_momentum HEADLINE (12-1-T3 vs EW-9, pooled 2000-01 to 2026-08, 5 bp): UNDERPOWERED-BY-DESIGN (could not see one: delta80 above REF) <<<` (`XS +0.19% [-2.20%, +2.62%] p 0.8676`). The test could not see one: `delta80 0.0450 vs REF 0.030`; it never means no effect. Halves `-0.75%` and `+1.08%`; GK passed at block 6; PBO `0.656`; forward `STILL-OPEN` — window POOLED 2000-01 to 2026-08, yfinance closes to 2026-11-25, run 2026-11-28 on a dirty tree (descriptive until a clean rerun) · [record](../../../study-results/f1_selection/signal/sector_momentum.md)
 <!-- outcome:end -->
 
 _Registered 2026-11-28._
@@ -245,6 +245,10 @@ best sector-month is the one whose replacement lowers graded-window `XS` most. R
 recomputed after the replacement. The report prints `XS` after that replacement and, when
 graded-window `XS` is above 0, its share of the original.
 
+`Resolved at build (2026-11-28)`: in the first graded month, the execution session comes before
+the curves start, so `EW-9` has no return there. The sector keeps its own return for that one
+session. `EW-9`'s daily returns are its curve's, net of its own cost.
+
 ## Dependencies
 
 - yfinance, with `--refresh`, for the nine ETFs, SPY, `^IRX` and the nine dividend feeds.
@@ -432,6 +436,8 @@ bootstrap as on the real data.
   extra cost of the rule's turnover);
 - the null share of graded-window calendar years with `d_m` summed above 0, and the null hit rate;
 - the share of forward-length windows (36 months) with `XS` above 0;
+  `Resolved at build (2026-11-28)`: every rolling 36-month window inside the graded window,
+  pooled over paths;
 - the rejection rate of each half alone, at 0 bp.
 
 The real per-year table and hit rate print beside these null rates. They grade nothing.

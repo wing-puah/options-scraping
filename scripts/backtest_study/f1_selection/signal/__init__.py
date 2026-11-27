@@ -9,4 +9,5 @@
     direction_hit.py        does anything known at entry predict the underlying moving the play's way?
     calendar_drift.py       do the pre-FOMC drift and the turn of the month still pay on SPY?
     spy_dip_forward.py      do SPY entries after a close below the 50-day SMA beat other entries?
+    sector_momentum.py      do the three strongest SPDR sectors (12-1) beat all nine equal weight?
 """

@@ -628,6 +628,21 @@ STUDIES: dict[str, Study] = {
                 "(`+0.1475 [-0.0472, +0.3248]`); T is `DEEPER-DRAWDOWN`. Shares only; the option rule is untested. Forward `STILL-OPEN`. "
                 "Nothing ships.",
     ),
+    "sector_momentum": Study(
+        family="selection", state="open",
+        question="Does holding the three of the nine original SPDR sector ETFs with the strongest "
+                 "12-1 return, rebalanced monthly at 5 bp a side, beat holding all nine in "
+                 "rebalanced equal weight over 2000-01 to 2026-08?",
+        verdict="Registered, built and first run 2026-11-28 (yfinance closes to 2026-11-25, cut "
+                "2026-09-22, pooled window 2000-01 to 2026-08, dirty tree, so descriptive until a "
+                "clean-tree rerun): `>>> sector_momentum HEADLINE (12-1-T3 vs EW-9, pooled 2000-01 "
+                "to 2026-08, 5 bp): UNDERPOWERED-BY-DESIGN (could not see one: delta80 above REF) "
+                "<<<` on `XS +0.19% [-2.20%, +2.62%] p 0.8676`. The test could not see one: "
+                "`delta80 0.0450 vs REF 0.030`, so a gain below about 4.5% a year would usually be "
+                "missed; it never means no effect. Halves `-0.75%` and `+1.08%`. GK passed at block 6 "
+                "(`G-IID 0.070 G-GARCH 0.074 G-MONTH 0.056`). PBO `0.656`. Forward `STILL-OPEN (0 "
+                "complete forward months)`. Nothing ships.",
+    ),
     "tail_breach_intraday": Study(
         family="selection", state="open",
         question="Does SPY's intraday low breach twice its VIX-implied move, or fall 5% below a close "
