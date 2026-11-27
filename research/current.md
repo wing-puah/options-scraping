@@ -481,6 +481,45 @@ Limits:
 
 This answers [next-steps item 21](next-steps.md#drawdown-power-check). A drawdown-difference test belongs against a static mix at the rule's own average exposure, as `vol_managed_spy` did with `MIX`: [item 23](next-steps.md#drawdown-vs-static-mix).
 
+### `regime_map` against uninformative labels: the cells show the tier, not the regime
+
+The eight NEGATIVE cells restate that Tier C loses money. They do not show that a regime matters. This is a post-hoc check of the 2026-11-27 map, and it can never re-grade it.
+
+The method reproduced the map exactly in memory: `POSITIVE 2, NEGATIVE 8, NULL 37, THIN 29`, with 47 graded cells. Then the labels were made uninformative and the map was regraded with the module's own `build_map`. Null A shuffles which date's labels go to which date. Null B shifts the date-ordered label table by 60 to 221 dates, which keeps the labels' persistence.
+
+The cell test is sized correctly, slightly on the safe side. With each tier's mean removed, the raw two-sided rejection rate is below the nominal 0.05. After BH the null almost never prints a POSITIVE or NEGATIVE cell.
+
+| Null | Runs | 2+ POSITIVE | 8+ NEGATIVE | Mean NEGATIVE | Size, demeaned R |
+|---|---|---|---|---|---|
+| A, shuffle | 1,500 | 0.076 | 0.327 | 7.18 | 0.026 |
+| B, shift | 162 | 0.093 | 0.358 | 7.29 | 0.037 |
+
+The counts do not beat uninformative labels. The null prints about seven NEGATIVE cells, almost all in Tier C (7.16 and 7.23). The reason is that each cell's mean R is tested against zero, not against its own tier.
+
+| Tier | Mean R | 95% interval | Rows | Dates |
+|---|---|---|---|---|
+| A | +0.081 | -0.033, +0.199 | 207 | 94 |
+| B | +0.063 | -0.035, +0.160 | 538 | 163 |
+| C | -0.115 | -0.171, -0.060 | 1,052 | 269 |
+| VETO | -0.005 | -0.287, +0.249 | 96 | 40 |
+| A+B | +0.068 | -0.011, +0.147 | 745 | 236 |
+
+No cell shows a regime effect beyond its tier. Regrading R minus the tier mean with the observed labels gives 0 POSITIVE and 0 NEGATIVE. The within-tier contrast is the cell mean minus the tier mean. The share is the part of Null B shifts at or above the observed contrast, one-sided and not corrected for picking three cells from 47.
+
+- A x BEAR: contrast +0.222, share 0.105. It reads POSITIVE mostly because Tier A is positive overall, and Tier A alone is not clear of zero.
+- B x C-VOL: contrast +0.300, share 0.025.
+- A x below-SMA, the dip cell: contrast +0.189, share 0.080.
+
+What this means:
+
+- The Tier C evidence stands as evidence for the tier gate. It is about the tier, in every regime that can be cut.
+- The dip cell and the two POSITIVE cells are not shown to be regime effects.
+- The dip-date sizing rule rests on the operator's ruling and on the risk-premium reading of `spy_dip_forward`. It does not rest on a regime cell.
+
+Limits: the check used the recorded, uncapped book. The v3 replication, the forward read and the ex-stress re-cut were not redone. The three cells were chosen after seeing the data.
+
+Unregistered. The registered verdicts stand.
+
 ### `sector_momentum`: could not see one
 
 Nothing ships. Holding the top three SPDR sectors by 12-1 momentum, rebalanced monthly, did not visibly beat holding all nine in equal weight, and the test could only have seen a large gain. This is a third shares-only rule in this entry, run on 2026-11-28 on closes to 2026-11-25.
