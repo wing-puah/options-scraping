@@ -138,9 +138,84 @@ before it is committed.
   both be true, and every rule against the code.
 - **Readable.** A trader new to this project can say from the file what is
   tested, how it passes, and what they would do with the result.
+- **Design checks.** The registration must answer every item in
+  [Design checks from the 2026-11-28 reviews](#design-checks-from-the-2026-11-28-reviews)
+  below. Check each one.
 - **What follows.** Fix every blocker, and each finding that should change before
   the freeze, or record why not beside the rule. Then tell the operator the
   result in plain words, in about five lines.
+
+## Design checks from the 2026-11-28 reviews
+
+A registration answers each item before its second read passes. Each item gives the
+check, the study that showed why, and the evidence in
+[`current.md`](../current.md).
+
+1. **Benchmark at the rule's own exposure.** Grade a rule that holds less than its
+   benchmark against a static mix at the same average exposure, or invest both arms fully.
+   A static mix that simply held less passed the drawdown tests of `trend_overlay` and
+   `multi_asset_trend` ([evidence](../current.md#drawdown-tests-on-the-two-trend-studies-holding-less-passes-them)).
+   `vol_managed_spy` and `sector_momentum` show the two sound designs.
+2. **No drawdown-difference test without a power check.** Print whether the bootstrap
+   p-value can reach the pass threshold at the episode count. `vol_managed_spy` has about
+   0.039 on 3 drawdown episodes in 200 months, above both Holm thresholds
+   ([evidence](../current.md#vol_managed_spy-scaling-down-in-volatile-months-did-not-beat-a-constant-smaller-position)).
+   The `trend_overlay` test has no floor and is still weak.
+3. **Calibrate the test before grading.** Run the study's own bootstrap on simulated data
+   with no effect, print the false-positive rate, and gate on it. The `spy_dip_forward`
+   bootstrap rejected about 7.5% at a nominal 5%
+   ([evidence](../current.md#spy_dip_forward-the-dip-entry-pays-more-and-hurts-more)).
+   `calendar_drift` and `sector_momentum` were checked before their outcomes
+   ([evidence](../current.md#sector_momentum-could-not-see-one)).
+4. **State the power before the run, and give an underpowered null its own word.** Print
+   the effect the test detects with 80% power, and fix the reference effect in advance.
+   `NULL` must never stand for "could not see one". `vol_managed_spy` needs a Sharpe
+   difference near 0.25, and `spy_put_write` needs a cycle-mean R near +0.12.
+   `sector_momentum` prints `UNDERPOWERED-BY-DESIGN`
+   ([evidence](../current.md#spy_put_write-a-beta-trade-with-nothing-left-over)).
+5. **A fallback bootstrap block must be shorter, not longer.** For a mean of serially
+   uncorrelated differences, a 12-month block made the `sector_momentum` test more liberal
+   ([evidence](../current.md#sector_momentum-could-not-see-one)).
+6. **PBO must rank cells by the statistic that is graded.** `multi_asset_trend` ranked by
+   Sharpe while drawdown counted, so its veto said nothing about the drawdown claim
+   ([evidence](../current.md#multi_asset_trend-a-shallower-drawdown-mostly-from-holding-less-timing-not-shown)).
+7. **Print base rates beside any count table.** Under no effect, "years positive" is not
+   a coin flip. It was about 0.69 for the `spy_dip_forward` per-year table, and about 0.45
+   to 0.48 where one arm pays costs (`calendar_drift`, `sector_momentum`).
+8. **Fix every date the result depends on.** A gate must make the graded sample final on
+   the first run, as the `calendar_drift` gate on its final session does
+   ([evidence](../current.md#calendar_drift-built-no-verdict)).
+   A forward window's months must not depend on the run date, as the `vol_managed_spy`
+   second read ruled (its registration, "Resolved at second read (2026-11-27)").
+9. **Windows must be clean of the idea's own source.** If the idea came from a book or
+   period, exclude it or add a sign clause on the untouched part. The `spy_dip_forward`
+   `PRE-BOOK` clause does this for the option book's dates
+   ([evidence](../current.md#spy_dip_forward-the-dip-entry-pays-more-and-hurts-more)).
+10. **Data gates must not be circular or refuse true data.** The `multi_asset_trend`
+    dividend check used the same feed that built the adjusted close, so it could not fail
+    ([evidence](../current.md#multi_asset_trend-a-shallower-drawdown-mostly-from-holding-less-timing-not-shown)).
+    A peer-move check can refuse a real sector move, so the `sector_momentum` second read
+    made it flag instead.
+11. **Mutation tests are part of the build.** Name the mechanics tests in the registration
+    and the one-step code change each must fail under. Cover at least the execution delay,
+    the bootstrap unit, the pairing of each weight or flag with its own period's return,
+    and the benchmark's rebalancing. Reviews found the `spy_put_write` mark-to-market
+    series, bootstrap unit and next-day wiring untested, and the `sector_momentum` null
+    generators and power path untested. `sector_momentum` is the model, with 16 named
+    mutations ([evidence](../current.md#sector_momentum-could-not-see-one)).
+12. **Option studies: record the cache state and check exit marks.** A cache top-up
+    changed nearest-listed-strike picks in `spy_put_write` and the `multi_asset_trend`
+    options arm. An exit marked at a last-trade print outside the closing quote flipped
+    `vol_expansion_long_vol` `ARM BP` to `NULL` and removed the `selection_order` O3
+    candidate. Print a sensitivity with marks kept inside the closing quote
+    ([evidence](../current.md#capped-exit-marks-and-the-live-candidates-selection_order-o3-does-not-survive)).
+13. **Every graded positive gets an independent post-run review before it is cited.** The
+    reviewer rebuilds the headline without the module's functions and runs the module on
+    simulated data with no effect. That is how the `spy_dip_forward` bias and the 7.5%
+    size were found.
+
+This list records what the 2026-11-28 reviews found. It does not change any registration
+already accepted.
 
 ## Terminology legend
 
