@@ -27,8 +27,8 @@ on the operator*, items 16 and 17:
 - The spot reads calls only. Adding puts would cut `ARM M1`'s
   `no_spot_at_signal` drops from 8 to 6; it is not adopted.
 
-**2026-11-27: four mechanical rules that use no picks were registered, built and run; `multi_asset_trend` prints `PBO-VETO`, `spy_put_write` prints `NULL`, `vol_expansion_long_vol` prints `NULL` and `CONTRARY`, and `calendar_drift` has no verdict yet**
-([entry](#2026-11-27--four-mechanical-rules-off-the-picks-none-ships)).
+**2026-11-27: four mechanical rules that use no picks were registered, built and run; `multi_asset_trend` prints `PBO-VETO`, `spy_put_write` prints `NULL`, `vol_expansion_long_vol` prints `NULL` and `CONTRARY`, and `calendar_drift` has no verdict yet. Two more shares-only rules ran after: `vol_managed_spy` prints `NULL`, and `spy_dip_forward` prints P `SUPPORTED`, filed as risk premium, not timing**
+([entry](#2026-11-27--four-mechanical-rules-off-the-picks-none-ships); [two more](#2026-11-28--two-more-shares-only-rules-volatility-scaling-is-null-dips-pay-a-risk-premium)).
 
 **2026-11-27: the full suite re-ran on a repaired book; all 61 studies pass their self-checks, `selection_order` O3 prints an in-sample `CANDIDATE`, and five studies still wait on option legs**
 ([entry](#2026-11-27--re-price-partial-bar-strip-and-the-full-suite-on-the-unsealed-dates)).
@@ -351,6 +351,86 @@ blocks any work; each has its full entry in an archive volume.
   stayed blocked at R2.
 
 ---
+
+## 2026-11-28 — two more shares-only rules: volatility scaling is null, dips pay a risk premium
+
+Nothing ships. `vol_managed_spy` prints `NULL`. `spy_dip_forward` prints P `SUPPORTED`, filed as "risk premium, not timing", because dip entries pay more and also hurt more.
+
+Both ran on SPY shares on 2026-11-27 late evening, on SPY closes to 2026-11-25. Each registration passed a fresh second reader before any outcome existed. `study_review` agreed with the printed words in both; the analysts did not re-derive the final words.
+
+| Study | Rule | Verdict |
+|---|---|---|
+| [`vol_managed_spy`](study-results/f4_deployment/vol_managed_spy.md) | cut SPY exposure when trailing volatility is high | `NULL`, `ARM R` `NO-ALPHA` |
+| [`spy_dip_forward`](study-results/f1_selection/signal/spy_dip_forward.md) | enter SPY the close after a close below the 50-session SMA | P `SUPPORTED`, T `DEEPER-DRAWDOWN`, Z `NULL` |
+
+### `vol_managed_spy`: scaling down in volatile months did not beat a constant smaller position
+
+The headline cell is `VOL-21-12` against `MIX`, a constant SPY and T-bill mix at the same average weight, at 5 bp a side. The verdict line reads `>>> vol_managed_spy HEADLINE (VOL-21-12 vs MIX, holdout 2010-01 to 2026-08, 5 bp): NULL <<<`.
+
+| Window | dSharpe vs MIX | dMDD vs MIX |
+|---|---|---|
+| Discovery, 1993-05 to 2009-12 | +0.112 [-0.076, +0.320] | +0.100 [-0.002, +0.216] |
+| Holdout, 2010-01 to 2026-08 | +0.012 [-0.135, +0.149] | +0.053 [-0.021, +0.081] |
+
+- The holdout drawdown p is 0.0816 against a first Holm threshold of 0.0125. The Sharpe p is 0.4732.
+- Both discovery signs were positive, so the rule faded out of sample. Cederburg et al. 2020 found the same fade.
+- `ARM R` is `NO-ALPHA`. Alpha is +0.008 a year, CI [-0.008, +0.022].
+- Beta on SPY is 0.68.
+- PBO over the 12 cells is 0.630, above the 0.50 veto line.
+- All 11 other cells print `NULL`.
+- The four sensitivities print `NULL` too: two bootstrap block lengths and two cost levels.
+- Against plain SPY the cell gave up 3.19 points of CAGR for a 0.091 smaller drawdown. This is printed only.
+- The forward read is `STILL-OPEN` from 2026-12 and needs 36 months.
+
+This is a second shares rule that cuts drawdown only by holding less. [`multi_asset_trend`](#2026-11-27--four-mechanical-rules-off-the-picks-none-ships) showed the same shape.
+
+### `spy_dip_forward`: the dip entry pays more and hurts more
+
+The rule is the live dip-date flag on SPY shares: the unadjusted close is strictly below the 50-session SMA, entry is the next close, and the outcome is the 21-session excess return over T-bills, dip entries minus other entries. Cost is 4 bps a round trip. The holdout holds 4,002 entries, 1,157 of them dip entries in 68 episodes.
+
+| Arm | Holdout 2010-2025 | Holm p | Verdict |
+|---|---|---|---|
+| P, excess return | +1.226% [+0.419%, +1.962%] | 0.0054 | `SUPPORTED` |
+| T, worst-decile drawdown | -2.765% [-5.123%, -0.746%] | 0.0080 | `DEEPER-DRAWDOWN` |
+| Z, dips above minus below the 200-day SMA | -1.060% [-2.890%, +0.551%] | 0.1732 | `NULL` |
+
+- PRE-BOOK 2010-2023 is P +1.288% [+0.420%, +2.090%].
+- PBO over 12 cells is 0.0720, below the fragile bar.
+
+What limits the result:
+
+- **Discovery did not replicate.** 1993-2009 is P +0.035% [-1.089%, +1.151%]. The registration required only a positive sign, and it passed by a hair.
+- **The gain may be a risk premium.** VOL-SCALED P is +0.1475 [-0.0472, +0.3248] and spans zero. The registration's own rule therefore files the `SUPPORTED` as "risk premium, not timing".
+- **The reported strength is overstated.** See the post-run review below.
+
+An independent post-run review, not registered, checked the result:
+
+- It rebuilt the +1.226% from the cached prices in plain pandas and matched it. It found no lookahead.
+- It ran the module on 1,000 simulated paths with no predictability. The per-year count is biased: about 69% of years come out positive under the null, about 11 of 16.
+- So "16 of 16 holdout years" must not be cited as independent support. "15 of 17 discovery years" is no evidence either, with a null probability of about 0.067.
+- The bootstrap is mildly anti-conservative: a nominal 5% test rejected about 7.5%.
+- A rotation null on the real rows gives p about 0.009 where the bootstrap prints 0.0018. Holm-adjusted that is about 0.018, still below 0.05. The token stands, and its strength is overstated about fivefold.
+- Descriptive only: trailing volatility is 0.209 on dip entries against 0.122 on others in the holdout. Controlling for it roughly halves the dip coefficient (+0.506%, t 1.05).
+
+What it means for the live dip-date sizing rule:
+
+- A shares result cannot validate an options sizing rule.
+- It is consistent with staging, the 2026-11-26 ruling never to enter at full size at once, because dip entries carry deeper drawdowns.
+- It does not support sizing up. No live rule changes.
+- The forward read decides. It needs 20 dip episodes, roughly four to seven years.
+
+One build ruling: an episode continues through exactly 5 non-dip sessions, the conservative of two readings (`Resolved at build (2026-11-27)` in the registration).
+
+Owed, the operator's call: the registration says a `SUPPORTED` whose VOL-SCALED CI spans zero files as "risk premium, not timing" in [`deployment-evidence.md`](deployment-evidence.md). That file was left untouched.
+
+### Also done on 2026-11-27 and 2026-11-28
+
+- The `vol_expansion_long_vol` fetch and result are in the entry below, not repeated here.
+- Stale index records were brought to their 2026-11-27 reads for `selection_order`, `hedge_timing`, `emission_timing`, `trigger_entry` and `exit_drawdown`.
+- The operator card's [§4](../docs/deployment-rules.md#s4) gap-up prohibition still cites the September `CONTRARY` read, while H3-GAP now reads `NULL`. The card is untouched; keeping or withdrawing the prohibition is the operator's call.
+- The `calendar_drift` rerun is still owed after the 2026-11-27 US close.
+
+The three operator calls and the rerun are next-steps item 20 in [`next-steps.md`](next-steps.md).
 
 ## 2026-11-27 — four mechanical rules off the picks: none ships
 

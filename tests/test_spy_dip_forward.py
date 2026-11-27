@@ -500,3 +500,61 @@ def test_any_other_era_refuses_with_exit_2(monkeypatch):
     monkeypatch.setattr(sd.era_mod, "requested_era", lambda: "v3")
     assert sd.main([]) == 2
     assert 2 in sd.DESIGNED_REFUSAL_EXIT_CODES and 3 in sd.DESIGNED_REFUSAL_EXIT_CODES
+
+
+# ── each row pairs a day's flag with ITS OWN forward return ────────────────
+
+def _pairing_data():
+    dates = weekdays("2009-01-01", "2010-12-31")
+    closes = walk(len(dates), seed=12, vol=0.02)
+    irx = {dt: 1.0 + 0.01 * k for k, dt in enumerate(dates)}
+    return data_of(dates, closes, irx=irx), closes
+
+
+def test_each_row_pairs_its_flag_and_return_with_its_own_signal_session():
+    d, _ = _pairing_data()
+    h = 21
+    flags = d.flags[sd.PRIMARY]
+    assert len({round(v, 12) for v in d.X[h][~np.isnan(d.X[h])]}) > 100   # a shift would show
+    for w in ("DISCOVERY", "HOLDOUT"):
+        r = sd.build_rows(d, w, h)
+        assert r.n > 50
+        for k in range(r.n):
+            i = int(r.i[k])
+            assert r.f[k] == (1.0 if flags[i] else 0.0)
+            assert r.x[k] == d.X[h][i]
+        assert 0 < r.f.sum() < r.n
+
+
+def test_arm_p_equals_hand_computed_dip_mean_minus_non_dip_mean():
+    d, closes = _pairing_data()
+    h = 21
+    n = len(closes)
+    dates = d.dates
+    c = np.array(closes)
+    irx = np.array([1.0 + 0.01 * k for k in range(n)])
+    flags = d.flags[sd.PRIMARY]
+    dip, non = [], []
+    for i in range(n):
+        if flags[i] is None or not ("2010-01-01" <= dates[i] <= "2025-12-31"):
+            continue
+        e = i + 1
+        if e + h >= n or not (dates[e] <= "2025-12-31" and dates[e + h] <= "2025-12-31"):
+            continue
+        # enter at the close of D+1, exit h sessions later; T-bill pays at the yield known before each day
+        bill = 1.0
+        for k in range(e + 1, e + h + 1):
+            bill *= 1.0 + irx[k - 1] / 100.0 / 252
+        x = c[e + h] / c[e] - bill - 0.0004
+        (dip if flags[i] else non).append(x)
+    assert dip and non
+    expected = float(np.mean(dip)) - float(np.mean(non))
+    r = sd.build_rows(d, "HOLDOUT", h)
+    assert sd.arm_p(r.x, r.f) == pytest.approx(expected, abs=1e-12)
+
+
+@pytest.mark.parametrize("n,text", [(1, "1st"), (2, "2nd"), (3, "3rd"), (4, "4th"), (11, "11th"),
+                                    (12, "12th"), (13, "13th"), (21, "21st"), (22, "22nd"),
+                                    (101, "101st"), (111, "111th")])
+def test_ordinal_suffix(n, text):
+    assert sd.ordinal(n) == text

@@ -1,7 +1,7 @@
 ## spy_dip_forward — do SPY entries on dip dates do better over the next month, 1993 on?
 
 <!-- outcome:start -->
-> Latest outcome: `>>> spy_dip_forward P (SPY 21-session excess return, entry the close after a close below the 50-day SMA, vs other entries, holdout 2010-2025, Holm m=3): SUPPORTED <<<` (`+1.226% [+0.419%, +1.962%]`, Holm 0.0054); T `DEEPER-DRAWDOWN`, Z `NULL`, PBO `0.0720`; discovery `P +0.035%`; forward `STILL-OPEN` — window HOLDOUT 2010–2025, yfinance closes to 2026-11-25, run 2026-11-27 · [record](../../../study-results/f1_selection/signal/spy_dip_forward.md)
+> Latest outcome: `>>> spy_dip_forward P (SPY 21-session excess return, entry the close after a close below the 50-day SMA, vs other entries, holdout 2010-2025, Holm m=3): SUPPORTED <<<` (`+1.226% [+0.419%, +1.962%]`, Holm 0.0054). Qualifier: P is filed as risk premium, not timing, because the VOL-SCALED interval spans zero; discovery 1993-2009 shows no effect. T `DEEPER-DRAWDOWN`, Z `NULL`, PBO `0.0720`; discovery `P +0.035%`; forward `STILL-OPEN` — window HOLDOUT 2010–2025, yfinance closes to 2026-11-25, run 2026-11-27 · [record](../../../study-results/f1_selection/signal/spy_dip_forward.md)
 <!-- outcome:end -->
 
 _Registered 2026-11-27._

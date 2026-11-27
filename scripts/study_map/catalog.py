@@ -622,9 +622,9 @@ STUDIES: dict[str, Study] = {
                 "the close after a close below the 50-day SMA, vs other entries, holdout 2010-2025, "
                 "Holm m=3): SUPPORTED <<<` on `P  +1.226% [+0.419%, +1.962%]  p 0.0018  (n 4002, "
                 "NaN draws 0.00%), Holm 0.0054`. T reads `DEEPER-DRAWDOWN` and Z reads `NULL`. "
-                "Discovery barely agrees: `P +0.035% [-1.089%, +1.151%]`. PBO `0.0720`. The holdout "
-                "VOL-SCALED CI spans 0 (`+0.1475 [-0.0472, +0.3248]`), so the gain files as risk "
-                "premium, not timing. Shares only; the option rule is untested. Forward `STILL-OPEN`. "
+                "Discovery 1993-2009 shows no effect: `P +0.035% [-1.089%, +1.151%]`. PBO `0.0720`. "
+                "P is filed as risk premium, not timing, because the holdout VOL-SCALED CI spans 0 "
+                "(`+0.1475 [-0.0472, +0.3248]`); T is `DEEPER-DRAWDOWN`. Shares only; the option rule is untested. Forward `STILL-OPEN`. "
                 "Nothing ships.",
     ),
     "tail_breach_intraday": Study(

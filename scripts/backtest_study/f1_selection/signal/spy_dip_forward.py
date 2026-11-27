@@ -541,6 +541,12 @@ def build_rows(d: Data, window: str, h: int = H, defn: str = PRIMARY,
 # Arms and the bootstrap
 # ════════════════════════════════════════════════════════════════════════════
 
+def ordinal(n: int) -> str:
+    """21 -> '21st', 22 -> '22nd', 11 -> '11th'."""
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
 def _mean(v: np.ndarray) -> float:
     return float(np.mean(v)) if len(v) else float("nan")
 
@@ -1354,7 +1360,7 @@ def run(refresh: bool = False, registered: str | None = None) -> int:
         sp = measure(r.subset(np.arange(r.n) % SPACED_STEP == 0), arms=("P",), L=SPACED_BLOCK)["P"]
         print(f"  WEEKLY {w}: P {res_line(wk)} (first session of each ISO week, blocks of "
               f"{WEEKLY_BLOCK})")
-        print(f"  SPACED {w}: P {res_line(sp)} (every {SPACED_STEP}th entry, blocks of {SPACED_BLOCK})")
+        print(f"  SPACED {w}: P {res_line(sp)} (every {ordinal(SPACED_STEP)} entry, blocks of {SPACED_BLOCK})")
     for w in ("DISCOVERY", "HOLDOUT"):
         r = rows[w]
         dip = r.f == 1

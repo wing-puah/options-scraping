@@ -524,6 +524,21 @@ Decisions owed. None of these is a study.
     [`current.md`](current.md#2026-11-21--state_map-no-market-state-warned-before-a-top)
     (addendum). Nothing is left to decide.
 
+20. **OPEN 2026-11-28 — three operator calls and one rerun owed after the shares-only rules.**
+    Evidence:
+    [`current.md`](current.md#2026-11-28--two-more-shares-only-rules-volatility-scaling-is-null-dips-pay-a-risk-premium).
+    Defaults are the status quo in each case.
+
+    | Call | Default | If changed |
+    |---|---|---|
+    | File the `spy_dip_forward` line in `deployment-evidence.md` as risk premium, not timing | Not filed; the file is untouched | Filing carries the registration's own rule into the evidence file |
+    | Keep or withdraw the [§4](../docs/deployment-rules.md#s4) gap-up prohibition; `hedge_timing` H3-GAP now reads `NULL`, the card cites the September `CONTRARY` | Keep; the card is untouched | Withdrawing edits the operator card |
+    | Rule on the DBC 2024-12-23 distribution in `multi_asset_trend` (gate GB passed it on a feed-implied jump; see the 2026-11-27 entry) | Ruling stands as built | Leaving the study `REFUSED` is the stricter choice |
+
+    Owed rerun, after the 2026-11-27 US close:
+    `python3 -m scripts.backtest_study run calendar_drift --refresh`. The runner
+    passes `--` through, so the flag goes without it.
+
 <a id="s0c"></a>
 ## 0c. Study suite — historical, resolved 2026-08-14
 
