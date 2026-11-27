@@ -699,7 +699,7 @@ STUDIES: dict[str, Study] = {
         question="Do the deployed picks beat a mechanical bull call spread on the same dates: "
                  "ATM/+5% on the same ticker and expiry (M1), a delta-matched one (M2), and the "
                  "same wrap on a random ticker from the day's flow universe (U)?",
-        verdict="2026-10-21 run (v4, exports 2026-10-21, git d55d1cb; after the in-place "
+        verdict="2026-11-27 suite run (era v4, 2,073-row book): `VERDICT: NOT BUILT — AWAITING SCRAPE`, with `era current: same-ticker arms (M1 M2 M2L) AWAITING  ·  ARM U AWAITING`, `4a M1/M2 pairs awaiting a fetch 10  NEEDS OPERATOR-RUN FETCH` and `4b contracts still to fetch, every arm 11818 (one feed request each); U wraps awaiting 12839`. `The census is the recorded result. No outcome column was read.` The SAME-TICKER READ below is the last graded one and is not re-confirmed. Earlier reads follow. 2026-10-21 run (v4, exports 2026-10-21, git d55d1cb; after the in-place "
                 "re-price and the new 10-19/10-20 plays): `VERDICT: NOT BUILT — AWAITING "
                 "SCRAPE`. `4a  M1/M2 pairs awaiting a fetch 15  NEEDS OPERATOR-RUN FETCH`, so no "
                 "arm is graded and `ARM M1` `CONTRARY` cannot be re-read until the fetch runs. "
@@ -731,7 +731,7 @@ STUDIES: dict[str, Study] = {
                  "ATM/+5% call vertical bought on the first session of each week, at the monthly "
                  "expiry nearest 65 DTE, under the shipped debit exits? Graded against zero, against "
                  "SPY's own drift (ARM H), a random flow ticker (ARM RND) and the v4 book (ARM BK).",
-        verdict="Registered and accepted by the operator 2026-10-26; module built the same day. "
+        verdict="2026-11-27 suite run (era v4, 2,073-row book): `VERDICT: NOT BUILT — AWAITING SCRAPE`, with `PRIMARY: NOT BUILT — AWAITING SCRAPE — 18 primary trades await a fetch.` and `No outcome was computed for any arm: no R, no P&L, no CI.` The NO-REPLACEMENT read below is the last graded one and is not re-confirmed. Earlier reads follow. Registered and accepted by the operator 2026-10-26; module built the same day. "
                 "2026-11-11 run: `VERDICT: NO-REPLACEMENT`, from `ARM X NULL  ·  ARM H "
                 "NEGATIVE-ALPHA  ·  ARM RND NOT BUILT — AWAITING SCRAPE (not in the study "
                 "token)  ·  ARM BK NULL`. ARM X: `trades 140 dates 140  meanR +0.062 CI95 "
@@ -742,12 +742,12 @@ STUDIES: dict[str, Study] = {
                 "retrospective.`",
     ),
     "spy_benchmark": Study(
-        family="selection", state="null",
+        family="selection", state="open",
         question="Do the deployed picks beat a SPY call spread on the same dates: the ARM M1 "
                  "wrap (ATM/+5%, the pick's own expiry, same entry day, same exit profile) on "
                  "SPY instead of the pick's ticker? P2 of the 2026-10-13 plan; post hoc, and "
                  "not a programme_gate input.",
-        verdict="2026-11-10 run of record (era current): `VERDICT (headline basis, SB-UNIT = pick): DOES-NOT-BEAT` on `SPY   pairs  381 dates  189  meanR T +0.084 C +0.108  gain -0.023 [-0.134, +0.086]`, `C0 Y  C1 n  C2 n  clears C0-C2 n  CONTRARY n`. The SB-UNIT = date line also prints `DOES-NOT-BEAT`. Earlier run, 2026-10-15 (v4, exports 2026-10-06, post-P3 tiers, git c8b1f4e): "
+        verdict="2026-11-27 suite run (era v4, 2,073-row book): `VERDICT: NOT BUILT — AWAITING SCRAPE`, with `3  SPY contracts to fetch 16 (one feed request each); pairs awaiting 17  NEEDS OPERATOR-APPROVED FETCH` and `No outcome was computed: no SPY wrap was priced or replayed.` The DOES-NOT-BEAT read below is the last graded one and is not re-confirmed. Earlier reads follow. 2026-11-10 run of record (era current): `VERDICT (headline basis, SB-UNIT = pick): DOES-NOT-BEAT` on `SPY   pairs  381 dates  189  meanR T +0.084 C +0.108  gain -0.023 [-0.134, +0.086]`, `C0 Y  C1 n  C2 n  clears C0-C2 n  CONTRARY n`. The SB-UNIT = date line also prints `DOES-NOT-BEAT`. Earlier run, 2026-10-15 (v4, exports 2026-10-06, post-P3 tiers, git c8b1f4e): "
                 "`VERDICT (headline basis, SB-UNIT = pick): DOES-NOT-BEAT` on `SPY   pairs  381 "
                 "dates  190  meanR T +0.093 C +0.124  gain -0.031 [-0.134, +0.074]`, `C0 Y  C1 n  "
                 "C2 n  clears C0-C2 n  CONTRARY n`. The SB-UNIT = date line and the declared "
@@ -1343,11 +1343,11 @@ STUDIES: dict[str, Study] = {
                 "against a benchmark that is itself compounded.",
     ),
     "narrow_to_fit": Study(
-        family="deployment", state="null",
+        family="deployment", state="open",
         question="When a pick's one-contract max loss is over budget, is it better to narrow "
                  "the spread until it fits, or to refuse it? Headline (R, F3, $1,000); F4 "
                  "splits the $1,000 stop from the $1,000 budget.",
-        verdict="2026-10-07 graded run (v4, exports 2026-10-06, after the substitute-leg "
+        verdict="2026-11-27 suite run (era v4, 2,073-row book): `>>> (R, F3, $1,000): AWAITING SCRAPE <<<`, and the same for `(R, F3, $1,000) + 20% net floor`, `(R, F3, $500)` and `(R, F3, $500) + 20% net floor`, on `GN5 fires: census only, nothing graded.` F4 still grades: `>>> F4 ($500 budget, $1,000 stop): STOP-HURTS <<<  (PRIMARY maxDD $-16,878 vs (R, F1, $500) $-13,478)`, and `>>> (R, F1, $1,000): STOP-HURTS <<<`. The NULL headline below is the last graded one and is not re-confirmed. Earlier reads follow. 2026-10-07 graded run (v4, exports 2026-10-06, after the substitute-leg "
                 "scrape and two confirming passes): `headline (R, F3, $1,000): NULL` and "
                 "`secondary (R, F3, $500): NARROW-FEASIBLE`, with `gates: G2-G5 PASS  GN1 PASS  "
                 "GN2 PASS  GN3 PASS  GN4 PASS`. Coverage now clears: `GN5 COVERAGE: 11 of 238 "
@@ -1462,7 +1462,7 @@ STUDIES: dict[str, Study] = {
                  "unaffordable pick) and narrow_to_fit's (R, F3, $500) (narrow it to fit) keep "
                  "a positive mean R and a survivable drawdown? A confidence sequence, valid "
                  "under any number of looks, graded on every suite run.",
-        verdict="Registered 2026-10-07, built the same day. No forward date has priced yet, so "
+        verdict="2026-11-27 suite run (era v4, 2,073-row book): `>>> (R, F2, $500): STILL-OPEN <<<` and `>>> (R, F3, $500): AWAITING SCRAPE <<<`, with `>>> (R, F3, $500) + 20% net floor: AWAITING SCRAPE <<<`. GN5 reads `over-budget PRIMARY picks offered 63  narrowed 18  no_fit 17  tier_break 1  unpriced 27 (43%; bar 10%) -> FIRES — F3 prints AWAITING SCRAPE on this look`. Earlier reads follow. Registered 2026-10-07, built the same day. No forward date has priced yet, so "
                 "the module prints the census and STILL-OPEN for both cells and exits as a "
                 "designed refusal. The expected state is STILL-OPEN for months: about 175 "
                 "forward dates to confirm F2's in-sample effect and about 145 for F3's. "

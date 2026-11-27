@@ -698,15 +698,19 @@ against +0.0050 before the unseal. The rule it guards has been off since 2026-08
 ### Still waiting on legs
 
 Each fetch exposes the next strikes, so fetch and re-run alternate. Three rounds ran on
-2026-11-27; the counts below are after round 2. Most of the rest are unlisted on Barchart.
+2026-11-27, and a fourth for `mechanical_baseline` alone. Most of the rest are unlisted on
+Barchart.
 
 | Study | Verdict | Waiting, first pass → now |
 |---|---|---|
-| `mechanical_baseline` | `NOT BUILT — AWAITING SCRAPE` | 84 → 6 primary trades |
-| `mechanical_benchmark` | `NOT BUILT — AWAITING SCRAPE` | v4 M2 38 → 13, M1 6 → 3, M2L 2 → 1 |
-| `spy_benchmark` | `NOT BUILT — AWAITING SCRAPE` | 179 → 35 pairs |
+| `mechanical_baseline` | `NOT BUILT — AWAITING SCRAPE` | 84 → 18 primary trades |
+| `mechanical_benchmark` | `NOT BUILT — AWAITING SCRAPE` | v4 M2 38 → 9, M1 6 → 1, M2L 2 → 0 |
+| `spy_benchmark` | `NOT BUILT — AWAITING SCRAPE` | 179 → 17 pairs |
 | `narrow_to_fit` F3 | `AWAITING SCRAPE` | unpriced 42% → 20%, bar 10% |
 | `refuse_floor_forward` F3 | `AWAITING SCRAPE` | unpriced 85% → 43%, bar 10% |
+
+`mechanical_baseline` reached 6 after round 2. Another session's SPY fetch then cached new
+strikes, its strike walk picked them, and the count rose to 78 before round 4.
 
 The substitute pool for `narrow_to_fit` is exhausted: the last pass fetched 0 of 1. Its F3
 cells cannot grade on this book. `daily_vol_structure` fetches forward legs only once a
